@@ -58,6 +58,7 @@ target_sources(Brocot PRIVATE
     source/PluginEditor.cpp
     source/audio/Path.cpp
     source/audio/BrocotVoice.cpp
+    source/audio/AmpEnvelope.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -101,8 +102,10 @@ if(BROCOT_BUILD_TESTS)
     add_executable(BrocotTests
         tests/PathTests.cpp
         tests/VoiceSmokeTests.cpp
+        tests/MidiVoiceTests.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
+        source/audio/AmpEnvelope.cpp
     )
 
     target_include_directories(BrocotTests PRIVATE source)
@@ -110,6 +113,7 @@ if(BROCOT_BUILD_TESTS)
     target_link_libraries(BrocotTests PRIVATE
         Catch2::Catch2WithMain
         juce::juce_core
+        juce::juce_audio_basics
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags
     )

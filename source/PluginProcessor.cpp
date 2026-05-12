@@ -13,18 +13,17 @@ BrocotAudioProcessor::BrocotAudioProcessor()
         // so hosts don't surface an input on a synth plugin in v1.
         .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false))
 {
-    // Hard-coded "Avatar·1" preset for Slice 4 — the first preset Will
-    // discovered manually in the web prototype. BROCOT-SPEC.md §4 lists this
-    // as the multi-modulator audio-engine verification case.
+    // Hard-coded "Avatar·1" operator setup per BROCOT-SPEC.md §10 (preset #9).
+    // Carrier frequency now follows MIDI (set in noteOn); only the modulator
+    // configuration is fixed at construction. Slice 13 replaces this with
+    // the preset system.
     //
     //   shared path     RLLLR
-    //   carrier         C3 (130.81 Hz)
     //   op 0   pos 1 → R       (2/1)   depth 5.13
     //   op 1   pos 3 → RLL     (4/3)   depth 0.86
     //   op 2   pos 5 → RLLLR   (9/7)   depth 0.90
     //   ops 3..7 disabled
-    voice.setCarrierHz (130.81f);
-    voice.setLevel (0.18f);
+    voice.setLevel (0.25f);
 
     const Path sharedPath ("RLLLR");
     struct OpSetup { int position; float depth; };
@@ -85,8 +84,31 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         return;
     }
 
-    // Render mono FM voice into channel 0, then mirror to remaining outputs.
-    voice.render (buffer.getWritePointer (0), numSamples);
+    // Sample-accurate MIDI: render the FM voice in chunks between MIDI events,
+    // applying each event at its exact sample offset. Mono voice per spec §8;
+    // duophony lands in Slice 15 once polyphony management is layered on top.
+    float* const monoOut = buffer.getWritePointer (0);
+    int processedSamples = 0;
+
+    for (const auto meta : midi)
+    {
+        const int eventSample = juce::jlimit (0, numSamples, meta.samplePosition);
+        const int samplesToRender = eventSample - processedSamples;
+        if (samplesToRender > 0)
+            voice.render (monoOut + processedSamples, samplesToRender);
+        processedSamples = eventSample;
+
+        const auto msg = meta.getMessage();
+        if (msg.isNoteOn())
+            voice.noteOn (msg.getNoteNumber(), msg.getFloatVelocity());
+        else if (msg.isNoteOff())
+            voice.noteOff (msg.getNoteNumber());
+        // Other MIDI (CCs, pitch bend, aftertouch) is plumbed in Slice 6.
+    }
+
+    if (processedSamples < numSamples)
+        voice.render (monoOut + processedSamples, numSamples - processedSamples);
+
     for (int ch = 1; ch < numOutChannels; ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
 

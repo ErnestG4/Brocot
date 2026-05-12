@@ -44,6 +44,12 @@ TEST_CASE ("octave·J1 hard-coded preset renders bounded, non-zero, non-NaN audi
 {
     BrocotVoice v;
     v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
     v.setCarrierHz (220.0f);
     v.setLevel (0.2f);
 
@@ -71,6 +77,12 @@ TEST_CASE ("Silent when no operators are enabled (carrier only)", "[BrocotVoice]
     // itself behaves and doesn't depend on the modulator path being valid.
     BrocotVoice v;
     v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
     v.setCarrierHz (220.0f);
     v.setLevel (0.2f);
     // ops default to disabled
@@ -91,6 +103,12 @@ TEST_CASE ("Carrier frequency is approximately 220 Hz (zero-crossing count)", "[
     // output over 1 second. For a 220 Hz sine that's ~440 crossings.
     BrocotVoice v;
     v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
     v.setCarrierHz (220.0f);
     v.setLevel (0.2f);
 
@@ -119,6 +137,12 @@ TEST_CASE ("Avatar·1 (3 ops on shared path RLLLR) renders bounded multi-op audi
     //   depths 5.13, 0.86, 0.90; carrier 130.81 Hz.
     BrocotVoice v;
     v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
     v.setCarrierHz (130.81f);
     v.setLevel (0.18f);
 
@@ -160,6 +184,12 @@ TEST_CASE ("All-ops-enabled-but-depth-zero is identical to carrier-only", "[Broc
     auto renderCarrierOnly = [] {
         BrocotVoice v;
         v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
         v.setCarrierHz (220.0f);
         v.setLevel (0.2f);
         std::vector<float> buf (4096, 0.0f);
@@ -170,6 +200,12 @@ TEST_CASE ("All-ops-enabled-but-depth-zero is identical to carrier-only", "[Broc
     auto renderZeroDepthOps = [] {
         BrocotVoice v;
         v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
         v.setCarrierHz (220.0f);
         v.setLevel (0.2f);
         for (int i = 0; i < BrocotVoice::N_OPS; ++i)
@@ -203,6 +239,12 @@ TEST_CASE ("Multi-op output differs from single-op output (summation is real)", 
     auto renderWithOpCount = [] (int numOps) {
         BrocotVoice v;
         v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
         v.setCarrierHz (130.81f);
         v.setLevel (0.18f);
         const Path shared ("RLLLR");
@@ -245,6 +287,12 @@ TEST_CASE ("J₀ null preset (single mod at 1/1, I=2.405) renders cleanly", "[Br
     // the engine doesn't blow up at this notable depth value.
     BrocotVoice v;
     v.prepare (kSampleRate);
+    // Pre-Slice-5 tests bypass MIDI to exercise the carrier/op math at exact
+    // frequencies. Use a long-sustain envelope and trigger it manually so the
+    // gate is open for the entire render window without changing the carrier.
+    brocot::AmpEnvelope::Parameters wide { 0.0001f, 0.0f, 1.0f, 1.0f };
+    v.envelope().setParameters (wide);
+    v.envelope().noteOn();
     v.setCarrierHz (220.0f);
     v.setLevel (0.2f);
     auto& m0 = v.op (0);
