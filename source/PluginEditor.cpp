@@ -17,6 +17,9 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
         processorRef.getAPVTS(), params::ids::pathMode, pathModeCombo);
 
     addAndMakeVisible (pathNavigator);
+    addAndMakeVisible (filterPanel);
+    addAndMakeVisible (envelopePanel);
+    addAndMakeVisible (lfoPanel);
 
     for (int i = 0; i < params::kNumOperators; ++i)
     {
@@ -67,9 +70,13 @@ void BrocotAudioProcessorEditor::resized()
     pathNavigator.setBounds (pathRow);
     bounds.removeFromTop (8);
 
-    // Reserve the bottom strip for filter/env/LFO panels (Slice 12). For now
-    // it stays empty; the operator grid fills the rest.
-    bounds.removeFromBottom (130);
+    // Filter / Env / LFO panels along the bottom strip (spec §7 layout).
+    auto bottomStrip = bounds.removeFromBottom (130);
+    bounds.removeFromBottom (8);
+    const int panelW = bottomStrip.getWidth() / 3;
+    filterPanel.setBounds   (bottomStrip.removeFromLeft (panelW).reduced (2));
+    envelopePanel.setBounds (bottomStrip.removeFromLeft (panelW).reduced (2));
+    lfoPanel.setBounds      (bottomStrip.reduced (2));
 
     // 4-wide × 2-tall grid of operator panels (spec §7 layout mock).
     const int cols = 4, rows = 2;

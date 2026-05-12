@@ -6,6 +6,9 @@
 #include "ui/BrocotLookAndFeel.h"
 #include "ui/OperatorPanel.h"
 #include "ui/PathNavigator.h"
+#include "ui/FilterPanel.h"
+#include "ui/EnvelopePanel.h"
+#include "ui/LFOPanel.h"
 
 namespace brocot
 {
@@ -27,6 +30,9 @@ private:
     juce::ComboBox pathModeCombo;
     PathNavigator  pathNavigator { processorRef };
     std::array<std::unique_ptr<OperatorPanel>, params::kNumOperators> operatorPanels;
+    FilterPanel    filterPanel   { processorRef };
+    EnvelopePanel  envelopePanel { processorRef };
+    LFOPanel       lfoPanel      { processorRef };
 
     using ComboAttach = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     std::unique_ptr<ComboAttach> pathModeAttach;
