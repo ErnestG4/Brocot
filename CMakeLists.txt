@@ -60,6 +60,8 @@ target_sources(Brocot PRIVATE
     source/audio/BrocotVoice.cpp
     source/audio/AmpEnvelope.cpp
     source/params/ParameterTree.cpp
+    source/ui/BrocotLookAndFeel.cpp
+    source/ui/OperatorPanel.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC

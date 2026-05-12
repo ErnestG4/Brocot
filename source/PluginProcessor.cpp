@@ -16,11 +16,11 @@ BrocotAudioProcessor::BrocotAudioProcessor()
 {
     // Seed the path data with the Avatar·1 configuration (BROCOT-SPEC.md §10
     // preset #9). Slice 13 swaps this out for preset-driven init.
-    opPaths[0] = Path (sharedPath).prefix (1).toString();  // R    → 2/1
-    opPaths[1] = Path (sharedPath).prefix (3).toString();  // RLL  → 4/3
-    opPaths[2] = Path (sharedPath).prefix (5).toString();  // RLLLR → 9/7
+    setOpPath (0, Path (sharedPath).prefix (1).toString());  // R    → 2/1
+    setOpPath (1, Path (sharedPath).prefix (3).toString());  // RLL  → 4/3
+    setOpPath (2, Path (sharedPath).prefix (5).toString());  // RLLLR → 9/7
     for (int i = 3; i < params::kNumOperators; ++i)
-        opPaths[(size_t) i] = "";
+        setOpPath (i, "");
 
     // Match the APVTS defaults for the Avatar·1 op depths so the host sees
     // the same starting state as the engine. The kNumOperators × 2 defaults
@@ -84,7 +84,7 @@ void BrocotAudioProcessor::applyParametersToVoice()
 
         if (enabled)
         {
-            op.setPath (Path (opPaths[(size_t) i]));
+            op.setRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
 
             float depth = 0.0f;
             if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
@@ -263,6 +263,24 @@ void BrocotAudioProcessor::setStateInformation (const void* data, int sizeInByte
 
     apvts.replaceState (state);
     applyParametersToVoice();
+}
+
+juce::String BrocotAudioProcessor::getOpPath (int idx) const
+{
+    if (idx < 0 || idx >= params::kNumOperators) return {};
+    const juce::ScopedLock lock (pathsLock);
+    return opPaths[(size_t) idx];
+}
+
+void BrocotAudioProcessor::setOpPath (int idx, const juce::String& pathString)
+{
+    if (idx < 0 || idx >= params::kNumOperators) return;
+    const Path p (pathString);
+    {
+        const juce::ScopedLock lock (pathsLock);
+        opPaths[(size_t) idx] = pathString;
+    }
+    opRatios[(size_t) idx].store ((float) p.ratio(), std::memory_order_release);
 }
 
 } // namespace brocot

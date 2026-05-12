@@ -46,6 +46,11 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
 
+    /** UI-thread accessors for per-operator paths. Audio thread reads only
+        the cached ratio (atomic), never the string itself. */
+    juce::String getOpPath (int idx) const;
+    void setOpPath (int idx, const juce::String& pathString);
+
 private:
     juce::AudioProcessorValueTreeState apvts;
 
@@ -62,10 +67,15 @@ private:
     MIDIVelocitySource         velocitySource;
     AmpEnvSource               ampEnvSource;
 
-    // Hardcoded path data lives outside APVTS (paths aren't host-automatable);
-    // Slice 13 routes preset load/save through this.
+    // Path data lives outside APVTS (paths aren't host-automatable). The
+    // string representation is what the UI / preset code touches; the audio
+    // thread only reads `opRatios` (atomic cache, recomputed on every path
+    // mutation). pathsLock guards string reads/writes; ratios use relaxed
+    // atomics so the audio thread never blocks on a UI update.
     juce::String sharedPath { "RLLLR" };
     std::array<juce::String, params::kNumOperators> opPaths {};
+    std::array<std::atomic<float>, params::kNumOperators> opRatios {};
+    juce::CriticalSection pathsLock;
 
     void applyParametersToVoice();
     float midiNoteWithBend (int noteNumber) const noexcept;

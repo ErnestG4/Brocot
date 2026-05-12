@@ -1,48 +1,76 @@
 #include "PluginEditor.h"
+#include "util/Colors.h"
+#include "util/Fonts.h"
 
 namespace brocot
 {
 
-namespace colors
-{
-    // BROCOT-SPEC.md §7 — palette constants. Centralized later in util/Colors.h
-    // when Slice 8 lands; defined inline here so Slice 1 has the right look.
-    static const juce::Colour background       { 12,  10,  9   };
-    static const juce::Colour primaryText      { 254, 243, 199 };
-    static const juce::Colour amber500         { 245, 158, 11  };
-    static const juce::Colour amber200_60      { (juce::uint8) 253, (juce::uint8) 230, (juce::uint8) 138, 0.6f };
-}
-
 BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     : juce::AudioProcessorEditor (&p), processorRef (p)
 {
+    setLookAndFeel (&lookAndFeel);
+
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        operatorPanels[(size_t) i] = std::make_unique<OperatorPanel> (processorRef, i);
+        addAndMakeVisible (*operatorPanels[(size_t) i]);
+    }
+
     setSize (1100, 720);
     setResizable (true, true);
     setResizeLimits (880, 580, 1600, 1050);
 }
 
-BrocotAudioProcessorEditor::~BrocotAudioProcessorEditor() = default;
+BrocotAudioProcessorEditor::~BrocotAudioProcessorEditor()
+{
+    setLookAndFeel (nullptr);
+}
 
 void BrocotAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (colors::background);
 
+    // Title row
     g.setColour (colors::primaryText);
-    g.setFont (juce::Font (juce::FontOptions ("Georgia", 24.0f, juce::Font::italic)));
+    g.setFont (fonts::serifItalic (24.0f));
     g.drawText ("brocot",
-                getLocalBounds().removeFromTop (60).withTrimmedLeft (24),
+                getLocalBounds().removeFromTop (40).withTrimmedLeft (24),
                 juce::Justification::centredLeft);
 
-    g.setColour (colors::amber200_60);
-    g.setFont (juce::Font (juce::FontOptions ("monospace", 10.0f, juce::Font::plain)));
-    g.drawText ("v0.1 · slice 1 scaffold",
-                getLocalBounds().removeFromTop (60).withTrimmedRight (24),
+    g.setColour (colors::secondaryAtAlpha (0.6f));
+    g.setFont (fonts::mono (10.0f));
+    g.drawText ("v0.1 · free mode",
+                getLocalBounds().removeFromTop (40).withTrimmedRight (24),
                 juce::Justification::centredRight);
 
-    g.setColour (colors::amber500.withAlpha (0.15f));
-    g.drawHorizontalLine (60, 24.0f, (float) getWidth() - 24.0f);
+    g.setColour (colors::accent.withAlpha (0.15f));
+    g.drawHorizontalLine (40, 24.0f, (float) getWidth() - 24.0f);
 }
 
-void BrocotAudioProcessorEditor::resized() {}
+void BrocotAudioProcessorEditor::resized()
+{
+    auto bounds = getLocalBounds().reduced (24);
+    bounds.removeFromTop (40);     // title row reserved by paint()
+
+    // Reserve the bottom strip for filter/env/LFO panels (Slice 12). For now
+    // it stays empty; the operator grid fills the rest.
+    bounds.removeFromBottom (130);
+
+    // 4-wide × 2-tall grid of operator panels (spec §7 layout mock).
+    const int cols = 4, rows = 2;
+    const int gap = 8;
+    const int cellW = (bounds.getWidth() - gap * (cols - 1)) / cols;
+    const int cellH = (bounds.getHeight() - gap * (rows - 1)) / rows;
+
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        const int col = i % cols;
+        const int row = i / cols;
+        const int x = bounds.getX() + col * (cellW + gap);
+        const int y = bounds.getY() + row * (cellH + gap);
+        if (auto& panel = operatorPanels[(size_t) i])
+            panel->setBounds (x, y, cellW, cellH);
+    }
+}
 
 } // namespace brocot
