@@ -57,6 +57,7 @@ target_sources(Brocot PRIVATE
     source/PluginProcessor.cpp
     source/PluginEditor.cpp
     source/audio/Path.cpp
+    source/audio/BrocotVoice.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -99,7 +100,9 @@ if(BROCOT_BUILD_TESTS)
 
     add_executable(BrocotTests
         tests/PathTests.cpp
+        tests/VoiceSmokeTests.cpp
         source/audio/Path.cpp
+        source/audio/BrocotVoice.cpp
     )
 
     target_include_directories(BrocotTests PRIVATE source)

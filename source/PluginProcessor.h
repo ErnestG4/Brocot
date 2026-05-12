@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "audio/BrocotVoice.h"
+
 namespace brocot
 {
 
@@ -37,6 +39,8 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
 private:
+    BrocotVoice voice;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessor)
 };
 
