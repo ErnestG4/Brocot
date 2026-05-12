@@ -2,6 +2,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <juce_audio_basics/juce_audio_basics.h>
+
 #include "audio/BrocotVoice.h"
 #include "audio/FilterBank.h"
 #include "audio/LFO.h"
@@ -54,6 +56,12 @@ public:
     bool snapshotRecentAudio (std::vector<float>& dest) const noexcept;
 
     PresetManager& getPresetManager() noexcept { return presetManager; }
+
+    /** Exposed for the editor's on-screen MidiKeyboardComponent. Notes
+        played on the on-screen keyboard inject events into this state;
+        processBlock copies them into the MIDI buffer before the voice
+        allocator runs. */
+    juce::MidiKeyboardState& getKeyboardState() noexcept { return keyboardState; }
 
     /** UI-thread accessors for per-operator paths. Audio thread reads only
         the cached ratio (atomic), never the string itself. */
@@ -113,6 +121,8 @@ private:
     void writeScopeSamples (const float* samples, int n) noexcept;
 
     PresetManager presetManager { *this };
+
+    juce::MidiKeyboardState keyboardState;
 
     void refreshSharedRatios();
     float midiNoteWithBend (int noteNumber) const noexcept;

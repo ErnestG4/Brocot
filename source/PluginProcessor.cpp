@@ -167,6 +167,10 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         return;
     }
 
+    // Merge any notes played on the editor's on-screen keyboard into the
+    // incoming MIDI buffer. This is a no-op when no UI keyboard is active.
+    keyboardState.processNextMidiBuffer (midi, 0, numSamples, true);
+
     // Pull current parameter snapshot once per block. Block-level smoothing
     // is good enough for v1; per-sample smoothing arrives if/when a slider
     // is observed to click.

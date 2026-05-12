@@ -14,6 +14,12 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     aboutBtn.setTooltip ("About brocot");
     aboutBtn.onClick = [this] { AboutDialog::launch (this); };
 
+    addAndMakeVisible (keyboard);
+    keyboard.setLowestVisibleKey (36);   // C2 — three octaves below middle C
+    keyboard.setOctaveForMiddleC (4);
+    setWantsKeyboardFocus (true);        // let computer-keyboard input reach
+    keyboard.setWantsKeyboardFocus (true);
+
     addAndMakeVisible (presetBar);
 
     addAndMakeVisible (pathModeCombo);
@@ -103,13 +109,17 @@ void BrocotAudioProcessorEditor::resized()
     ratioReadout.setBounds (bounds.removeFromTop (54));
     bounds.removeFromTop (10);
 
-    // Filter / Env / LFO panels along the bottom strip (spec §7 layout).
+    // Filter / Env / LFO panels along the bottom strip, with the on-screen
+    // keyboard sitting just above them.
     auto bottomStrip = bounds.removeFromBottom (130);
     bounds.removeFromBottom (8);
     const int panelW = bottomStrip.getWidth() / 3;
     filterPanel.setBounds   (bottomStrip.removeFromLeft (panelW).reduced (2));
     envelopePanel.setBounds (bottomStrip.removeFromLeft (panelW).reduced (2));
     lfoPanel.setBounds      (bottomStrip.reduced (2));
+
+    keyboard.setBounds (bounds.removeFromBottom (64));
+    bounds.removeFromBottom (8);
 
     // 4-wide × 2-tall grid of operator panels (spec §7 layout mock).
     const int cols = 4, rows = 2;
