@@ -19,9 +19,17 @@ namespace params
 {
     inline constexpr int kNumOperators = 8;
 
-    inline juce::String opId (int idx, juce::StringRef suffix)
+    inline juce::String opId (int idx, const char* suffix)
     {
-        return juce::String::formatted ("op%d.%s", idx, suffix.text);
+        // Plain string concatenation — do NOT use juce::String::formatted
+        // with "%s" here. On Windows, String::formatted converts the format
+        // to wide-char and calls _vsnwprintf, which then interprets %s as
+        // wchar_t* and reads our const char* two bytes at a time as garbage
+        // wide chars. The result is corrupted parameter IDs that don't match
+        // any APVTS parameter — every Attachment in the editor then silently
+        // fails to bind, and the audio thread sees default values forever.
+        return juce::String ("op") + juce::String (idx)
+             + juce::String (".") + juce::String (suffix);
     }
 
     namespace ids
