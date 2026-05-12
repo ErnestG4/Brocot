@@ -51,8 +51,7 @@ void PathNavigator::refreshFromProcessor()
                         juce::dontSendNotification);
 
     pathLabel.setText ("shared:  " +
-                       (pathStr.isEmpty() ? juce::String (juce::CharPointer_UTF8 ("·"))
-                                          : pathStr),
+                       (pathStr.isEmpty() ? juce::String (".") : pathStr),
                        juce::dontSendNotification);
 
     btnDrop.setEnabled (! pathStr.isEmpty());

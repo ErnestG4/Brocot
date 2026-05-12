@@ -35,7 +35,7 @@ private:
     juce::Label        pathLabel;        // L/R string
     juce::TextButton   btnAddL { "+L" };
     juce::TextButton   btnAddR { "+R" };
-    juce::TextButton   btnDrop { "−"  };
+    juce::TextButton   btnDrop { "-" };
 
     juce::String cachedPath;
 

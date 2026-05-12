@@ -9,7 +9,7 @@ namespace brocot
 LFOPanel::LFOPanel (BrocotAudioProcessor& processor)
 {
     addAndMakeVisible (title);
-    title.setText ("lfo → filter cutoff", juce::dontSendNotification);
+    title.setText ("lfo -> filter cutoff", juce::dontSendNotification);
     title.setFont (fonts::serifItalic (14.0f));
     title.setColour (juce::Label::textColourId, colors::primaryText);
 

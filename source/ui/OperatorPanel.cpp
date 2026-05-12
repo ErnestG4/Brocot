@@ -16,7 +16,7 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
 
     addAndMakeVisible (ratioDisplay);
     ratioDisplay.setJustificationType (juce::Justification::centred);
-    ratioDisplay.setFont (fonts::serifItalic (28.0f));
+    ratioDisplay.setFont (fonts::serifItalic (26.0f));
     ratioDisplay.setColour (juce::Label::textColourId, colors::primaryText);
 
     addAndMakeVisible (pathLabel);
@@ -35,8 +35,9 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
 
     addAndMakeVisible (positionSlider);
     positionSlider.setSliderStyle (juce::Slider::IncDecButtons);
-    positionSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 30, 18);
+    positionSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 40, 22);
     positionSlider.setRange (0.0, 32.0, 1.0);
+    positionSlider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
 
     addAndMakeVisible (positionLabel);
     positionLabel.setText ("position", juce::dontSendNotification);
@@ -64,10 +65,28 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     positionAttach = std::make_unique<SliderAttach> (
         apvts, params::opId (opIndex, "position"), positionSlider);
 
+    // When the user enables this op in shared mode and the position is still 0
+    // (i.e., this op has never been positioned), snap to the current shared
+    // path tip so the new operator is audibly distinct from "1/1 root".
+    enabledToggle.onStateChange = [this]
+    {
+        if (enabledToggle.getToggleState() && proc.isSharedMode())
+        {
+            if ((int) std::round (positionSlider.getValue()) == 0)
+            {
+                const int len = Path (proc.getSharedPath()).depth();
+                if (len > 0)
+                    positionSlider.setValue ((double) len, juce::sendNotificationSync);
+            }
+        }
+    };
+
     setFreeModeWidgetsVisible (! proc.isSharedMode());
     refreshFromProcessor();
-    startTimerHz (15);   // path & depth display refresh — paths change rarely
+    startTimerHz (15);   // path & depth display refresh
 }
+
+OperatorPanel::~OperatorPanel() = default;
 
 void OperatorPanel::setFreeModeWidgetsVisible (bool freeMode)
 {
@@ -80,8 +99,6 @@ void OperatorPanel::setFreeModeWidgetsVisible (bool freeMode)
     positionLabel.setVisible  (! freeMode);
 }
 
-OperatorPanel::~OperatorPanel() = default;
-
 void OperatorPanel::refreshFromProcessor()
 {
     const auto pathStr = proc.getOpPath (opIndex);
@@ -91,8 +108,7 @@ void OperatorPanel::refreshFromProcessor()
 
     ratioDisplay.setText (juce::String (n) + " / " + juce::String (d),
                           juce::dontSendNotification);
-    pathLabel.setText (pathStr.isEmpty() ? juce::String (juce::CharPointer_UTF8 ("·"))
-                                         : pathStr,
+    pathLabel.setText (pathStr.isEmpty() ? juce::String (".") : pathStr,
                        juce::dontSendNotification);
 
     const float depth = (float) depthSlider.getValue();
@@ -100,7 +116,7 @@ void OperatorPanel::refreshFromProcessor()
     if (const auto* lm = bessel::nearest (depth))
     {
         const char* sym = lm->kind == bessel::Landmark::Kind::Peak ? "+" : "0";
-        depthText += juce::String::formatted ("  ·  J%d %s", lm->n, sym);
+        depthText += juce::String::formatted ("  J%d %s", lm->n, sym);
     }
     depthLabel.setText (depthText, juce::dontSendNotification);
     regimeLabel.setText (bessel::regimeLabel (depth), juce::dontSendNotification);
@@ -131,40 +147,61 @@ void OperatorPanel::paint (juce::Graphics& g)
 
 void OperatorPanel::resized()
 {
+    // Layout sketch:
+    //   ┌──────────────────────────┐
+    //   │ [x] mod N                │   enabledToggle  (18)
+    //   │                          │   gap            (4)
+    //   │      p / q (large)       │   ratioDisplay   (36)
+    //   │      <path string>       │   pathLabel      (14)
+    //   │                          │   gap            (6)
+    //   │   [ free or shared       │   nav strip      (44)
+    //   │     nav widgets ]        │
+    //   │                          │   gap            (8)
+    //   │ I = ...    regime label  │   depth row      (14)
+    //   │ ────●────────────────    │   depthSlider    (22)
+    //   └──────────────────────────┘
     auto r = getLocalBounds().reduced (8);
 
     enabledToggle.setBounds (r.removeFromTop (18));
     r.removeFromTop (4);
 
-    ratioDisplay.setBounds (r.removeFromTop (38));
-    pathLabel.setBounds (r.removeFromTop (14));
-    r.removeFromTop (4);
+    ratioDisplay.setBounds (r.removeFromTop (36));
+    pathLabel.setBounds    (r.removeFromTop (14));
+    r.removeFromTop (6);
 
-    // Both navigation widgets get laid out into the same region; only one
-    // set is visible at any time (driven by path-mode toggle).
-    auto navRow = r.removeFromTop (22);
-    auto rowFreeL = navRow.removeFromLeft (navRow.getWidth() / 2);
-    btnL.setBounds (rowFreeL);
-    btnR.setBounds (navRow);
-    r.removeFromTop (3);
+    // 44-px nav strip is shared between free-mode (two button rows) and
+    // shared-mode (centered position spinner). Each mode's widgets get the
+    // full strip; only one set is visible at a time, so there's no overlap.
+    auto navStrip = r.removeFromTop (44);
 
-    auto navRow2 = r.removeFromTop (18);
-    btnUp.setBounds   (navRow2.removeFromLeft (navRow2.getWidth() / 2));
-    btnRoot.setBounds (navRow2);
+    // Free-mode layout: top row L/R, bottom row parent/root.
+    {
+        auto strip = navStrip;
+        auto topRow = strip.removeFromTop (22);
+        btnL.setBounds (topRow.removeFromLeft (topRow.getWidth() / 2).reduced (1));
+        btnR.setBounds (topRow.reduced (1));
+
+        auto bottomRow = strip.removeFromTop (20);
+        btnUp.setBounds   (bottomRow.removeFromLeft (bottomRow.getWidth() / 2).reduced (1));
+        btnRoot.setBounds (bottomRow.reduced (1));
+    }
+
+    // Shared-mode layout: label + spinner, vertically centered in the strip.
+    {
+        auto strip = navStrip;
+        auto label = strip.removeFromTop (14);
+        positionLabel.setBounds (label.reduced (2, 0));
+        strip.removeFromTop (2);
+        positionSlider.setBounds (strip.removeFromTop (24).reduced (2, 0));
+    }
+
     r.removeFromTop (8);
 
-    // Shared-mode widgets overlay the same vertical slot (only visible when
-    // not in free mode).
-    positionLabel.setBounds (rowFreeL.withY (rowFreeL.getY()).withTrimmedLeft (4));
-    auto posSliderArea = navRow.withX (rowFreeL.getX()).withWidth (rowFreeL.getWidth() + navRow.getWidth())
-                                  .withHeight (40)
-                                  .withY (rowFreeL.getY() + 16);
-    positionSlider.setBounds (posSliderArea);
+    auto depthRow = r.removeFromTop (14);
+    depthLabel.setBounds  (depthRow.removeFromLeft (depthRow.getWidth() * 3 / 5));
+    regimeLabel.setBounds (depthRow);
 
     depthSlider.setBounds (r.removeFromTop (22));
-    auto labelRow = r.removeFromTop (14);
-    depthLabel.setBounds  (labelRow.removeFromLeft (labelRow.getWidth() * 2 / 3));
-    regimeLabel.setBounds (labelRow);
 }
 
 } // namespace brocot

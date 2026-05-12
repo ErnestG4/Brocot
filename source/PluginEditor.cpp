@@ -17,6 +17,7 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
         processorRef.getAPVTS(), params::ids::pathMode, pathModeCombo);
 
     addAndMakeVisible (pathNavigator);
+    addAndMakeVisible (ratioReadout);
     addAndMakeVisible (filterPanel);
     addAndMakeVisible (envelopePanel);
     addAndMakeVisible (lfoPanel);
@@ -50,7 +51,7 @@ void BrocotAudioProcessorEditor::paint (juce::Graphics& g)
 
     g.setColour (colors::secondaryAtAlpha (0.6f));
     g.setFont (fonts::mono (10.0f));
-    g.drawText ("v0.1 · free mode",
+    g.drawText ("v0.1 alpha",
                 getLocalBounds().removeFromTop (40).withTrimmedRight (24),
                 juce::Justification::centredRight);
 
@@ -69,6 +70,11 @@ void BrocotAudioProcessorEditor::resized()
     pathRow.removeFromLeft (8);
     pathNavigator.setBounds (pathRow);
     bounds.removeFromTop (8);
+
+    // Ratio readout strip: live frequency-ratio list + depth-ratio
+    // approximation. Display-only; matches farey-fm's findDepthRatio output.
+    ratioReadout.setBounds (bounds.removeFromTop (54));
+    bounds.removeFromTop (10);
 
     // Filter / Env / LFO panels along the bottom strip (spec §7 layout).
     auto bottomStrip = bounds.removeFromBottom (130);

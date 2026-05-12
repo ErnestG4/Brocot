@@ -59,6 +59,7 @@ target_sources(Brocot PRIVATE
     source/audio/Path.cpp
     source/audio/BrocotVoice.cpp
     source/audio/AmpEnvelope.cpp
+    source/audio/DepthRatio.cpp
     source/params/ParameterTree.cpp
     source/ui/BrocotLookAndFeel.cpp
     source/ui/OperatorPanel.cpp
@@ -67,6 +68,7 @@ target_sources(Brocot PRIVATE
     source/ui/FilterPanel.cpp
     source/ui/EnvelopePanel.cpp
     source/ui/LFOPanel.cpp
+    source/ui/RatioReadout.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -114,6 +116,8 @@ if(BROCOT_BUILD_TESTS)
         tests/ModGraphTests.cpp
         tests/FilterLFOTests.cpp
         tests/BesselTests.cpp
+        tests/DepthRatioTests.cpp
+        source/audio/DepthRatio.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
         source/audio/AmpEnvelope.cpp

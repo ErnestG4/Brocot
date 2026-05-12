@@ -9,6 +9,7 @@
 #include "ui/FilterPanel.h"
 #include "ui/EnvelopePanel.h"
 #include "ui/LFOPanel.h"
+#include "ui/RatioReadout.h"
 
 namespace brocot
 {
@@ -29,6 +30,7 @@ private:
 
     juce::ComboBox pathModeCombo;
     PathNavigator  pathNavigator { processorRef };
+    RatioReadout   ratioReadout  { processorRef };
     std::array<std::unique_ptr<OperatorPanel>, params::kNumOperators> operatorPanels;
     FilterPanel    filterPanel   { processorRef };
     EnvelopePanel  envelopePanel { processorRef };
