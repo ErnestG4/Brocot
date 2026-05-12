@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "DepthSlider.h"
+
 namespace brocot
 {
 
@@ -35,8 +37,9 @@ private:
     const int opIndex;
 
     juce::ToggleButton enabledToggle;
-    juce::Slider       depthSlider;
+    DepthSlider        depthSlider;
     juce::Label        depthLabel;
+    juce::Label        regimeLabel;
     juce::Label        ratioDisplay;
     juce::Label        pathLabel;
 

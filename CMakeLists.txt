@@ -62,6 +62,7 @@ target_sources(Brocot PRIVATE
     source/params/ParameterTree.cpp
     source/ui/BrocotLookAndFeel.cpp
     source/ui/OperatorPanel.cpp
+    source/ui/DepthSlider.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -108,6 +109,7 @@ if(BROCOT_BUILD_TESTS)
         tests/MidiVoiceTests.cpp
         tests/ModGraphTests.cpp
         tests/FilterLFOTests.cpp
+        tests/BesselTests.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
         source/audio/AmpEnvelope.cpp

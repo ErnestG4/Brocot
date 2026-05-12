@@ -1,0 +1,18 @@
+{
+  "$schema": "brocot.bessel_landmarks/v1",
+  "_comment": "BROCOT-SPEC.md §10. These values are the canonical Bessel-function peaks and zeros used by the depth slider's tick marks and the nearest-landmark display. The C++ side mirrors these in source/audio/Bessel.h; the values must match.",
+  "peaks": [
+    { "n": 1, "I": 1.8412, "label": "J1_peak" },
+    { "n": 2, "I": 3.0542, "label": "J2_peak" },
+    { "n": 3, "I": 4.2012, "label": "J3_peak" },
+    { "n": 4, "I": 5.3176, "label": "J4_peak" },
+    { "n": 5, "I": 6.4156, "label": "J5_peak" }
+  ],
+  "zeros": [
+    { "n": 0, "I": 2.4048, "label": "J0_null" },
+    { "n": 1, "I": 3.8317, "label": "J1_null" },
+    { "n": 2, "I": 5.1356, "label": "J2_null" },
+    { "n": 0, "I": 5.5201, "label": "J0_null_2" },
+    { "n": 1, "I": 7.0156, "label": "J1_null_2" }
+  ]
+}

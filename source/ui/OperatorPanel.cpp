@@ -1,5 +1,6 @@
 #include "OperatorPanel.h"
 #include "../PluginProcessor.h"
+#include "../audio/Bessel.h"
 #include "../audio/Path.h"
 #include "../util/Colors.h"
 #include "../util/Fonts.h"
@@ -33,14 +34,16 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     btnRoot.onClick = [this] { mutatePath ([] (const juce::String&) { return juce::String(); }); };
 
     addAndMakeVisible (depthSlider);
-    depthSlider.setSliderStyle (juce::Slider::LinearHorizontal);
-    depthSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    depthSlider.setRange (0.0, 8.0, 0.001);
 
     addAndMakeVisible (depthLabel);
     depthLabel.setJustificationType (juce::Justification::centredLeft);
     depthLabel.setFont (fonts::mono (10.0f));
     depthLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.6f));
+
+    addAndMakeVisible (regimeLabel);
+    regimeLabel.setJustificationType (juce::Justification::centredRight);
+    regimeLabel.setFont (fonts::serifItalic (10.0f));
+    regimeLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.4f));
 
     auto& apvts = proc.getAPVTS();
     enabledAttach = std::make_unique<ButtonAttach> (
@@ -66,8 +69,16 @@ void OperatorPanel::refreshFromProcessor()
     pathLabel.setText (pathStr.isEmpty() ? juce::String (juce::CharPointer_UTF8 ("·"))
                                          : pathStr,
                        juce::dontSendNotification);
-    depthLabel.setText (juce::String::formatted ("I = %.3f", (double) depthSlider.getValue()),
-                        juce::dontSendNotification);
+
+    const float depth = (float) depthSlider.getValue();
+    juce::String depthText = juce::String::formatted ("I = %.3f", (double) depth);
+    if (const auto* lm = bessel::nearest (depth))
+    {
+        const char* sym = lm->kind == bessel::Landmark::Kind::Peak ? "+" : "0";
+        depthText += juce::String::formatted ("  ·  J%d %s", lm->n, sym);
+    }
+    depthLabel.setText (depthText, juce::dontSendNotification);
+    regimeLabel.setText (bessel::regimeLabel (depth), juce::dontSendNotification);
 
     btnUp.setEnabled (! pathStr.isEmpty());
 }
@@ -113,8 +124,10 @@ void OperatorPanel::resized()
     btnRoot.setBounds (navRow2);
     r.removeFromTop (8);
 
-    depthLabel.setBounds  (r.removeFromTop (14));
-    depthSlider.setBounds (r.removeFromTop (18));
+    depthSlider.setBounds (r.removeFromTop (22));
+    auto labelRow = r.removeFromTop (14);
+    depthLabel.setBounds  (labelRow.removeFromLeft (labelRow.getWidth() * 2 / 3));
+    regimeLabel.setBounds (labelRow);
 }
 
 } // namespace brocot
