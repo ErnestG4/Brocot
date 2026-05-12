@@ -120,7 +120,23 @@ target_include_directories(Brocot PRIVATE source)
 if(BROCOT_BUILD_TESTS)
     enable_testing()
 
-    find_package(Catch2 3 REQUIRED)
+    # Try a system-installed Catch2 first (e.g., apt's catch2 package on
+    # Linux). Fall back to FetchContent for platforms without a package
+    # manager hit — pins to a known-good v3.5.4 release.
+    find_package(Catch2 3 QUIET)
+    if(NOT Catch2_FOUND)
+        message(STATUS "System Catch2 not found; fetching v3.5.4 from GitHub")
+        include(FetchContent)
+        FetchContent_Declare(
+            Catch2
+            GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+            GIT_TAG        v3.5.4
+        )
+        FetchContent_MakeAvailable(Catch2)
+        # catch_discover_tests lives in Catch2's extras/ — added to the
+        # module path automatically by find_package, but not by FetchContent.
+        list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+    endif()
 
     add_executable(BrocotTests
         tests/PathTests.cpp
