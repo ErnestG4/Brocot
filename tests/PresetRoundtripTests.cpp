@@ -57,6 +57,38 @@ TEST_CASE ("Sample Avatar 1 JSON parses and has expected fields", "[Preset]")
     REQUIRE ((double) firstOp->getProperty ("depth") == Catch::Approx (5.13).margin (1e-6));
 }
 
+TEST_CASE ("All factory .brocot files parse as valid JSON objects", "[Preset]")
+{
+    juce::File factoryDir (juce::String (BROCOT_SOURCE_DIR)
+                           + "/resources/presets/factory");
+    REQUIRE (factoryDir.isDirectory());
+
+    auto files = factoryDir.findChildFiles (juce::File::findFiles, false, "*.brocot");
+    REQUIRE (files.size() == 32);
+
+    for (const auto& f : files)
+    {
+        INFO ("file: " + f.getFileName());
+        const auto json = juce::JSON::parse (f);
+        REQUIRE (json.isObject());
+        auto* root = json.getDynamicObject();
+        REQUIRE (root != nullptr);
+        REQUIRE (root->getProperty ("name").toString().isNotEmpty());
+        REQUIRE (root->getProperty ("version").toString().isNotEmpty());
+        REQUIRE (root->getProperty ("engine").isObject());
+        REQUIRE (root->getProperty ("envelope").isObject());
+        REQUIRE (root->getProperty ("filter").isObject());
+        REQUIRE (root->getProperty ("lfo").isObject());
+        REQUIRE (root->getProperty ("master").isObject());
+
+        auto* engine = root->getProperty ("engine").getDynamicObject();
+        REQUIRE (engine != nullptr);
+        REQUIRE (engine->getProperty ("operators").isArray());
+        const auto* ops = engine->getProperty ("operators").getArray();
+        REQUIRE (ops->size() == 8);
+    }
+}
+
 TEST_CASE ("Free-mode preset uses 'path' instead of 'position'", "[Preset]")
 {
     static constexpr auto json = R"({

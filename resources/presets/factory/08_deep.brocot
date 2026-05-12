@@ -1,0 +1,26 @@
+{
+  "name": "Deep",
+  "author": "Brocot factory",
+  "description": "Three modulators at clangy high depths. DX7-territory metallic spectrum.",
+  "version": "1.0",
+  "category": "first principles",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {"enabled": true,  "path": "R",   "depth": 5.318},
+      {"enabled": true,  "path": "RR",  "depth": 6.416},
+      {"enabled": true,  "path": "RL",  "depth": 4.201},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.25},
+  "envelope": {"attack": 0.001, "decay": 0.4, "sustain": 0.4, "release": 0.6},
+  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
+  "master":   {"level": 0.35}
+}

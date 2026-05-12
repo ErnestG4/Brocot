@@ -1,0 +1,27 @@
+{
+  "name": "Trunk R",
+  "author": "Brocot factory",
+  "description": "Shared path R — the right spine. Operators at positions 1-4 give 2/1, 3/1, 4/1, 5/1.",
+  "version": "1.0",
+  "category": "path canon",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "shared",
+    "sharedPath": "RRRR",
+    "operators": [
+      {"enabled": true,  "position": 1, "depth": 1.0},
+      {"enabled": true,  "position": 2, "depth": 0.8},
+      {"enabled": true,  "position": 3, "depth": 0.6},
+      {"enabled": true,  "position": 4, "depth": 0.4},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.1},
+  "envelope": {"attack": 0.01, "decay": 0.2, "sustain": 0.7, "release": 0.5},
+  "lfo":      {"shape": "sine", "rate": 0.4, "depth": 0.0, "keySync": false},
+  "master":   {"level": 0.4}
+}

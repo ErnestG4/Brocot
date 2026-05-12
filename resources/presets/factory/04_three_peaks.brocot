@@ -1,0 +1,26 @@
+{
+  "name": "Three peaks",
+  "author": "Brocot factory",
+  "description": "Three modulators at 3/2, 4/3, 5/3 — each parked at successive Bessel peaks (J1, J2, J3).",
+  "version": "1.0",
+  "category": "first principles",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {"enabled": true,  "path": "RL",  "depth": 1.841},
+      {"enabled": true,  "path": "RLL", "depth": 3.054},
+      {"enabled": true,  "path": "RLR", "depth": 4.201},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0},
+      {"enabled": false, "path": "",    "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.8, "resonance": 0.15},
+  "envelope": {"attack": 0.01, "decay": 0.25, "sustain": 0.75, "release": 0.6},
+  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
+  "master":   {"level": 0.4}
+}

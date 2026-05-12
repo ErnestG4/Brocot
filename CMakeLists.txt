@@ -81,6 +81,14 @@ target_compile_definitions(Brocot PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
+# Dev-mode resource path. Lets PresetManager find factory presets and tables
+# without an install step when running out of build/. Production packaging
+# should copy resources/ into the bundle and the .app-relative fallback in
+# PresetManager.cpp takes over.
+target_compile_definitions(Brocot PRIVATE
+    BROCOT_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
 target_link_libraries(Brocot PRIVATE
     juce::juce_audio_utils
     juce::juce_audio_processors
@@ -146,6 +154,7 @@ if(BROCOT_BUILD_TESTS)
         JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
         JUCE_USE_CURL=0
         JUCE_WEB_BROWSER=0
+        BROCOT_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
     )
 
     include(Catch)

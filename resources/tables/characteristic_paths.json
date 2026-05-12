@@ -1,0 +1,47 @@
+{
+  "$schema": "brocot.characteristic_paths/v1",
+  "_comment": "BROCOT-SPEC.md §10. Paths through the Stern-Brocot tree that ARS analysis has identified (or, for v1, that Will has identified by ear) as producing distinctive spectral signatures. In v2 this file gets regenerated from ARS output.",
+  "version": "1.0",
+  "source": "manual seed for v1",
+  "paths": [
+    {
+      "path": "RLLLR",
+      "name": "9/7 trunk",
+      "description": "Avatar 1's discovery path. Prefix-extension positions 1/3/5 give 2/1, 4/3, 9/7 with near-unity coherent sideband structure.",
+      "metadata": {
+        "limit_ratio": 1.2857,
+        "continued_fraction": [1, 3, 1, 1],
+        "category": "Avatar"
+      }
+    },
+    {
+      "path": "RLRLRLRL",
+      "name": "golden trunk",
+      "description": "Fibonacci-style alternating path converging toward 1/phi.",
+      "metadata": {
+        "limit_ratio": 1.6180,
+        "continued_fraction": [1, 1, 1, 1, 1, 1, 1, 1],
+        "category": "path canon"
+      }
+    },
+    {
+      "path": "RRLRRLRR",
+      "name": "silver trunk",
+      "description": "Continued fraction of 1 + sqrt(2).",
+      "metadata": {
+        "limit_ratio": 2.4142,
+        "continued_fraction": [2, 2, 2, 2],
+        "category": "path canon"
+      }
+    },
+    {
+      "path": "LRRRRRRR",
+      "name": "LR-infinity",
+      "description": "L then long R-tail. Sub-unity family converging upward toward 1.",
+      "metadata": {
+        "limit_ratio": 1.0,
+        "category": "path canon"
+      }
+    }
+  ]
+}

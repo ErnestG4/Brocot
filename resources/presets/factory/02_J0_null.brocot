@@ -1,0 +1,26 @@
+{
+  "name": "J0 null",
+  "author": "Brocot factory",
+  "description": "Single modulator at 1/1, depth 2.405 (first zero of J0). The carrier vanishes; pure sideband structure remains.",
+  "version": "1.0",
+  "category": "first principles",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {"enabled": true,  "path": "",  "depth": 2.405},
+      {"enabled": false, "path": "",  "depth": 0.0},
+      {"enabled": false, "path": "",  "depth": 0.0},
+      {"enabled": false, "path": "",  "depth": 0.0},
+      {"enabled": false, "path": "",  "depth": 0.0},
+      {"enabled": false, "path": "",  "depth": 0.0},
+      {"enabled": false, "path": "",  "depth": 0.0},
+      {"enabled": false, "path": "",  "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.85, "resonance": 0.1},
+  "envelope": {"attack": 0.01, "decay": 0.2, "sustain": 0.9, "release": 0.4},
+  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
+  "master":   {"level": 0.5}
+}

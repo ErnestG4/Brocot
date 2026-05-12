@@ -1,0 +1,26 @@
+{
+  "name": "Detune",
+  "author": "Brocot factory",
+  "description": "Two modulators at adjacent deep Stern-Brocot nodes (43/34 neighbours) at very low depth. Slow internal motion.",
+  "version": "1.0",
+  "category": "first principles",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {"enabled": true,  "path": "RLLLRLLLR", "depth": 0.12},
+      {"enabled": true,  "path": "RLLLRLLLL", "depth": 0.1},
+      {"enabled": false, "path": "",          "depth": 0.0},
+      {"enabled": false, "path": "",          "depth": 0.0},
+      {"enabled": false, "path": "",          "depth": 0.0},
+      {"enabled": false, "path": "",          "depth": 0.0},
+      {"enabled": false, "path": "",          "depth": 0.0},
+      {"enabled": false, "path": "",          "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.65, "resonance": 0.05},
+  "envelope": {"attack": 0.1, "decay": 1.0, "sustain": 0.9, "release": 1.5},
+  "lfo":      {"shape": "sine", "rate": 0.1, "depth": 0.1, "keySync": false},
+  "master":   {"level": 0.5}
+}

@@ -1,0 +1,27 @@
+{
+  "name": "Mediants",
+  "author": "Brocot factory",
+  "description": "Three near-unity modulators at low depth. The soft Brocot regime: spectral coloration, no sideband structure visible.",
+  "version": "1.0",
+  "category": "first principles",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "shared",
+    "sharedPath": "RLLLR",
+    "operators": [
+      {"enabled": true,  "position": 2, "depth": 0.4},
+      {"enabled": true,  "position": 4, "depth": 0.3},
+      {"enabled": true,  "position": 5, "depth": 0.5},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0},
+      {"enabled": false, "position": 0, "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.1},
+  "envelope": {"attack": 0.05, "decay": 0.5, "sustain": 0.8, "release": 0.8},
+  "lfo":      {"shape": "sine", "rate": 0.2, "depth": 0.05, "keySync": false},
+  "master":   {"level": 0.5}
+}

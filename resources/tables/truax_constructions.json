@@ -1,0 +1,36 @@
+{
+  "$schema": "brocot.truax_constructions/v1",
+  "_comment": "BROCOT-SPEC.md §10. Reference table of C:M ratios from Truax 1978, categorized by his groupings. Used to seed the Truax-category presets and as a reference library users can browse (the latter is a v1.x feature).",
+  "version": "1.0",
+  "source": "Truax 1978 - Organizational Techniques for C:M Ratios in Frequency Modulation",
+  "categories": [
+    {
+      "name": "harmonic",
+      "description": "C:M ratios that produce integer-harmonic spectra.",
+      "constructions": [
+        { "C": 1, "M": 1, "I_typical": 1.5, "path": "" },
+        { "C": 1, "M": 2, "I_typical": 1.8, "path": "R" },
+        { "C": 1, "M": 3, "I_typical": 2.0, "path": "RR" },
+        { "C": 2, "M": 3, "I_typical": 2.0, "path": "RL" },
+        { "C": 2, "M": 5, "I_typical": 1.8, "path": "RRL" }
+      ]
+    },
+    {
+      "name": "inharmonic",
+      "description": "Ratios producing non-integer-multiple sidebands.",
+      "constructions": [
+        { "C": 2, "M": 7, "I_typical": 2.0, "path": "RRRL" },
+        { "C": 3, "M": 7, "I_typical": 1.5, "path": "RRRLL" },
+        { "C": 2, "M": 11, "I_typical": 2.5, "path": "RRRRL" }
+      ]
+    },
+    {
+      "name": "missing_fundamental",
+      "description": "Sideband patterns that imply a fundamental absent from the spectrum.",
+      "constructions": [
+        { "C": 1, "M": 2, "I_typical": 2.5, "implied_f0": 0.5 },
+        { "C": 2, "M": 3, "I_typical": 2.0, "implied_f0": 1.0 }
+      ]
+    }
+  ]
+}

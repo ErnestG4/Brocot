@@ -22,18 +22,22 @@ juce::File PresetManager::getUserDirectory() const
 
 juce::File PresetManager::getFactoryDirectory() const
 {
-    // Resolved relative to the executable / bundle. The CMake build doesn't
-    // copy the resources/ tree into the bundle yet — this returns the source
-    // tree path for now (developer-mode), and falls back to a sibling of the
-    // app on packaged builds.
+    // Try dev-mode source dir first (set by CMake), then a couple of
+    // relative paths for packaged builds. The first hit wins.
+   #if defined (BROCOT_SOURCE_DIR)
+    {
+        juce::File devDir (juce::String (BROCOT_SOURCE_DIR) + "/resources/presets/factory");
+        if (devDir.isDirectory()) return devDir;
+    }
+   #endif
+
     auto app = juce::File::getSpecialLocation (
                    juce::File::currentApplicationFile);
-    auto candidates = std::initializer_list<juce::File> {
-        app.getParentDirectory().getChildFile ("../../../resources/presets/factory"),
-        app.getParentDirectory().getChildFile ("resources/presets/factory"),
-        juce::File::getCurrentWorkingDirectory().getChildFile ("resources/presets/factory")
-    };
-    for (auto& c : candidates)
+    for (const auto& c : {
+             app.getParentDirectory().getChildFile ("../../../resources/presets/factory"),
+             app.getParentDirectory().getChildFile ("resources/presets/factory"),
+             juce::File::getCurrentWorkingDirectory().getChildFile ("resources/presets/factory")
+         })
         if (c.isDirectory()) return c;
     return {};
 }

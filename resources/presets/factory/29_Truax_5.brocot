@@ -1,0 +1,26 @@
+{
+  "name": "Truax 5 - dense Farey",
+  "author": "Brocot factory",
+  "description": "After Truax 1978. Five-modulator Farey construction: paths R, RL, RR, RLR, RRR.",
+  "version": "1.0",
+  "category": "Truax",
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {"enabled": true,  "path": "R",    "depth": 1.5},
+      {"enabled": true,  "path": "RL",   "depth": 1.2},
+      {"enabled": true,  "path": "RR",   "depth": 1.0},
+      {"enabled": true,  "path": "RLR",  "depth": 0.8},
+      {"enabled": true,  "path": "RRR",  "depth": 0.6},
+      {"enabled": false, "path": "",     "depth": 0.0},
+      {"enabled": false, "path": "",     "depth": 0.0},
+      {"enabled": false, "path": "",     "depth": 0.0}
+    ]
+  },
+  "filter":   {"type": "lp", "cutoff": 0.75, "resonance": 0.2},
+  "envelope": {"attack": 0.005, "decay": 0.25, "sustain": 0.7, "release": 0.5},
+  "lfo":      {"shape": "sine", "rate": 0.4, "depth": 0.05, "keySync": false},
+  "master":   {"level": 0.35}
+}
