@@ -13,16 +13,34 @@ BrocotAudioProcessor::BrocotAudioProcessor()
         // so hosts don't surface an input on a synth plugin in v1.
         .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false))
 {
-    // Hard-coded "octave·J₁" preset for Slice 3 — carrier at 220 Hz, one
-    // modulator at path R (= 2/1), modulation index I = 1.841 (the J₁ peak).
-    // BROCOT-SPEC.md §4 lists this as the first audio-engine verification.
-    voice.setCarrierHz (220.0f);
-    voice.setLevel (0.2f);
+    // Hard-coded "Avatar·1" preset for Slice 4 — the first preset Will
+    // discovered manually in the web prototype. BROCOT-SPEC.md §4 lists this
+    // as the multi-modulator audio-engine verification case.
+    //
+    //   shared path     RLLLR
+    //   carrier         C3 (130.81 Hz)
+    //   op 0   pos 1 → R       (2/1)   depth 5.13
+    //   op 1   pos 3 → RLL     (4/3)   depth 0.86
+    //   op 2   pos 5 → RLLLR   (9/7)   depth 0.90
+    //   ops 3..7 disabled
+    voice.setCarrierHz (130.81f);
+    voice.setLevel (0.18f);
 
-    auto& m0 = voice.op (0);
-    m0.setEnabled (true);
-    m0.setPath (Path ("R"));
-    m0.setDepth (1.841f);
+    const Path sharedPath ("RLLLR");
+    struct OpSetup { int position; float depth; };
+    const OpSetup setups[] = {
+        { 1, 5.13f },
+        { 3, 0.86f },
+        { 5, 0.90f },
+    };
+
+    for (size_t i = 0; i < std::size (setups); ++i)
+    {
+        auto& op = voice.op ((int) i);
+        op.setEnabled (true);
+        op.setPath (sharedPath.prefix (setups[i].position));
+        op.setDepth (setups[i].depth);
+    }
 }
 
 BrocotAudioProcessor::~BrocotAudioProcessor() = default;
