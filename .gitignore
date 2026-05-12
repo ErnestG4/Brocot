@@ -1,0 +1,44 @@
+# Build outputs
+build/
+build-*/
+out/
+cmake-build-*/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+Makefile
+*.cbp
+compile_commands.json
+.cache/
+
+# JUCE
+JuceLibraryCode/
+Builds/
+
+# IDE / editor
+.vscode/
+.idea/
+.vs/
+*.user
+*.suo
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Plugin artifacts (top-level — JUCE drops these in build/)
+*.vst3
+*.component
+*.aaxplugin
+*.app
+
+# Test artifacts
+tests/fixtures/*.wav.actual
+Testing/
+
+# Local config
+.claude/settings.local.json

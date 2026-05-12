@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>farey·fm — Stern-Brocot navigated multi-modulator FM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  <style>
+    html, body { background: rgb(12, 10, 9); margin: 0; padding: 0; min-height: 100vh; }
+    body { font-family: 'EB Garamond', Georgia, serif; color: rgb(254, 243, 199); }
+    #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+            background: rgb(12, 10, 9); color: rgb(245, 158, 11); font-family: 'JetBrains Mono', monospace;
+            font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; }
+    #boot.hidden { display: none; }
+    /* Range input baseline styling for cross-browser consistency */
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; }
+    input[type=range]::-webkit-slider-runnable-track {
+      height: 4px; background: rgb(68, 64, 60); border-radius: 2px;
+    }
+    input[type=range]::-moz-range-track {
+      height: 4px; background: rgb(68, 64, 60); border-radius: 2px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: rgb(245, 158, 11); border: 1px solid rgb(252, 211, 77);
+      margin-top: -5px; cursor: pointer;
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: rgb(245, 158, 11); border: 1px solid rgb(252, 211, 77);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="boot">loading farey·fm…</div>
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+// ============================================================
+// Stern-Brocot tree
+// ============================================================
+// Each modulator's frequency ratio is parameterized by a path
+// of L/R moves from the root (1/1). 'L' descends to the smaller
+// mediant; 'R' to the larger.
+
+function walkPath(path) {
+  let leftP = 0, leftQ = 1;
+  let rightP = 1, rightQ = 0;
+  let curP = 1, curQ = 1;
+
+  for (const step of path) {
+    if (step === 'L') { rightP = curP; rightQ = curQ; }
+    else              { leftP  = curP; leftQ  = curQ; }
+    curP = leftP + rightP;
+    curQ = leftQ + rightQ;
+  }
+
+  return {
+    p: curP, q: curQ,
+    leftChild:  { p: curP + leftP,  q: curQ + leftQ  },
+    rightChild: { p: curP + rightP, q: curQ + rightQ },
+  };
+}
+
+// ============================================================
+// Bessel landmarks
+// ============================================================
+// In single-modulator FM, the n-th sideband amplitude at modulation
+// index I is J_n(I). The peaks and zeros of these Bessel functions
+// are the structured "scale degrees" of FM amplitude space — at
+// each landmark, a specific sideband order dominates or vanishes.
+
+const BESSEL_LANDMARKS = [
+  { x: 1.841, kind: 'peak', n: 1, label: 'J₁⁺' },  // first sideband peak
+  { x: 2.405, kind: 'zero', n: 0, label: 'J₀⁰' },  // carrier vanishes
+  { x: 3.054, kind: 'peak', n: 2, label: 'J₂⁺' },  // second sideband peak
+  { x: 3.832, kind: 'zero', n: 1, label: 'J₁⁰' },  // first sideband null
+  { x: 4.201, kind: 'peak', n: 3, label: 'J₃⁺' },  // third sideband peak
+  { x: 5.136, kind: 'zero', n: 2, label: 'J₂⁰' },  // second sideband null
+  { x: 5.318, kind: 'peak', n: 4, label: 'J₄⁺' },  // fourth sideband peak
+  { x: 5.520, kind: 'zero', n: 0, label: 'J₀⁰₂' }, // second carrier null
+  { x: 6.416, kind: 'peak', n: 5, label: 'J₅⁺' },  // fifth sideband peak
+  { x: 7.016, kind: 'zero', n: 1, label: 'J₁⁰₂' }, // second first-sideband null
+];
+
+const DEPTH_MAX = 8;
+
+// Given current depth, return the nearest landmark within tolerance
+function nearestLandmark(depth, tol = 0.12) {
+  let best = null;
+  for (const lm of BESSEL_LANDMARKS) {
+    const d = Math.abs(depth - lm.x);
+    if (d < tol && (!best || d < best.d)) best = { ...lm, d };
+  }
+  return best;
+}
+
+// ============================================================
+// Depth ratio search
+// ============================================================
+// For a set of depth values, find the simplest small-integer
+// ratio that approximates them. This is the Farey/Stern-Brocot
+// game played on the depth axis instead of the frequency axis.
+
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+function findDepthRatio(depths, maxDenom = 12) {
+  const active = depths.map((d, i) => ({ d, i })).filter(x => x.d > 0.02);
+  if (active.length === 0) return null;
+  if (active.length === 1) {
+    const out = depths.map(d => d > 0.02 ? '1' : '·');
+    return { display: out.join(' : '), residue: 0, exact: true };
+  }
+
+  const minD = Math.min(...active.map(x => x.d));
+  const normed = depths.map(d => d > 0.02 ? d / minD : 0);
+
+  let best = { residue: Infinity, ints: null, scale: 1 };
+  for (let scale = 1; scale <= maxDenom; scale++) {
+    const ints = normed.map(n => n > 0 ? Math.max(1, Math.round(n * scale)) : 0);
+    const residue = normed.reduce((s, n, i) =>
+      s + (n > 0 ? Math.abs(n - ints[i] / scale) : 0), 0) / active.length;
+    if (residue < best.residue) {
+      best = { residue, ints, scale };
+    }
+    // Don't search higher denominators if we found a near-exact match
+    if (residue < 0.005) break;
+  }
+
+  // Reduce by GCD of nonzero entries
+  const nonZeroInts = best.ints.filter(i => i > 0);
+  let g = nonZeroInts[0];
+  for (let i = 1; i < nonZeroInts.length; i++) g = gcd(g, nonZeroInts[i]);
+  const reduced = best.ints.map(i => i === 0 ? 0 : i / g);
+
+  return {
+    display: reduced.map(i => i === 0 ? '·' : i.toString()).join(' : '),
+    residue: best.residue,
+    exact: best.residue < 0.02,
+  };
+}
+
+// ============================================================
+// Constants
+// ============================================================
+
+const NOTE_FREQS = {
+  'C3': 130.81, 'D3': 146.83, 'E3': 164.81, 'F3': 174.61,
+  'G3': 196.00, 'A3': 220.00, 'B3': 246.94,
+  'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23,
+  'G4': 392.00, 'A4': 440.00,
+};
+
+const N_MODS = 3;
+
+// ============================================================
+// Audio engine — parallel-modulator FM
+// ============================================================
+// Each modulator's oscillator output (gained) connects directly
+// to the carrier's frequency AudioParam. Multiple modulators sum
+// their frequency contributions there (Web Audio summing nodes),
+// giving parallel quasi-periodic FM rather than nested FM.
+
+function useFMEngine() {
+  const ctxRef = useRef(null);
+  const nodesRef = useRef(null);
+  const [running, setRunning] = useState(false);
+
+  const ensureContext = () => {
+    if (!ctxRef.current) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctxRef.current = new AC();
+    }
+    return ctxRef.current;
+  };
+
+  const start = useCallback((opts) => {
+    const c = ensureContext();
+    if (c.state === 'suspended') c.resume();
+
+    if (nodesRef.current) {
+      try {
+        nodesRef.current.carrier.stop();
+        nodesRef.current.mods.forEach(m => m.osc.stop());
+      } catch (e) {}
+    }
+
+    const { baseFreq, mods, level } = opts;
+
+    const carrier = c.createOscillator();
+    carrier.type = 'sine';
+    carrier.frequency.value = baseFreq;
+
+    const modNodes = mods.map(mod => {
+      const { p, q } = walkPath(mod.path);
+      const ratio = p / q;
+      const osc = c.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = baseFreq * ratio;
+      const gain = c.createGain();
+      gain.gain.value = mod.depth * baseFreq * ratio;
+      osc.connect(gain);
+      gain.connect(carrier.frequency);
+      osc.start();
+      return { osc, gain };
+    });
+
+    const mainGain = c.createGain();
+    mainGain.gain.value = 0;
+    mainGain.gain.linearRampToValueAtTime(level * 0.25, c.currentTime + 0.05);
+
+    const analyser = c.createAnalyser();
+    analyser.fftSize = 2048;
+
+    carrier.connect(mainGain);
+    mainGain.connect(analyser);
+    analyser.connect(c.destination);
+    carrier.start();
+
+    nodesRef.current = { carrier, mods: modNodes, mainGain, analyser };
+    setRunning(true);
+  }, []);
+
+  const stop = useCallback(() => {
+    const c = ctxRef.current;
+    const n = nodesRef.current;
+    if (!c || !n) return;
+
+    const t = c.currentTime;
+    n.mainGain.gain.cancelScheduledValues(t);
+    n.mainGain.gain.setValueAtTime(n.mainGain.gain.value, t);
+    n.mainGain.gain.linearRampToValueAtTime(0, t + 0.06);
+
+    setTimeout(() => {
+      try { n.carrier.stop(); } catch (e) {}
+      n.mods.forEach(m => { try { m.osc.stop(); } catch (e) {} });
+    }, 120);
+
+    nodesRef.current = null;
+    setRunning(false);
+  }, []);
+
+  const update = useCallback((opts) => {
+    const c = ctxRef.current;
+    const n = nodesRef.current;
+    if (!c || !n) return;
+
+    const { baseFreq, mods, level } = opts;
+    const t = c.currentTime;
+    const tc = 0.03;
+
+    n.carrier.frequency.setTargetAtTime(baseFreq, t, tc);
+    n.mainGain.gain.setTargetAtTime(level * 0.25, t, tc);
+
+    n.mods.forEach((m, i) => {
+      const mod = mods[i];
+      if (!mod) return;
+      const { p, q } = walkPath(mod.path);
+      const ratio = p / q;
+      m.osc.frequency.setTargetAtTime(baseFreq * ratio, t, tc);
+      m.gain.gain.setTargetAtTime(mod.depth * baseFreq * ratio, t, tc);
+    });
+  }, []);
+
+  const getAnalyser = useCallback(() => nodesRef.current?.analyser, []);
+
+  return { start, stop, update, running, getAnalyser };
+}
+
+// ============================================================
+// Modulator panel
+// ============================================================
+
+function ModulatorPanel({ idx, mod, setMod }) {
+  const w = walkPath(mod.path);
+  const ratio = w.p / w.q;
+
+  const goL = () => setMod({ ...mod, path: [...mod.path, 'L'] });
+  const goR = () => setMod({ ...mod, path: [...mod.path, 'R'] });
+  const goU = () => setMod({ ...mod, path: mod.path.slice(0, -1) });
+  const home = () => setMod({ ...mod, path: [] });
+
+  // Visual tongue-width proxy: 1/q. Larger q = narrower tongue = subtler regime.
+  const tongueWidth = 1 / w.q;
+  const tongueBarPct = Math.min(100, tongueWidth * 100);
+
+  return (
+    <div className="bg-stone-950 border border-amber-900/40 p-4">
+      <div className="flex justify-between items-baseline mb-3">
+        <div className="text-amber-500/80 text-xs uppercase tracking-[0.2em]"
+             style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          mod·{idx}
+        </div>
+        <div className="text-amber-200/40 text-[10px] tabular-nums"
+             style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          depth {mod.path.length} · path {mod.path.join('') || '·'}
+        </div>
+      </div>
+
+      <div className="text-center mb-3">
+        <div className="text-amber-100 leading-none flex items-baseline justify-center gap-1"
+             style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+          <span className="text-5xl tabular-nums">{w.p}</span>
+          <span className="text-3xl text-amber-600/60 italic">/</span>
+          <span className="text-5xl tabular-nums">{w.q}</span>
+        </div>
+        <div className="text-amber-200/50 text-[11px] mt-1 tabular-nums"
+             style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          {ratio.toFixed(8)}
+        </div>
+      </div>
+
+      {/* Tongue width bar */}
+      <div className="mb-3">
+        <div className="flex justify-between text-[9px] text-amber-200/40 uppercase tracking-wider mb-1"
+             style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          <span>tongue width ~ 1/q</span>
+          <span className="tabular-nums">{tongueWidth.toFixed(4)}</span>
+        </div>
+        <div className="h-[2px] bg-amber-900/30">
+          <div
+            className="h-full bg-amber-500/70 transition-all duration-200"
+            style={{ width: `${tongueBarPct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1 mb-2">
+        <button onClick={goL}
+                className="bg-stone-900 hover:bg-stone-800 active:bg-amber-900/40 border border-amber-900/30 p-2 text-left transition-colors">
+          <div className="text-[9px] text-amber-200/50 uppercase tracking-widest"
+               style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+            ← L
+          </div>
+          <div className="text-amber-100 text-lg"
+               style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+            {w.leftChild.p}/{w.leftChild.q}
+          </div>
+        </button>
+        <button onClick={goR}
+                className="bg-stone-900 hover:bg-stone-800 active:bg-amber-900/40 border border-amber-900/30 p-2 text-right transition-colors">
+          <div className="text-[9px] text-amber-200/50 uppercase tracking-widest"
+               style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+            R →
+          </div>
+          <div className="text-amber-100 text-lg"
+               style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+            {w.rightChild.p}/{w.rightChild.q}
+          </div>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1 mb-3">
+        <button onClick={goU} disabled={mod.path.length === 0}
+                className="bg-stone-900 hover:bg-stone-800 border border-amber-900/20 p-1 text-[10px] uppercase tracking-wider text-amber-200/70 disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          ↑ parent
+        </button>
+        <button onClick={home}
+                className="bg-stone-900 hover:bg-stone-800 border border-amber-900/20 p-1 text-[10px] uppercase tracking-wider text-amber-200/70"
+                style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          ⌂ 1/1
+        </button>
+      </div>
+
+      <div>
+        <div className="flex justify-between text-[10px] text-amber-200/60 uppercase tracking-wider mb-1"
+             style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          <span>modulation index · I</span>
+          <span className="tabular-nums">{mod.depth.toFixed(3)}</span>
+        </div>
+
+        {/* Bessel landmark strip */}
+        <div className="relative h-4 mb-px">
+          {BESSEL_LANDMARKS.map((lm, i) => {
+            if (lm.x > DEPTH_MAX) return null;
+            const pct = (lm.x / DEPTH_MAX) * 100;
+            const isPeak = lm.kind === 'peak';
+            const isMajor = lm.n <= 2;  // first few sidebands' landmarks are most audible
+            const color = isPeak
+              ? (isMajor ? 'bg-amber-300' : 'bg-amber-500/50')
+              : (isMajor ? 'bg-cyan-400/80' : 'bg-cyan-500/40');
+            const height = isMajor ? 'h-3' : 'h-2';
+            return (
+              <div
+                key={i}
+                className="absolute top-0 group"
+                style={{ left: `${pct}%`, transform: 'translateX(-0.5px)' }}
+                title={`I=${lm.x.toFixed(3)} · J${lm.n} ${isPeak ? 'peak (max sideband)' : 'zero (sideband null)'}`}
+              >
+                <div className={`w-px ${height} ${color}`} />
+              </div>
+            );
+          })}
+        </div>
+
+        <input
+          type="range" min={0} max={DEPTH_MAX} step={0.01}
+          value={mod.depth}
+          onChange={e => setMod({ ...mod, depth: parseFloat(e.target.value) })}
+          className="w-full accent-amber-500"
+        />
+
+        {/* Nearest-landmark hint + tongue regime label */}
+        <div className="flex justify-between text-[9px] mt-0.5">
+          <span className="text-amber-200/30 italic"
+                style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+            {mod.depth < 0.5 ? 'tongue edge'
+              : mod.depth < 3 ? 'near-locked'
+              : mod.depth < 5 ? 'rich sidebands'
+              : 'clangy / chaotic'}
+          </span>
+          {(() => {
+            const lm = nearestLandmark(mod.depth);
+            if (!lm) return <span className="text-amber-200/20"
+                                   style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>—</span>;
+            const isPeak = lm.kind === 'peak';
+            return (
+              <span className={`tabular-nums ${isPeak ? 'text-amber-300' : 'text-cyan-300'}`}
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                {isPeak ? '▲' : '○'} J{lm.n} {isPeak ? 'peak' : 'null'} @ {lm.x.toFixed(2)}
+              </span>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Oscilloscope
+// ============================================================
+
+function Oscilloscope({ getAnalyser, running }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!running) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+
+    let raf;
+    function draw() {
+      const analyser = getAnalyser();
+      if (!analyser) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+
+      const buf = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(buf);
+
+      ctx.fillStyle = 'rgb(12, 10, 9)';
+      ctx.fillRect(0, 0, W, H);
+
+      // Faint grid
+      ctx.strokeStyle = 'rgba(180, 120, 20, 0.08)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 8; i++) {
+        const x = (i / 8) * W;
+        ctx.beginPath();
+        ctx.moveTo(x, 0); ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2);
+      ctx.stroke();
+
+      // Glow pass
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      const slice = W / buf.length;
+      for (let i = 0; i < buf.length; i++) {
+        const v = buf[i] / 128.0;
+        const y = (v * H) / 2;
+        if (i === 0) ctx.moveTo(0, y);
+        else ctx.lineTo(i * slice, y);
+      }
+      ctx.stroke();
+
+      // Sharp pass
+      ctx.strokeStyle = 'rgb(252, 211, 77)';
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      for (let i = 0; i < buf.length; i++) {
+        const v = buf[i] / 128.0;
+        const y = (v * H) / 2;
+        if (i === 0) ctx.moveTo(0, y);
+        else ctx.lineTo(i * slice, y);
+      }
+      ctx.stroke();
+
+      raf = requestAnimationFrame(draw);
+    }
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [running, getAnalyser]);
+
+  return (
+    <div className="relative">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-[140px] border border-amber-900/30 bg-stone-950 block"
+      />
+      {!running && (
+        <div className="absolute inset-0 flex items-center justify-center text-amber-200/30 italic"
+             style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+          press play
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Main
+// ============================================================
+
+function FareyFM() {
+  const [note, setNote] = useState('A3');
+  const [level, setLevel] = useState(0.5);
+  const [mods, setMods] = useState([
+    { path: [], depth: 0 },
+    { path: [], depth: 0 },
+    { path: [], depth: 0 },
+  ]);
+
+  const { start, stop, update, running, getAnalyser } = useFMEngine();
+  const baseFreq = NOTE_FREQS[note];
+
+  useEffect(() => {
+    update({ baseFreq, mods, level });
+  }, [baseFreq, mods, level, update]);
+
+  const setMod = (idx, newMod) => {
+    setMods(prev => prev.map((m, i) => i === idx ? newMod : m));
+  };
+
+  const toggle = () => {
+    if (running) stop();
+    else start({ baseFreq, mods, level });
+  };
+
+  const presets = [
+    {
+      name: 'pure',
+      label: 'carrier only',
+      setup: () => setMods([
+        { path: [], depth: 0 },
+        { path: [], depth: 0 },
+        { path: [], depth: 0 },
+      ]),
+    },
+    {
+      name: 'J₀ null',
+      label: 'carrier vanishes (I=2.405)',
+      setup: () => setMods([
+        { path: [], depth: 2.405 },
+        { path: [], depth: 0 },
+        { path: [], depth: 0 },
+      ]),
+    },
+    {
+      name: 'octave·J₁',
+      label: '2/1, depth at J₁ peak',
+      setup: () => setMods([
+        { path: ['R'], depth: 1.841 },
+        { path: [], depth: 0 },
+        { path: [], depth: 0 },
+      ]),
+    },
+    {
+      name: 'three peaks',
+      label: 'depths at J₁ J₂ J₃ peaks',
+      setup: () => setMods([
+        { path: ['R', 'L'], depth: 1.841 },
+        { path: ['R', 'L', 'L'], depth: 3.054 },
+        { path: ['R', 'L', 'R'], depth: 4.201 },
+      ]),
+    },
+    {
+      name: '1:2:3',
+      label: 'integer depth ratio',
+      setup: () => setMods([
+        { path: ['R'], depth: 1.0 },
+        { path: ['R', 'L'], depth: 2.0 },
+        { path: ['R', 'L', 'L'], depth: 3.0 },
+      ]),
+    },
+    {
+      name: 'mediants',
+      label: 'three near 1, soft',
+      setup: () => setMods([
+        { path: ['R', 'L'], depth: 0.6 },
+        { path: ['R', 'L', 'L'], depth: 0.4 },
+        { path: ['R', 'L', 'R'], depth: 0.3 },
+      ]),
+    },
+    {
+      name: 'detune',
+      label: 'tongue-edge beating',
+      setup: () => setMods([
+        { path: ['R', 'L'], depth: 0.15 },
+        { path: ['R', 'L', 'L', 'R', 'R', 'L'], depth: 0.15 },
+        { path: [], depth: 0 },
+      ]),
+    },
+    {
+      name: 'deep',
+      label: 'all three, clangy',
+      setup: () => setMods([
+        { path: ['R'], depth: 3.0 },
+        { path: ['R', 'L', 'L'], depth: 2.0 },
+        { path: ['R', 'R', 'L'], depth: 1.5 },
+      ]),
+    },
+  ];
+
+  return (
+    <>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap');`}</style>
+
+      <div className="min-h-screen bg-stone-950 text-amber-100 p-6"
+           style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+        <div className="max-w-5xl mx-auto">
+
+          {/* Header */}
+          <div className="border-b border-amber-900/40 pb-4 mb-6">
+            <div className="text-amber-200/40 text-[10px] uppercase tracking-[0.4em] mb-2"
+                 style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+              stern-brocot navigation · parallel-modulator FM
+            </div>
+            <h1 className="text-4xl italic flex items-baseline gap-2">
+              farey<span className="text-amber-500 text-2xl not-italic">·</span>fm
+              <span className="text-amber-200/30 text-sm not-italic ml-3"
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                v0.1
+              </span>
+            </h1>
+            <div className="text-amber-200/60 text-sm mt-3 max-w-2xl leading-relaxed">
+              Three modulators in parallel, each tuned to a rational ratio drawn from the
+              Stern-Brocot tree, summed into the carrier's frequency. Navigate the tree
+              to pick where in rational-ratio space each modulator sits; sweep depth from
+              <span className="italic"> tongue edge </span> (near-locked, subtle character)
+              toward <span className="italic">tongue center</span> (rich sideband structure).
+              Adjacent nodes in the tree are mediant neighbors; deeper paths reach narrower
+              tongues where the timbral discrimination is sharpest.
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex flex-wrap gap-4 items-center mb-4">
+            <button
+              onClick={toggle}
+              className={`px-6 py-3 text-sm uppercase tracking-[0.3em] border transition-all ${
+                running
+                  ? 'bg-amber-500 text-stone-950 border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.4)]'
+                  : 'bg-stone-900 text-amber-300 border-amber-700/60 hover:bg-stone-800 hover:border-amber-600'
+              }`}
+              style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+            >
+              {running ? '■ stop' : '▶ play'}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-amber-200/60 uppercase tracking-widest"
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                carrier
+              </span>
+              <select
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                className="bg-stone-900 border border-amber-700/40 px-2 py-1 text-sm text-amber-100"
+                style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+              >
+                {Object.keys(NOTE_FREQS).map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+              <span className="text-[10px] text-amber-200/50 tabular-nums w-16"
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                {baseFreq.toFixed(2)} Hz
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <span className="text-[10px] text-amber-200/60 uppercase tracking-widest"
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                level
+              </span>
+              <input
+                type="range" min={0} max={1} step={0.01}
+                value={level}
+                onChange={e => setLevel(parseFloat(e.target.value))}
+                className="flex-1 accent-amber-500"
+              />
+              <span className="text-[10px] text-amber-200/50 tabular-nums w-8"
+                    style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                {level.toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          {/* Presets */}
+          <div className="flex flex-wrap gap-1.5 items-center mb-4">
+            <span className="text-[10px] text-amber-200/40 uppercase tracking-widest mr-2"
+                  style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+              presets
+            </span>
+            {presets.map(p => (
+              <button
+                key={p.name}
+                onClick={p.setup}
+                className="bg-stone-900 border border-amber-900/30 px-2 py-1 hover:bg-stone-800 hover:border-amber-700/50 text-amber-200 transition-colors"
+                title={p.label}
+              >
+                <span className="text-xs"
+                      style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                  {p.name}
+                </span>
+                <span className="text-amber-500/50 text-[10px] ml-1 italic">
+                  · {p.label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Oscilloscope */}
+          <Oscilloscope getAnalyser={getAnalyser} running={running} />
+
+          {/* Cross-modulator ratio readout */}
+          <div className="mt-3 grid md:grid-cols-2 gap-3">
+            <div className="bg-stone-900/60 border border-amber-900/30 px-3 py-2">
+              <div className="text-[10px] text-amber-200/50 uppercase tracking-widest mb-1"
+                   style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                frequency ratios (carrier·mod)
+              </div>
+              <div className="flex items-baseline gap-2"
+                   style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+                {mods.map((m, i) => {
+                  const w = walkPath(m.path);
+                  return (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="text-amber-700/60">·</span>}
+                      <span className="text-amber-100 text-xl tabular-nums">
+                        {w.p}/{w.q}
+                      </span>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="bg-stone-900/60 border border-amber-900/30 px-3 py-2">
+              <div className="text-[10px] text-amber-200/50 uppercase tracking-widest mb-1 flex justify-between"
+                   style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                <span>depth ratios (sideband amplitudes)</span>
+                {(() => {
+                  const dr = findDepthRatio(mods.map(m => m.depth));
+                  if (!dr) return <span className="text-amber-200/30 italic"
+                                         style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>silent</span>;
+                  return (
+                    <span className={`tabular-nums ${dr.exact ? 'text-amber-300' : 'text-amber-200/40'}`}>
+                      {dr.exact ? 'locked' : `residue ${dr.residue.toFixed(3)}`}
+                    </span>
+                  );
+                })()}
+              </div>
+              <div className="flex items-baseline gap-2"
+                   style={{ fontFamily: "'EB Garamond', Georgia, serif" }}>
+                {(() => {
+                  const dr = findDepthRatio(mods.map(m => m.depth));
+                  if (!dr) {
+                    return <span className="text-amber-200/30 text-xl italic">—</span>;
+                  }
+                  const parts = dr.display.split(' : ');
+                  return parts.map((part, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <span className="text-amber-700/60">:</span>}
+                      <span className={`text-xl tabular-nums ${
+                        part === '·' ? 'text-amber-200/20' :
+                        dr.exact ? 'text-amber-100' : 'text-amber-200/70'
+                      }`}>
+                        {part}
+                      </span>
+                    </React.Fragment>
+                  ));
+                })()}
+                <span className="text-amber-200/40 text-xs ml-2 tabular-nums"
+                      style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                  raw {mods.map(m => m.depth.toFixed(2)).join(':')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Modulator grid */}
+          <div className="grid md:grid-cols-3 gap-3 mt-4">
+            {mods.map((mod, i) => (
+              <ModulatorPanel
+                key={i}
+                idx={i + 1}
+                mod={mod}
+                setMod={newMod => setMod(i, newMod)}
+              />
+            ))}
+          </div>
+
+          {/* Footer notes */}
+          <div className="mt-6 pt-4 border-t border-amber-900/30 text-amber-200/50 text-xs leading-relaxed grid md:grid-cols-2 gap-6">
+            <div>
+              <div className="text-amber-500/70 uppercase tracking-widest text-[10px] mb-1"
+                   style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                frequency axis · stern-brocot
+              </div>
+              <p className="italic">
+                For adjacent rationals p₁/q₁ and p₂/q₂ in the Stern-Brocot tree, the next
+                finer node between them is the mediant (p₁+p₂)/(q₁+q₂). That's the L/R
+                navigation primitive. Depth in the tree corresponds to denominator size:
+                deeper paths reach narrower Arnold tongues where small navigation steps
+                produce sharply distinct timbral characters. Where modulator ratios sit
+                in the same subtree, their sidebands coincide and the spectrum partially
+                harmonises.
+              </p>
+            </div>
+            <div>
+              <div className="text-amber-500/70 uppercase tracking-widest text-[10px] mb-1"
+                   style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+                depth axis · bessel landmarks
+              </div>
+              <p className="italic">
+                In FM, sideband amplitudes follow Bessel functions J<sub>n</sub>(I) of
+                the modulation index I. The peaks and zeros of these are the structural
+                "scale degrees" of FM amplitude space — at I≈2.405 the carrier itself
+                vanishes; at I≈1.841 the first sideband peaks; at I≈3.054 the second
+                sideband peaks. <span className="not-italic text-amber-300">Amber</span>
+                ticks mark peaks, <span className="not-italic text-cyan-300">cyan</span>
+                ticks mark zeros. When depth <em>ratios</em> across modulators land on
+                small integers, the sideband amplitude structure aligns coherently — the
+                same Stern-Brocot game played in a different dimension.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+    document.getElementById('boot').classList.add('hidden');
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<FareyFM />);
+  </script>
+</body>
+</html>
