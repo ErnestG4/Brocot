@@ -40,9 +40,36 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     setPos (0, 1);
     setPos (1, 3);
     setPos (2, 5);
+
+    // Register parameter listeners so that path-mode / position changes
+    // trigger an off-audio-thread ratio recompute via AsyncUpdater. This
+    // keeps the audio thread free of the lock-+-string-allocation cost
+    // that refreshSharedRatios used to incur on every block.
+    apvts.addParameterListener (params::ids::pathMode, this);
+    for (int i = 0; i < params::kNumOperators; ++i)
+        apvts.addParameterListener (params::opId (i, "position"), this);
 }
 
-BrocotAudioProcessor::~BrocotAudioProcessor() = default;
+BrocotAudioProcessor::~BrocotAudioProcessor()
+{
+    apvts.removeParameterListener (params::ids::pathMode, this);
+    for (int i = 0; i < params::kNumOperators; ++i)
+        apvts.removeParameterListener (params::opId (i, "position"), this);
+}
+
+void BrocotAudioProcessor::parameterChanged (const juce::String& /*parameterID*/,
+                                             float /*newValue*/)
+{
+    // Called from whatever thread changed the parameter (host automation
+    // may hit us from the audio thread). Defer to the message thread.
+    triggerAsyncUpdate();
+}
+
+void BrocotAudioProcessor::handleAsyncUpdate()
+{
+    if (isSharedMode())
+        refreshSharedRatios();
+}
 
 void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
 {
@@ -115,8 +142,9 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
         }
     }
 
-    if (isSharedMode())
-        refreshSharedRatios();
+    // refreshSharedRatios is now invoked off the audio thread via
+    // AsyncUpdater whenever a position or pathMode parameter changes, so
+    // we don't pay for it on every block (and don't take the pathsLock here).
 
     // Filter mode + resonance refresh per block. Cutoff is modulated per-sample
     // in processBlock by the LFO so it isn't set here.

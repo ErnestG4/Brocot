@@ -4,6 +4,7 @@
 #include "AmpEnvelope.h"
 
 #include <array>
+#include <juce_audio_basics/juce_audio_basics.h>
 
 namespace brocot
 {
@@ -30,7 +31,7 @@ public:
 
     void prepare (double sampleRate);
     void setCarrierHz (float hz) noexcept { carrierHz = hz; }
-    void setLevel (float linearGain) noexcept { level = linearGain; }
+    void setLevel (float linearGain) noexcept { smoothedLevel.setTargetValue (linearGain); }
 
     Operator& op (int idx) noexcept { return ops[(size_t) idx]; }
     AmpEnvelope& envelope() noexcept { return ampEnv; }
@@ -52,7 +53,7 @@ private:
     float carrierHz     { 220.0f };
     float carrierPhase  { 0.0f };
     float invSampleRate { 1.0f / 44100.0f };
-    float level         { 0.2f };
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedLevel;
     int   activeNote    { kNoActiveNote };
 };
 

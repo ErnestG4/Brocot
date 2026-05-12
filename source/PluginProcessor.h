@@ -16,7 +16,9 @@
 namespace brocot
 {
 
-class BrocotAudioProcessor : public juce::AudioProcessor
+class BrocotAudioProcessor : public juce::AudioProcessor,
+                             private juce::AudioProcessorValueTreeState::Listener,
+                             private juce::AsyncUpdater
 {
 public:
     BrocotAudioProcessor();
@@ -126,6 +128,13 @@ private:
 
     void refreshSharedRatios();
     float midiNoteWithBend (int noteNumber) const noexcept;
+
+    // APVTS listener — called whenever a path-mode or position parameter
+    // changes. Defers the actual recompute to handleAsyncUpdate() so the
+    // string + ratio update always runs on the message thread, even if the
+    // host changed the parameter from the audio thread.
+    void parameterChanged (const juce::String& parameterID, float newValue) override;
+    void handleAsyncUpdate() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessor)
 };

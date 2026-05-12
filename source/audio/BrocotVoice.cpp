@@ -10,6 +10,10 @@ void BrocotVoice::prepare (double sampleRate)
 {
     invSampleRate = (float) (1.0 / sampleRate);
     ampEnv.prepare (sampleRate);
+    smoothedLevel.reset (sampleRate, 0.03);
+    smoothedLevel.setCurrentAndTargetValue (0.0f);
+    for (auto& o : ops)
+        o.prepare (sampleRate);
     resetPhases();
 }
 
@@ -49,13 +53,14 @@ void BrocotVoice::render (float* out, int numSamples) noexcept
     for (int n = 0; n < numSamples; ++n)
     {
         const float envSample = ampEnv.getNextSample();
+        const float lev = smoothedLevel.getNextValue();
 
         float deltaSum = 0.0f;
         for (auto& o : ops)
             deltaSum += o.processSample (carrierHz, invSampleRate);
 
         const float instFreq = carrierHz + deltaSum;
-        const float sample = std::sin (twoPi * carrierPhase) * level * envSample;
+        const float sample = std::sin (twoPi * carrierPhase) * lev * envSample;
 
         carrierPhase += instFreq * invSampleRate;
         if (carrierPhase >= 1.0f)      carrierPhase -= std::floor (carrierPhase);

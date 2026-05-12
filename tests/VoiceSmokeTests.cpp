@@ -88,6 +88,11 @@ TEST_CASE ("Silent when no operators are enabled (carrier only)", "[BrocotVoice]
     // ops default to disabled
 
     constexpr int N = 4800;
+    // Render a warmup chunk first so the SmoothedValue level ramp converges
+    // before measurement (the level smoother is ~30ms = ~1440 samples).
+    std::vector<float> warmup (N, 0.0f);
+    v.render (warmup.data(), N);
+
     std::vector<float> buf (N, 0.0f);
     v.render (buf.data(), N);
 
