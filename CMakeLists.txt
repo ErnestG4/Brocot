@@ -70,6 +70,9 @@ target_sources(Brocot PRIVATE
     source/ui/LFOPanel.cpp
     source/ui/RatioReadout.cpp
     source/ui/Oscilloscope.cpp
+    source/ui/PresetBar.cpp
+    source/presets/PresetManager.cpp
+    source/presets/PresetSchema.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -118,6 +121,7 @@ if(BROCOT_BUILD_TESTS)
         tests/FilterLFOTests.cpp
         tests/BesselTests.cpp
         tests/DepthRatioTests.cpp
+        tests/PresetRoundtripTests.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp

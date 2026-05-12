@@ -10,6 +10,7 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
 {
     setLookAndFeel (&lookAndFeel);
 
+    addAndMakeVisible (presetBar);
     addAndMakeVisible (pathModeCombo);
     pathModeCombo.addItem ("shared", 1);
     pathModeCombo.addItem ("free",   2);
@@ -50,12 +51,6 @@ void BrocotAudioProcessorEditor::paint (juce::Graphics& g)
                 getLocalBounds().removeFromTop (40).withTrimmedLeft (24),
                 juce::Justification::centredLeft);
 
-    g.setColour (colors::secondaryAtAlpha (0.6f));
-    g.setFont (fonts::mono (10.0f));
-    g.drawText ("v0.1 alpha",
-                getLocalBounds().removeFromTop (40).withTrimmedRight (24),
-                juce::Justification::centredRight);
-
     g.setColour (colors::accent.withAlpha (0.15f));
     g.drawHorizontalLine (40, 24.0f, (float) getWidth() - 24.0f);
 }
@@ -63,7 +58,11 @@ void BrocotAudioProcessorEditor::paint (juce::Graphics& g)
 void BrocotAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced (24);
-    bounds.removeFromTop (40);     // title row reserved by paint()
+
+    // Title row: "brocot" on the left (drawn by paint), preset bar on the
+    // right.
+    auto titleRow = bounds.removeFromTop (40);
+    presetBar.setBounds (titleRow.removeFromRight (360));
 
     // Path-mode toggle + shared-path navigator strip.
     auto pathRow = bounds.removeFromTop (52);

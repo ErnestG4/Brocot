@@ -9,6 +9,7 @@
 #include "params/sources/MIDISource.h"
 #include "params/sources/EnvSource.h"
 #include "params/ModTarget.h"
+#include "presets/PresetManager.h"
 
 namespace brocot
 {
@@ -44,12 +45,15 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
+    juce::AudioProcessorValueTreeState&       getAPVTS()       noexcept { return apvts; }
+    const juce::AudioProcessorValueTreeState& getAPVTS() const noexcept { return apvts; }
 
     /** Snapshot the most-recent `dest.size()` samples of the mono mix into
         `dest`. Returns false if no audio has been written yet. Safe to call
         from any thread; uses relaxed atomic ordering. */
     bool snapshotRecentAudio (std::vector<float>& dest) const noexcept;
+
+    PresetManager& getPresetManager() noexcept { return presetManager; }
 
     /** UI-thread accessors for per-operator paths. Audio thread reads only
         the cached ratio (atomic), never the string itself. */
@@ -99,6 +103,8 @@ private:
     std::atomic<bool> scopeHasData { false };
 
     void writeScopeSamples (const float* samples, int n) noexcept;
+
+    PresetManager presetManager { *this };
 
     void applyParametersToVoice();
     void refreshSharedRatios();

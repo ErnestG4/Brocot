@@ -11,6 +11,7 @@
 #include "ui/LFOPanel.h"
 #include "ui/RatioReadout.h"
 #include "ui/Oscilloscope.h"
+#include "ui/PresetBar.h"
 
 namespace brocot
 {
@@ -29,6 +30,7 @@ private:
 
     BrocotLookAndFeel lookAndFeel;
 
+    PresetBar      presetBar { processorRef, processorRef.getPresetManager() };
     juce::ComboBox pathModeCombo;
     PathNavigator  pathNavigator { processorRef };
     Oscilloscope   oscilloscope  { processorRef };
