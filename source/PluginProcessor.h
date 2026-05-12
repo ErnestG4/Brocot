@@ -3,6 +3,10 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "audio/BrocotVoice.h"
+#include "params/ParameterTree.h"
+#include "params/sources/MIDISource.h"
+#include "params/sources/EnvSource.h"
+#include "params/ModTarget.h"
 
 namespace brocot
 {
@@ -38,8 +42,29 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
+    juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
+
 private:
+    juce::AudioProcessorValueTreeState apvts;
+
     BrocotVoice voice;
+
+    // MIDI-derived modulation sources, shared across the (currently single)
+    // voice. Velocity moves to per-voice ownership when Slice 15 lights up
+    // duo polyphony.
+    MIDIModWheelSource         modWheelSource;
+    MIDIPitchBendSource        pitchBendSource;
+    MIDIChannelPressureSource  pressureSource;
+    MIDIVelocitySource         velocitySource;
+    AmpEnvSource               ampEnvSource;
+
+    // Hardcoded path data lives outside APVTS (paths aren't host-automatable);
+    // Slice 13 routes preset load/save through this.
+    juce::String sharedPath { "RLLLR" };
+    std::array<juce::String, params::kNumOperators> opPaths {};
+
+    void applyParametersToVoice();
+    float midiNoteWithBend (int noteNumber) const noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessor)
 };

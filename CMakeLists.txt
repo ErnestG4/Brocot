@@ -59,6 +59,7 @@ target_sources(Brocot PRIVATE
     source/audio/Path.cpp
     source/audio/BrocotVoice.cpp
     source/audio/AmpEnvelope.cpp
+    source/params/ParameterTree.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -103,6 +104,7 @@ if(BROCOT_BUILD_TESTS)
         tests/PathTests.cpp
         tests/VoiceSmokeTests.cpp
         tests/MidiVoiceTests.cpp
+        tests/ModGraphTests.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
         source/audio/AmpEnvelope.cpp

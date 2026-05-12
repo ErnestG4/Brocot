@@ -12,34 +12,23 @@ BrocotAudioProcessor::BrocotAudioProcessor()
         // this through a SidechainEnvelopeSource. Disabled at construction
         // so hosts don't surface an input on a synth plugin in v1.
         .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false))
+    , apvts (*this, nullptr, "Brocot", params::createLayout())
 {
-    // Hard-coded "Avatar·1" operator setup per BROCOT-SPEC.md §10 (preset #9).
-    // Carrier frequency now follows MIDI (set in noteOn); only the modulator
-    // configuration is fixed at construction. Slice 13 replaces this with
-    // the preset system.
-    //
-    //   shared path     RLLLR
-    //   op 0   pos 1 → R       (2/1)   depth 5.13
-    //   op 1   pos 3 → RLL     (4/3)   depth 0.86
-    //   op 2   pos 5 → RLLLR   (9/7)   depth 0.90
-    //   ops 3..7 disabled
-    voice.setLevel (0.25f);
+    // Seed the path data with the Avatar·1 configuration (BROCOT-SPEC.md §10
+    // preset #9). Slice 13 swaps this out for preset-driven init.
+    opPaths[0] = Path (sharedPath).prefix (1).toString();  // R    → 2/1
+    opPaths[1] = Path (sharedPath).prefix (3).toString();  // RLL  → 4/3
+    opPaths[2] = Path (sharedPath).prefix (5).toString();  // RLLLR → 9/7
+    for (int i = 3; i < params::kNumOperators; ++i)
+        opPaths[(size_t) i] = "";
 
-    const Path sharedPath ("RLLLR");
-    struct OpSetup { int position; float depth; };
-    const OpSetup setups[] = {
-        { 1, 5.13f },
-        { 3, 0.86f },
-        { 5, 0.90f },
-    };
-
-    for (size_t i = 0; i < std::size (setups); ++i)
-    {
-        auto& op = voice.op ((int) i);
-        op.setEnabled (true);
-        op.setPath (sharedPath.prefix (setups[i].position));
-        op.setDepth (setups[i].depth);
-    }
+    // Match the APVTS defaults for the Avatar·1 op depths so the host sees
+    // the same starting state as the engine. The kNumOperators × 2 defaults
+    // are defined in ParameterTree.cpp; only the first three get non-zero
+    // depth for this preset.
+    if (auto* p = apvts.getParameter (params::opId (0, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (5.13f));
+    if (auto* p = apvts.getParameter (params::opId (1, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (0.86f));
+    if (auto* p = apvts.getParameter (params::opId (2, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (0.90f));
 }
 
 BrocotAudioProcessor::~BrocotAudioProcessor() = default;
@@ -47,6 +36,7 @@ BrocotAudioProcessor::~BrocotAudioProcessor() = default;
 void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     voice.prepare (sampleRate);
+    applyParametersToVoice();
 }
 
 void BrocotAudioProcessor::releaseResources() {}
@@ -69,6 +59,51 @@ bool BrocotAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
     return true;
 }
 
+void BrocotAudioProcessor::applyParametersToVoice()
+{
+    if (auto* p = apvts.getRawParameterValue (params::ids::masterLevel))
+        voice.setLevel (p->load());
+
+    AmpEnvelope::Parameters env;
+    if (auto* p = apvts.getRawParameterValue (params::ids::envAttack))  env.attack  = p->load();
+    if (auto* p = apvts.getRawParameterValue (params::ids::envDecay))   env.decay   = p->load();
+    if (auto* p = apvts.getRawParameterValue (params::ids::envSustain)) env.sustain = p->load();
+    if (auto* p = apvts.getRawParameterValue (params::ids::envRelease)) env.release = p->load();
+    voice.envelope().setParameters (env);
+
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        auto& op = voice.op (i);
+
+        bool enabled = false;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "enabled")))
+            enabled = (p->load() > 0.5f);
+        op.setEnabled (enabled);
+
+        if (enabled)
+        {
+            op.setPath (Path (opPaths[(size_t) i]));
+
+            float depth = 0.0f;
+            if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
+                depth = p->load();
+            op.setDepth (depth);
+        }
+    }
+}
+
+float BrocotAudioProcessor::midiNoteWithBend (int noteNumber) const noexcept
+{
+    // BROCOT-SPEC.md §8: pitch bend mapped to ±2 semitones in v1.
+    int octave = 0;
+    if (auto* p = apvts.getRawParameterValue (params::ids::octaveShift))
+        octave = (int) std::round (p->load());
+
+    const float bend = pitchBendSource.getModulationValue();
+    const float shiftedNote = (float) noteNumber + 12.0f * (float) octave + 2.0f * bend;
+    return 440.0f * std::pow (2.0f, (shiftedNote - 69.0f) / 12.0f);
+}
+
 void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -84,11 +119,19 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         return;
     }
 
-    // Sample-accurate MIDI: render the FM voice in chunks between MIDI events,
-    // applying each event at its exact sample offset. Mono voice per spec §8;
-    // duophony lands in Slice 15 once polyphony management is layered on top.
+    // Pull current parameter snapshot once per block. Block-level smoothing
+    // is good enough for v1; per-sample smoothing arrives if/when a slider
+    // is observed to click.
+    applyParametersToVoice();
+
     float* const monoOut = buffer.getWritePointer (0);
     int processedSamples = 0;
+
+    auto maybeUpdateCarrier = [this]
+    {
+        if (voice.getActiveNote() != BrocotVoice::kNoActiveNote)
+            voice.setCarrierHz (midiNoteWithBend (voice.getActiveNote()));
+    };
 
     for (const auto meta : midi)
     {
@@ -99,11 +142,32 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         processedSamples = eventSample;
 
         const auto msg = meta.getMessage();
+
         if (msg.isNoteOn())
-            voice.noteOn (msg.getNoteNumber(), msg.getFloatVelocity());
+        {
+            const float vel = msg.getFloatVelocity();
+            velocitySource.setVelocity (vel);
+            voice.noteOn (msg.getNoteNumber(), vel);
+            maybeUpdateCarrier();
+        }
         else if (msg.isNoteOff())
+        {
             voice.noteOff (msg.getNoteNumber());
-        // Other MIDI (CCs, pitch bend, aftertouch) is plumbed in Slice 6.
+        }
+        else if (msg.isPitchWheel())
+        {
+            pitchBendSource.setBendRaw14 (msg.getPitchWheelValue());
+            maybeUpdateCarrier();
+        }
+        else if (msg.isController())
+        {
+            if (msg.getControllerNumber() == 1)
+                modWheelSource.setRaw14 (msg.getControllerValue());
+        }
+        else if (msg.isChannelPressure())
+        {
+            pressureSource.setRaw7 (msg.getChannelPressureValue());
+        }
     }
 
     if (processedSamples < numSamples)
@@ -120,8 +184,44 @@ juce::AudioProcessorEditor* BrocotAudioProcessor::createEditor()
     return new BrocotAudioProcessorEditor (*this);
 }
 
-void BrocotAudioProcessor::getStateInformation (juce::MemoryBlock&) {}
-void BrocotAudioProcessor::setStateInformation (const void*, int) {}
+void BrocotAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
+{
+    // APVTS state covers all host-automatable parameters. Path strings live
+    // in a sibling ValueTree branch so the host's parameter list stays clean
+    // but state persistence still round-trips them.
+    auto state = apvts.copyState();
+
+    juce::ValueTree paths ("Paths");
+    paths.setProperty ("shared", sharedPath, nullptr);
+    for (int i = 0; i < params::kNumOperators; ++i)
+        paths.setProperty ("op" + juce::String (i),
+                           opPaths[(size_t) i], nullptr);
+    state.appendChild (paths, nullptr);
+
+    if (auto xml = state.createXml())
+        copyXmlToBinary (*xml, destData);
+}
+
+void BrocotAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
+{
+    auto xml = getXmlFromBinary (data, sizeInBytes);
+    if (xml == nullptr) return;
+
+    auto state = juce::ValueTree::fromXml (*xml);
+    if (! state.isValid()) return;
+
+    if (auto paths = state.getChildWithName ("Paths"); paths.isValid())
+    {
+        sharedPath = paths.getProperty ("shared", sharedPath).toString();
+        for (int i = 0; i < params::kNumOperators; ++i)
+            opPaths[(size_t) i] = paths.getProperty ("op" + juce::String (i),
+                                                     opPaths[(size_t) i]).toString();
+        state.removeChild (paths, nullptr);
+    }
+
+    apvts.replaceState (state);
+    applyParametersToVoice();
+}
 
 } // namespace brocot
 
