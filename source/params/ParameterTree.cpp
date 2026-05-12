@@ -65,6 +65,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             juce::ParameterID (opId (i, "depth"), 1),
             "Op " + juce::String (i + 1) + " Depth",
             juce::NormalisableRange<float> (0.0f, 8.0f), 0.5f));
+
+        // Position along the shared path. 32 is a generous upper bound on
+        // path length; resolution caps at the actual sharedPath.length() when
+        // applied to the voice.
+        layout.add (std::make_unique<IntParam> (
+            juce::ParameterID (opId (i, "position"), 1),
+            "Op " + juce::String (i + 1) + " Position", 0, 32, 0));
     }
 
     // Filter (spec §2). Cutoff is in normalized 0..1 here — PluginProcessor

@@ -33,6 +33,17 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
                                   { return s.isEmpty() ? s : s.dropLastCharacters (1); }); };
     btnRoot.onClick = [this] { mutatePath ([] (const juce::String&) { return juce::String(); }); };
 
+    addAndMakeVisible (positionSlider);
+    positionSlider.setSliderStyle (juce::Slider::IncDecButtons);
+    positionSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 30, 18);
+    positionSlider.setRange (0.0, 32.0, 1.0);
+
+    addAndMakeVisible (positionLabel);
+    positionLabel.setText ("position", juce::dontSendNotification);
+    positionLabel.setJustificationType (juce::Justification::centredLeft);
+    positionLabel.setFont (fonts::mono (10.0f));
+    positionLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.5f));
+
     addAndMakeVisible (depthSlider);
 
     addAndMakeVisible (depthLabel);
@@ -46,13 +57,27 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     regimeLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.4f));
 
     auto& apvts = proc.getAPVTS();
-    enabledAttach = std::make_unique<ButtonAttach> (
+    enabledAttach  = std::make_unique<ButtonAttach> (
         apvts, params::opId (opIndex, "enabled"), enabledToggle);
-    depthAttach   = std::make_unique<SliderAttach> (
+    depthAttach    = std::make_unique<SliderAttach> (
         apvts, params::opId (opIndex, "depth"), depthSlider);
+    positionAttach = std::make_unique<SliderAttach> (
+        apvts, params::opId (opIndex, "position"), positionSlider);
 
+    setFreeModeWidgetsVisible (! proc.isSharedMode());
     refreshFromProcessor();
     startTimerHz (15);   // path & depth display refresh — paths change rarely
+}
+
+void OperatorPanel::setFreeModeWidgetsVisible (bool freeMode)
+{
+    btnL.setVisible (freeMode);
+    btnR.setVisible (freeMode);
+    btnUp.setVisible (freeMode);
+    btnRoot.setVisible (freeMode);
+
+    positionSlider.setVisible (! freeMode);
+    positionLabel.setVisible  (! freeMode);
 }
 
 OperatorPanel::~OperatorPanel() = default;
@@ -92,6 +117,7 @@ void OperatorPanel::mutatePath (const std::function<juce::String (const juce::St
 
 void OperatorPanel::timerCallback()
 {
+    setFreeModeWidgetsVisible (! proc.isSharedMode());
     refreshFromProcessor();
 }
 
@@ -114,15 +140,26 @@ void OperatorPanel::resized()
     pathLabel.setBounds (r.removeFromTop (14));
     r.removeFromTop (4);
 
+    // Both navigation widgets get laid out into the same region; only one
+    // set is visible at any time (driven by path-mode toggle).
     auto navRow = r.removeFromTop (22);
-    btnL.setBounds    (navRow.removeFromLeft (navRow.getWidth() / 2));
-    btnR.setBounds    (navRow);
+    auto rowFreeL = navRow.removeFromLeft (navRow.getWidth() / 2);
+    btnL.setBounds (rowFreeL);
+    btnR.setBounds (navRow);
     r.removeFromTop (3);
 
     auto navRow2 = r.removeFromTop (18);
     btnUp.setBounds   (navRow2.removeFromLeft (navRow2.getWidth() / 2));
     btnRoot.setBounds (navRow2);
     r.removeFromTop (8);
+
+    // Shared-mode widgets overlay the same vertical slot (only visible when
+    // not in free mode).
+    positionLabel.setBounds (rowFreeL.withY (rowFreeL.getY()).withTrimmedLeft (4));
+    auto posSliderArea = navRow.withX (rowFreeL.getX()).withWidth (rowFreeL.getWidth() + navRow.getWidth())
+                                  .withHeight (40)
+                                  .withY (rowFreeL.getY() + 16);
+    positionSlider.setBounds (posSliderArea);
 
     depthSlider.setBounds (r.removeFromTop (22));
     auto labelRow = r.removeFromTop (14);

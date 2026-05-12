@@ -51,6 +51,13 @@ public:
     juce::String getOpPath (int idx) const;
     void setOpPath (int idx, const juce::String& pathString);
 
+    /** Shared-path accessors. Mutating the shared path triggers a refresh of
+        every operator's cached ratio (so position-along-shared resolves
+        correctly without the audio thread touching the string). */
+    juce::String getSharedPath() const;
+    void setSharedPath (const juce::String& pathString);
+    bool isSharedMode() const;
+
 private:
     juce::AudioProcessorValueTreeState apvts;
 
@@ -78,6 +85,7 @@ private:
     juce::CriticalSection pathsLock;
 
     void applyParametersToVoice();
+    void refreshSharedRatios();
     float midiNoteWithBend (int noteNumber) const noexcept;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessor)

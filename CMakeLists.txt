@@ -63,6 +63,7 @@ target_sources(Brocot PRIVATE
     source/ui/BrocotLookAndFeel.cpp
     source/ui/OperatorPanel.cpp
     source/ui/DepthSlider.cpp
+    source/ui/PathNavigator.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC

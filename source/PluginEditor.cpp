@@ -10,6 +10,14 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
 {
     setLookAndFeel (&lookAndFeel);
 
+    addAndMakeVisible (pathModeCombo);
+    pathModeCombo.addItem ("shared", 1);
+    pathModeCombo.addItem ("free",   2);
+    pathModeAttach = std::make_unique<ComboAttach> (
+        processorRef.getAPVTS(), params::ids::pathMode, pathModeCombo);
+
+    addAndMakeVisible (pathNavigator);
+
     for (int i = 0; i < params::kNumOperators; ++i)
     {
         operatorPanels[(size_t) i] = std::make_unique<OperatorPanel> (processorRef, i);
@@ -51,6 +59,13 @@ void BrocotAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced (24);
     bounds.removeFromTop (40);     // title row reserved by paint()
+
+    // Path-mode toggle + shared-path navigator strip.
+    auto pathRow = bounds.removeFromTop (52);
+    pathModeCombo.setBounds (pathRow.removeFromLeft (120).reduced (0, 12));
+    pathRow.removeFromLeft (8);
+    pathNavigator.setBounds (pathRow);
+    bounds.removeFromTop (8);
 
     // Reserve the bottom strip for filter/env/LFO panels (Slice 12). For now
     // it stays empty; the operator grid fills the rest.

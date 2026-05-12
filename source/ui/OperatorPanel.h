@@ -48,10 +48,17 @@ private:
     juce::TextButton btnUp   { "parent" };
     juce::TextButton btnRoot { "1/1" };
 
+    // Shared-mode position spinner (visible only when path mode is shared).
+    juce::Slider positionSlider;
+    juce::Label  positionLabel;
+
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<SliderAttach> depthAttach;
+    std::unique_ptr<SliderAttach> positionAttach;
     std::unique_ptr<ButtonAttach> enabledAttach;
+
+    void setFreeModeWidgetsVisible (bool freeMode);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OperatorPanel)
 };

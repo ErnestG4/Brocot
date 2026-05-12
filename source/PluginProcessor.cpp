@@ -29,6 +29,17 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     if (auto* p = apvts.getParameter (params::opId (0, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (5.13f));
     if (auto* p = apvts.getParameter (params::opId (1, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (0.86f));
     if (auto* p = apvts.getParameter (params::opId (2, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (0.90f));
+
+    // Shared-mode positions along RLLLR (1/3/5) so toggling to shared mode
+    // out of the box reproduces the same ratios.
+    auto setPos = [this] (int op, int pos)
+    {
+        if (auto* p = apvts.getParameter (params::opId (op, "position")))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) pos));
+    };
+    setPos (0, 1);
+    setPos (1, 3);
+    setPos (2, 5);
 }
 
 BrocotAudioProcessor::~BrocotAudioProcessor() = default;
@@ -92,6 +103,15 @@ void BrocotAudioProcessor::applyParametersToVoice()
             op.setDepth (depth);
         }
     }
+
+    // If we just transitioned from free → shared (or vice versa), or if a
+    // position parameter has moved, the audio thread should keep using the
+    // current ratio cache. Shared-mode position updates are pushed into the
+    // ratio cache by the UI via setOpPosition / refreshSharedRatios. Here we
+    // just make sure ratios are consistent with the mode by recomputing once
+    // per block — cheap and avoids stale cache after preset load.
+    if (isSharedMode())
+        refreshSharedRatios();
 
     // Filter mode + resonance refresh per block. Cutoff is modulated per-sample
     // in processBlock by the LFO so it isn't set here.
@@ -281,6 +301,56 @@ void BrocotAudioProcessor::setOpPath (int idx, const juce::String& pathString)
         opPaths[(size_t) idx] = pathString;
     }
     opRatios[(size_t) idx].store ((float) p.ratio(), std::memory_order_release);
+}
+
+juce::String BrocotAudioProcessor::getSharedPath() const
+{
+    const juce::ScopedLock lock (pathsLock);
+    return sharedPath;
+}
+
+void BrocotAudioProcessor::setSharedPath (const juce::String& pathString)
+{
+    {
+        const juce::ScopedLock lock (pathsLock);
+        sharedPath = pathString;
+    }
+    refreshSharedRatios();
+}
+
+bool BrocotAudioProcessor::isSharedMode() const
+{
+    if (auto* p = apvts.getRawParameterValue (params::ids::pathMode))
+        return p->load() < 0.5f;   // 0 = shared, 1 = free
+    return true;
+}
+
+void BrocotAudioProcessor::refreshSharedRatios()
+{
+    juce::String snapshot;
+    {
+        const juce::ScopedLock lock (pathsLock);
+        snapshot = sharedPath;
+    }
+    const Path shared (snapshot);
+    const int len = shared.depth();
+
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        int pos = 0;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "position")))
+            pos = (int) std::round (p->load());
+        pos = juce::jlimit (0, len, pos);
+
+        const Path derived = shared.prefix (pos);
+        const juce::String derivedStr = derived.toString();
+        {
+            const juce::ScopedLock lock (pathsLock);
+            opPaths[(size_t) i] = derivedStr;
+        }
+        opRatios[(size_t) i].store ((float) derived.ratio(),
+                                    std::memory_order_release);
+    }
 }
 
 } // namespace brocot
