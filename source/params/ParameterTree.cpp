@@ -38,6 +38,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         "Path Mode",
         juce::StringArray { "shared", "free" }, 0));
 
+    layout.add (std::make_unique<ChoiceParam> (
+        juce::ParameterID (ids::polyphony, 1),
+        "Polyphony",
+        juce::StringArray { "mono", "duo" }, 0));
+
     // ADSR per spec §2 ranges. Skew gives more resolution toward fast attacks
     // / decays, which is where the audible action is for percussive / pluck
     // sounds; sustain is linear; release uses similar log feel.

@@ -46,10 +46,11 @@ BrocotAudioProcessor::~BrocotAudioProcessor() = default;
 
 void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
 {
-    voice.prepare (sampleRate);
+    for (auto& v : voices)
+        v.prepare (sampleRate);
     filter.prepare (sampleRate);
     lfo.prepare (sampleRate);
-    applyParametersToVoice();
+    applyParametersToAllVoices();
 }
 
 void BrocotAudioProcessor::releaseResources() {}
@@ -72,44 +73,48 @@ bool BrocotAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
     return true;
 }
 
-void BrocotAudioProcessor::applyParametersToVoice()
+void BrocotAudioProcessor::applyParametersToAllVoices()
 {
+    float masterLevel = 0.5f;
     if (auto* p = apvts.getRawParameterValue (params::ids::masterLevel))
-        voice.setLevel (p->load());
+        masterLevel = p->load();
+
+    // Halve the per-voice level in duo mode so two simultaneous notes don't
+    // clip; a more sophisticated voice mixer can come later.
+    const float perVoiceLevel = isDuoMode() ? masterLevel * 0.5f : masterLevel;
 
     AmpEnvelope::Parameters env;
     if (auto* p = apvts.getRawParameterValue (params::ids::envAttack))  env.attack  = p->load();
     if (auto* p = apvts.getRawParameterValue (params::ids::envDecay))   env.decay   = p->load();
     if (auto* p = apvts.getRawParameterValue (params::ids::envSustain)) env.sustain = p->load();
     if (auto* p = apvts.getRawParameterValue (params::ids::envRelease)) env.release = p->load();
-    voice.envelope().setParameters (env);
 
-    for (int i = 0; i < params::kNumOperators; ++i)
+    for (auto& v : voices)
     {
-        auto& op = voice.op (i);
+        v.setLevel (perVoiceLevel);
+        v.envelope().setParameters (env);
 
-        bool enabled = false;
-        if (auto* p = apvts.getRawParameterValue (params::opId (i, "enabled")))
-            enabled = (p->load() > 0.5f);
-        op.setEnabled (enabled);
-
-        if (enabled)
+        for (int i = 0; i < params::kNumOperators; ++i)
         {
-            op.setRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
+            auto& op = v.op (i);
 
-            float depth = 0.0f;
-            if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
-                depth = p->load();
-            op.setDepth (depth);
+            bool enabled = false;
+            if (auto* p = apvts.getRawParameterValue (params::opId (i, "enabled")))
+                enabled = (p->load() > 0.5f);
+            op.setEnabled (enabled);
+
+            if (enabled)
+            {
+                op.setRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
+
+                float depth = 0.0f;
+                if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
+                    depth = p->load();
+                op.setDepth (depth);
+            }
         }
     }
 
-    // If we just transitioned from free → shared (or vice versa), or if a
-    // position parameter has moved, the audio thread should keep using the
-    // current ratio cache. Shared-mode position updates are pushed into the
-    // ratio cache by the UI via setOpPosition / refreshSharedRatios. Here we
-    // just make sure ratios are consistent with the mode by recomputing once
-    // per block — cheap and avoids stale cache after preset load.
     if (isSharedMode())
         refreshSharedRatios();
 
@@ -165,23 +170,30 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // Pull current parameter snapshot once per block. Block-level smoothing
     // is good enough for v1; per-sample smoothing arrives if/when a slider
     // is observed to click.
-    applyParametersToVoice();
+    applyParametersToAllVoices();
 
     float* const monoOut = buffer.getWritePointer (0);
     int processedSamples = 0;
 
-    auto maybeUpdateCarrier = [this]
+    auto refreshAllCarriers = [this]
     {
-        if (voice.getActiveNote() != BrocotVoice::kNoActiveNote)
-            voice.setCarrierHz (midiNoteWithBend (voice.getActiveNote()));
+        for (auto& v : voices)
+            if (v.getActiveNote() != BrocotVoice::kNoActiveNote)
+                v.setCarrierHz (midiNoteWithBend (v.getActiveNote()));
+    };
+
+    auto renderVoices = [this, monoOut] (int from, int count)
+    {
+        if (count <= 0) return;
+        const int activeCount = isDuoMode() ? kMaxVoices : 1;
+        for (int i = 0; i < activeCount; ++i)
+            voices[(size_t) i].render (monoOut + from, count);
     };
 
     for (const auto meta : midi)
     {
         const int eventSample = juce::jlimit (0, numSamples, meta.samplePosition);
-        const int samplesToRender = eventSample - processedSamples;
-        if (samplesToRender > 0)
-            voice.render (monoOut + processedSamples, samplesToRender);
+        renderVoices (processedSamples, eventSample - processedSamples);
         processedSamples = eventSample;
 
         const auto msg = meta.getMessage();
@@ -190,18 +202,21 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         {
             const float vel = msg.getFloatVelocity();
             velocitySource.setVelocity (vel);
-            voice.noteOn (msg.getNoteNumber(), vel);
+
+            const int idx = allocateVoice (msg.getNoteNumber());
+            voices[(size_t) idx].noteOn (msg.getNoteNumber(), vel);
+            voices[(size_t) idx].setCarrierHz (midiNoteWithBend (msg.getNoteNumber()));
+            voiceNoteOnOrder[(size_t) idx] = ++noteOnCounter;
             lfo.onNoteOn();   // optional phase reset if key-sync is enabled
-            maybeUpdateCarrier();
         }
         else if (msg.isNoteOff())
         {
-            voice.noteOff (msg.getNoteNumber());
+            noteOffOnAnyVoice (msg.getNoteNumber());
         }
         else if (msg.isPitchWheel())
         {
             pitchBendSource.setBendRaw14 (msg.getPitchWheelValue());
-            maybeUpdateCarrier();
+            refreshAllCarriers();
         }
         else if (msg.isController())
         {
@@ -214,8 +229,7 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         }
     }
 
-    if (processedSamples < numSamples)
-        voice.render (monoOut + processedSamples, numSamples - processedSamples);
+    renderVoices (processedSamples, numSamples - processedSamples);
 
     // Apply the LFO → filter cutoff route per sample. Base cutoff is a 0..1
     // APVTS value mapped logarithmically to 20 Hz..20 kHz; the LFO modulates
@@ -315,7 +329,7 @@ void BrocotAudioProcessor::setStateInformation (const void* data, int sizeInByte
     }
 
     apvts.replaceState (state);
-    applyParametersToVoice();
+    applyParametersToAllVoices();
 }
 
 juce::String BrocotAudioProcessor::getOpPath (int idx) const
@@ -334,6 +348,37 @@ void BrocotAudioProcessor::setOpPath (int idx, const juce::String& pathString)
         opPaths[(size_t) idx] = pathString;
     }
     opRatios[(size_t) idx].store ((float) p.ratio(), std::memory_order_release);
+}
+
+bool BrocotAudioProcessor::isDuoMode() const noexcept
+{
+    if (auto* p = apvts.getRawParameterValue (params::ids::polyphony))
+        return p->load() > 0.5f;   // 0 = mono, 1 = duo
+    return false;
+}
+
+int BrocotAudioProcessor::allocateVoice (int /*midiNote*/) noexcept
+{
+    // BROCOT-SPEC.md §8 mono: voice 0 always gets retriggered.
+    if (! isDuoMode()) return 0;
+
+    // Duo: prefer a voice that's done playing (envelope inactive).
+    for (int i = 0; i < kMaxVoices; ++i)
+        if (! voices[(size_t) i].isActive()) return i;
+
+    // Otherwise steal the oldest voice.
+    int oldest = 0;
+    for (int i = 1; i < kMaxVoices; ++i)
+        if (voiceNoteOnOrder[(size_t) i] < voiceNoteOnOrder[(size_t) oldest])
+            oldest = i;
+    return oldest;
+}
+
+void BrocotAudioProcessor::noteOffOnAnyVoice (int midiNote) noexcept
+{
+    const int count = isDuoMode() ? kMaxVoices : 1;
+    for (int i = 0; i < count; ++i)
+        voices[(size_t) i].noteOff (midiNote);
 }
 
 juce::String BrocotAudioProcessor::getSharedPath() const

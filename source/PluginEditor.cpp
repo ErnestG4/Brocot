@@ -17,6 +17,12 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     pathModeAttach = std::make_unique<ComboAttach> (
         processorRef.getAPVTS(), params::ids::pathMode, pathModeCombo);
 
+    addAndMakeVisible (polyphonyCombo);
+    polyphonyCombo.addItem ("mono", 1);
+    polyphonyCombo.addItem ("duo",  2);
+    polyphonyAttach = std::make_unique<ComboAttach> (
+        processorRef.getAPVTS(), params::ids::polyphony, polyphonyCombo);
+
     addAndMakeVisible (pathNavigator);
     addAndMakeVisible (oscilloscope);
     addAndMakeVisible (ratioReadout);
@@ -66,7 +72,9 @@ void BrocotAudioProcessorEditor::resized()
 
     // Path-mode toggle + shared-path navigator strip.
     auto pathRow = bounds.removeFromTop (52);
-    pathModeCombo.setBounds (pathRow.removeFromLeft (120).reduced (0, 12));
+    pathModeCombo.setBounds  (pathRow.removeFromLeft (110).reduced (0, 12));
+    pathRow.removeFromLeft (6);
+    polyphonyCombo.setBounds (pathRow.removeFromLeft (80).reduced (0, 12));
     pathRow.removeFromLeft (8);
     pathNavigator.setBounds (pathRow);
     bounds.removeFromTop (8);

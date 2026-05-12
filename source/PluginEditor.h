@@ -31,7 +31,13 @@ private:
     BrocotLookAndFeel lookAndFeel;
 
     PresetBar      presetBar { processorRef, processorRef.getPresetManager() };
+    using ComboAttach = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+
     juce::ComboBox pathModeCombo;
+    juce::ComboBox polyphonyCombo;
+    std::unique_ptr<ComboAttach> pathModeAttach;
+    std::unique_ptr<ComboAttach> polyphonyAttach;
+
     PathNavigator  pathNavigator { processorRef };
     Oscilloscope   oscilloscope  { processorRef };
     RatioReadout   ratioReadout  { processorRef };
@@ -39,9 +45,6 @@ private:
     FilterPanel    filterPanel   { processorRef };
     EnvelopePanel  envelopePanel { processorRef };
     LFOPanel       lfoPanel      { processorRef };
-
-    using ComboAttach = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
-    std::unique_ptr<ComboAttach> pathModeAttach;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessorEditor)
 };

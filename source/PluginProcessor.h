@@ -70,9 +70,17 @@ public:
 private:
     juce::AudioProcessorValueTreeState apvts;
 
-    BrocotVoice voice;
+    static constexpr int kMaxVoices = 2;
+    std::array<BrocotVoice, kMaxVoices> voices {};
+    std::array<juce::int64, kMaxVoices> voiceNoteOnOrder {};
+    juce::int64 noteOnCounter { 0 };
     FilterBank  filter;
     LFO         lfo;
+
+    bool isDuoMode() const noexcept;
+    int  allocateVoice (int midiNote) noexcept;
+    void noteOffOnAnyVoice (int midiNote) noexcept;
+    void applyParametersToAllVoices();
 
     // MIDI-derived modulation sources, shared across the (currently single)
     // voice. Velocity moves to per-voice ownership when Slice 15 lights up
@@ -106,7 +114,6 @@ private:
 
     PresetManager presetManager { *this };
 
-    void applyParametersToVoice();
     void refreshSharedRatios();
     float midiNoteWithBend (int noteNumber) const noexcept;
 

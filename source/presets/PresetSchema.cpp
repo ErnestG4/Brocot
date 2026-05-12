@@ -75,7 +75,8 @@ juce::var serialise (const BrocotAudioProcessor& proc)
     root->setProperty ("category",    "user");
 
     auto* engine = new juce::DynamicObject();
-    engine->setProperty ("polyphony", "mono");
+    engine->setProperty ("polyphony",
+                         paramValue (apvts, params::ids::polyphony) > 0.5f ? "duo" : "mono");
     engine->setProperty ("octaveShift",
                          (int) std::round (paramValue (apvts, params::ids::octaveShift)));
 
@@ -148,6 +149,10 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
     {
         setParam (apvts, params::ids::octaveShift,
                   (float) (int) engine->getProperty ("octaveShift"), false);
+
+        const juce::String poly = engine->getProperty ("polyphony");
+        setParam (apvts, params::ids::polyphony,
+                  (poly == "duo") ? 1.0f : 0.0f, false);
 
         const juce::String pathMode = engine->getProperty ("pathMode");
         const bool sharedMode = pathMode != "free";
