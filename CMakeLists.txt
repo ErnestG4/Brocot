@@ -105,6 +105,7 @@ if(BROCOT_BUILD_TESTS)
         tests/VoiceSmokeTests.cpp
         tests/MidiVoiceTests.cpp
         tests/ModGraphTests.cpp
+        tests/FilterLFOTests.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
         source/audio/AmpEnvelope.cpp

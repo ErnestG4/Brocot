@@ -33,6 +33,13 @@ namespace params
         inline constexpr auto envDecay    = "env.decay";
         inline constexpr auto envSustain  = "env.sustain";
         inline constexpr auto envRelease  = "env.release";
+        inline constexpr auto filterType      = "filter.type";
+        inline constexpr auto filterCutoff    = "filter.cutoff";
+        inline constexpr auto filterResonance = "filter.resonance";
+        inline constexpr auto lfoShape   = "lfo.shape";
+        inline constexpr auto lfoRate    = "lfo.rate";
+        inline constexpr auto lfoDepth   = "lfo.depth";
+        inline constexpr auto lfoKeySync = "lfo.keySync";
     }
 
     juce::AudioProcessorValueTreeState::ParameterLayout createLayout();

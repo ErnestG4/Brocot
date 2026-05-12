@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "audio/BrocotVoice.h"
+#include "audio/FilterBank.h"
+#include "audio/LFO.h"
 #include "params/ParameterTree.h"
 #include "params/sources/MIDISource.h"
 #include "params/sources/EnvSource.h"
@@ -48,6 +50,8 @@ private:
     juce::AudioProcessorValueTreeState apvts;
 
     BrocotVoice voice;
+    FilterBank  filter;
+    LFO         lfo;
 
     // MIDI-derived modulation sources, shared across the (currently single)
     // voice. Velocity moves to per-voice ownership when Slice 15 lights up

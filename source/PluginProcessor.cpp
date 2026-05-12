@@ -36,6 +36,8 @@ BrocotAudioProcessor::~BrocotAudioProcessor() = default;
 void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
 {
     voice.prepare (sampleRate);
+    filter.prepare (sampleRate);
+    lfo.prepare (sampleRate);
     applyParametersToVoice();
 }
 
@@ -90,6 +92,27 @@ void BrocotAudioProcessor::applyParametersToVoice()
             op.setDepth (depth);
         }
     }
+
+    // Filter mode + resonance refresh per block. Cutoff is modulated per-sample
+    // in processBlock by the LFO so it isn't set here.
+    if (auto* p = apvts.getRawParameterValue (params::ids::filterType))
+    {
+        const int idx = (int) std::round (p->load());
+        filter.setMode (static_cast<FilterBank::Mode> (juce::jlimit (0, 3, idx)));
+    }
+    if (auto* p = apvts.getRawParameterValue (params::ids::filterResonance))
+        filter.setResonance (p->load());
+
+    // LFO config refresh per block.
+    if (auto* p = apvts.getRawParameterValue (params::ids::lfoShape))
+    {
+        const int idx = (int) std::round (p->load());
+        lfo.setShape (static_cast<LFO::Shape> (juce::jlimit (0, 3, idx)));
+    }
+    if (auto* p = apvts.getRawParameterValue (params::ids::lfoRate))  lfo.setRate  (p->load());
+    if (auto* p = apvts.getRawParameterValue (params::ids::lfoDepth)) lfo.setDepth (p->load());
+    if (auto* p = apvts.getRawParameterValue (params::ids::lfoKeySync))
+        lfo.setKeySync (p->load() > 0.5f);
 }
 
 float BrocotAudioProcessor::midiNoteWithBend (int noteNumber) const noexcept
@@ -148,6 +171,7 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             const float vel = msg.getFloatVelocity();
             velocitySource.setVelocity (vel);
             voice.noteOn (msg.getNoteNumber(), vel);
+            lfo.onNoteOn();   // optional phase reset if key-sync is enabled
             maybeUpdateCarrier();
         }
         else if (msg.isNoteOff())
@@ -172,6 +196,24 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     if (processedSamples < numSamples)
         voice.render (monoOut + processedSamples, numSamples - processedSamples);
+
+    // Apply the LFO → filter cutoff route per sample. Base cutoff is a 0..1
+    // APVTS value mapped logarithmically to 20 Hz..20 kHz; the LFO modulates
+    // ±2 octaves at full depth. Sample-level smoothing of cutoff comes from
+    // recomputing each sample — coefficients are cheap.
+    float baseCutoff01 = 0.85f;
+    if (auto* p = apvts.getRawParameterValue (params::ids::filterCutoff))
+        baseCutoff01 = p->load();
+
+    for (int n = 0; n < numSamples; ++n)
+    {
+        const float lfoValue = lfo.tickScaled();   // [-depth, +depth]
+        const float cutoff01 = juce::jlimit (0.0f, 1.0f,
+                                             baseCutoff01 + lfoValue * 0.5f);
+        const float cutoffHz = 20.0f * std::pow (1000.0f, cutoff01);  // 20..20k
+        filter.setCutoff (cutoffHz);
+        monoOut[n] = filter.processSample (monoOut[n]);
+    }
 
     for (int ch = 1; ch < numOutChannels; ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);

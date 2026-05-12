@@ -67,6 +67,34 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             juce::NormalisableRange<float> (0.0f, 8.0f), 0.5f));
     }
 
+    // Filter (spec §2). Cutoff is in normalized 0..1 here — PluginProcessor
+    // maps that to a logarithmic 20 Hz..20 kHz sweep when reading.
+    layout.add (std::make_unique<ChoiceParam> (
+        juce::ParameterID (ids::filterType, 1),
+        "Filter Type",
+        juce::StringArray { "LP", "BP", "HP", "Notch" }, 0));
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (ids::filterCutoff, 1),
+        "Filter Cutoff", juce::NormalisableRange<float> (0.0f, 1.0f), 0.85f));
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (ids::filterResonance, 1),
+        "Filter Resonance", juce::NormalisableRange<float> (0.0f, 1.0f), 0.15f));
+
+    // LFO (spec §2). Rate is in Hz with log skew; depth is normalized.
+    layout.add (std::make_unique<ChoiceParam> (
+        juce::ParameterID (ids::lfoShape, 1),
+        "LFO Shape",
+        juce::StringArray { "Sine", "Triangle", "Square", "Saw" }, 0));
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (ids::lfoRate, 1),
+        "LFO Rate", logRange (0.01f, 20.0f, 0.3f), 0.5f));
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (ids::lfoDepth, 1),
+        "LFO Depth", juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+    layout.add (std::make_unique<BoolParam> (
+        juce::ParameterID (ids::lfoKeySync, 1),
+        "LFO Key Sync", false));
+
     return layout;
 }
 
