@@ -10,12 +10,15 @@ namespace
     using ChoiceParam = juce::AudioParameterChoice;
     using IntParam    = juce::AudioParameterInt;
 
-    juce::NormalisableRange<float> logRange (float min, float max, float skew)
+    // setSkewForCentre takes a VALUE in the range, not a fraction — slider
+    // midpoint outputs this value. Using midpoints in the perceptually
+    // useful zone (most of the slider real estate covers the values you
+    // actually use) gives the "log feel" without burying the bottom half
+    // of the slider in near-zero values.
+    juce::NormalisableRange<float> logRange (float min, float max, float centreValue)
     {
-        // skew < 1 biases toward `min`; this gives slider feel matching
-        // perceptual time-scale (short A/D feels different from long).
         juce::NormalisableRange<float> r (min, max);
-        r.setSkewForCentre (skew);
+        r.setSkewForCentre (centreValue);
         return r;
     }
 }
@@ -46,18 +49,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     // ADSR per spec §2 ranges. Skew gives more resolution toward fast attacks
     // / decays, which is where the audible action is for percussive / pluck
     // sounds; sustain is linear; release uses similar log feel.
+    // Envelope time params: slider midpoint at 0.5s for attack/decay (so
+    // the upper half covers 0.5..5s pads, lower half covers 0..0.5s snappy
+    // attacks). Release midpoint at 1.0s for the same feel on a 0..10s range.
     layout.add (std::make_unique<FloatParam> (
         juce::ParameterID (ids::envAttack,  1),
-        "Env Attack",  logRange (0.0f, 5.0f, 0.3f),  0.01f));
+        "Env Attack",  logRange (0.0f, 5.0f, 0.5f),  0.01f));
     layout.add (std::make_unique<FloatParam> (
         juce::ParameterID (ids::envDecay,   1),
-        "Env Decay",   logRange (0.0f, 5.0f, 0.3f),  0.15f));
+        "Env Decay",   logRange (0.0f, 5.0f, 0.5f),  0.15f));
     layout.add (std::make_unique<FloatParam> (
         juce::ParameterID (ids::envSustain, 1),
         "Env Sustain", juce::NormalisableRange<float> (0.0f, 1.0f), 0.8f));
     layout.add (std::make_unique<FloatParam> (
         juce::ParameterID (ids::envRelease, 1),
-        "Env Release", logRange (0.0f, 10.0f, 0.3f), 0.4f));
+        "Env Release", logRange (0.0f, 10.0f, 1.0f), 0.4f));
 
     for (int i = 0; i < kNumOperators; ++i)
     {

@@ -106,7 +106,12 @@ private:
     // thread only reads `opRatios` (atomic cache, recomputed on every path
     // mutation). pathsLock guards string reads/writes; ratios use relaxed
     // atomics so the audio thread never blocks on a UI update.
-    juce::String sharedPath { "RLLLR" };
+    // Default shared path is 32 chars long so every position from 0..32 maps
+    // to a distinct ratio. First 5 chars are "RLLLR" so Avatar·1 (positions
+    // 1/3/5 → 2/1, 4/3, 9/7) is preserved at startup; the remainder is an
+    // alternating LR extension that keeps mediant growth Fibonacci-bounded
+    // (no int overflow) while giving variety at every deeper position.
+    juce::String sharedPath { "RLLLRLRLRLRLRLRLRLRLRLRLRLRLRLRL" };
     std::array<juce::String, params::kNumOperators> opPaths {};
     std::array<std::atomic<float>, params::kNumOperators> opRatios {};
     juce::CriticalSection pathsLock;

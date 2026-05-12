@@ -26,6 +26,21 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     // the same starting state as the engine. The kNumOperators × 2 defaults
     // are defined in ParameterTree.cpp; only the first three get non-zero
     // depth for this preset.
+    // Defensive: explicitly set defaults that should already come from the
+    // ParameterTree constructor, in case the host / standalone wrapper
+    // restores empty state and tramples on them. (Observed on Windows
+    // where the BoolParam defaults didn't survive.)
+    auto setBool = [this] (juce::StringRef id, bool value)
+    {
+        if (auto* p = apvts.getParameter (id))
+            p->setValueNotifyingHost (value ? 1.0f : 0.0f);
+    };
+    setBool (params::opId (0, "enabled"), true);
+    setBool (params::opId (1, "enabled"), true);
+    setBool (params::opId (2, "enabled"), true);
+    for (int i = 3; i < params::kNumOperators; ++i)
+        setBool (params::opId (i, "enabled"), false);
+
     if (auto* p = apvts.getParameter (params::opId (0, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (5.13f));
     if (auto* p = apvts.getParameter (params::opId (1, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (0.86f));
     if (auto* p = apvts.getParameter (params::opId (2, "depth"))) p->setValueNotifyingHost (p->convertTo0to1 (0.90f));
