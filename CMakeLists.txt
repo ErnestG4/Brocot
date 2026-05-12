@@ -56,6 +56,7 @@ juce_generate_juce_header(Brocot)
 target_sources(Brocot PRIVATE
     source/PluginProcessor.cpp
     source/PluginEditor.cpp
+    source/audio/Path.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -93,7 +94,33 @@ target_include_directories(Brocot PRIVATE source)
 
 if(BROCOT_BUILD_TESTS)
     enable_testing()
-    # Test sources are added by later slices via target_sources(BrocotTests ...).
-    # Slice 2 introduces the first real test (Path). This block exists so the
-    # plumbing is ready when that lands.
+
+    find_package(Catch2 3 REQUIRED)
+
+    add_executable(BrocotTests
+        tests/PathTests.cpp
+        source/audio/Path.cpp
+    )
+
+    target_include_directories(BrocotTests PRIVATE source)
+
+    target_link_libraries(BrocotTests PRIVATE
+        Catch2::Catch2WithMain
+        juce::juce_core
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags
+    )
+
+    # JUCE modules require these defines when compiled outside a juce_add_*
+    # target. JUCE_USE_CURL/JUCE_WEB_BROWSER match what the plugin target uses
+    # so juce_core doesn't pull in network/webview symbols.
+    target_compile_definitions(BrocotTests PRIVATE
+        JUCE_STANDALONE_APPLICATION=0
+        JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
+        JUCE_USE_CURL=0
+        JUCE_WEB_BROWSER=0
+    )
+
+    include(Catch)
+    catch_discover_tests(BrocotTests)
 endif()
