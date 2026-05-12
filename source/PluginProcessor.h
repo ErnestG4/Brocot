@@ -46,6 +46,11 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() noexcept { return apvts; }
 
+    /** Snapshot the most-recent `dest.size()` samples of the mono mix into
+        `dest`. Returns false if no audio has been written yet. Safe to call
+        from any thread; uses relaxed atomic ordering. */
+    bool snapshotRecentAudio (std::vector<float>& dest) const noexcept;
+
     /** UI-thread accessors for per-operator paths. Audio thread reads only
         the cached ratio (atomic), never the string itself. */
     juce::String getOpPath (int idx) const;
@@ -83,6 +88,17 @@ private:
     std::array<juce::String, params::kNumOperators> opPaths {};
     std::array<std::atomic<float>, params::kNumOperators> opRatios {};
     juce::CriticalSection pathsLock;
+
+    // Lock-free scope buffer. The audio thread writes the rendered mono
+    // mix into `scopeRing` and bumps `scopeWritePos`; the UI thread
+    // snapshots the last N samples relative to that index. Capacity is
+    // a power of two so wrapping is a mask.
+    static constexpr int kScopeBufferSize = 4096;
+    std::array<float, kScopeBufferSize> scopeRing {};
+    std::atomic<int> scopeWritePos { 0 };
+    std::atomic<bool> scopeHasData { false };
+
+    void writeScopeSamples (const float* samples, int n) noexcept;
 
     void applyParametersToVoice();
     void refreshSharedRatios();

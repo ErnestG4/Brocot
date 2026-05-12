@@ -10,6 +10,7 @@
 #include "ui/EnvelopePanel.h"
 #include "ui/LFOPanel.h"
 #include "ui/RatioReadout.h"
+#include "ui/Oscilloscope.h"
 
 namespace brocot
 {
@@ -30,6 +31,7 @@ private:
 
     juce::ComboBox pathModeCombo;
     PathNavigator  pathNavigator { processorRef };
+    Oscilloscope   oscilloscope  { processorRef };
     RatioReadout   ratioReadout  { processorRef };
     std::array<std::unique_ptr<OperatorPanel>, params::kNumOperators> operatorPanels;
     FilterPanel    filterPanel   { processorRef };

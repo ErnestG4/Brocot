@@ -235,10 +235,43 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         monoOut[n] = filter.processSample (monoOut[n]);
     }
 
+    // Feed the scope ring before mirroring to stereo so the scope sees the
+    // mono mix exactly as filtered.
+    writeScopeSamples (monoOut, numSamples);
+
     for (int ch = 1; ch < numOutChannels; ++ch)
         buffer.copyFrom (ch, 0, buffer, 0, 0, numSamples);
 
     midi.clear();
+}
+
+void BrocotAudioProcessor::writeScopeSamples (const float* samples, int n) noexcept
+{
+    int w = scopeWritePos.load (std::memory_order_relaxed);
+    constexpr int mask = kScopeBufferSize - 1;
+    for (int i = 0; i < n; ++i)
+    {
+        scopeRing[(size_t) (w & mask)] = samples[i];
+        ++w;
+    }
+    scopeWritePos.store (w & mask, std::memory_order_release);
+    scopeHasData.store (true, std::memory_order_release);
+}
+
+bool BrocotAudioProcessor::snapshotRecentAudio (std::vector<float>& dest) const noexcept
+{
+    if (! scopeHasData.load (std::memory_order_acquire))
+        return false;
+
+    const int n = (int) dest.size();
+    if (n <= 0 || n > kScopeBufferSize) return false;
+
+    constexpr int mask = kScopeBufferSize - 1;
+    const int w = scopeWritePos.load (std::memory_order_acquire);
+    // Start `n` samples back from the current write head.
+    for (int i = 0; i < n; ++i)
+        dest[(size_t) i] = scopeRing[(size_t) ((w - n + i) & mask)];
+    return true;
 }
 
 juce::AudioProcessorEditor* BrocotAudioProcessor::createEditor()

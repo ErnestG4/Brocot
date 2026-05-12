@@ -17,6 +17,7 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
         processorRef.getAPVTS(), params::ids::pathMode, pathModeCombo);
 
     addAndMakeVisible (pathNavigator);
+    addAndMakeVisible (oscilloscope);
     addAndMakeVisible (ratioReadout);
     addAndMakeVisible (filterPanel);
     addAndMakeVisible (envelopePanel);
@@ -69,6 +70,10 @@ void BrocotAudioProcessorEditor::resized()
     pathModeCombo.setBounds (pathRow.removeFromLeft (120).reduced (0, 12));
     pathRow.removeFromLeft (8);
     pathNavigator.setBounds (pathRow);
+    bounds.removeFromTop (8);
+
+    // Oscilloscope strip — full-width live waveform.
+    oscilloscope.setBounds (bounds.removeFromTop (100));
     bounds.removeFromTop (8);
 
     // Ratio readout strip: live frequency-ratio list + depth-ratio

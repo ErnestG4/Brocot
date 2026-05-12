@@ -69,6 +69,7 @@ target_sources(Brocot PRIVATE
     source/ui/EnvelopePanel.cpp
     source/ui/LFOPanel.cpp
     source/ui/RatioReadout.cpp
+    source/ui/Oscilloscope.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
