@@ -10,18 +10,26 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
 {
     setLookAndFeel (&lookAndFeel);
 
+    addAndMakeVisible (aboutBtn);
+    aboutBtn.setTooltip ("About brocot");
+    aboutBtn.onClick = [this] { AboutDialog::launch (this); };
+
     addAndMakeVisible (presetBar);
+
     addAndMakeVisible (pathModeCombo);
     pathModeCombo.addItem ("shared", 1);
     pathModeCombo.addItem ("free",   2);
     pathModeAttach = std::make_unique<ComboAttach> (
         processorRef.getAPVTS(), params::ids::pathMode, pathModeCombo);
+    pathModeCombo.setTooltip ("Shared: operators sit at positions along one trunk path. "
+                              "Free: each operator has its own path through the tree.");
 
     addAndMakeVisible (polyphonyCombo);
     polyphonyCombo.addItem ("mono", 1);
     polyphonyCombo.addItem ("duo",  2);
     polyphonyAttach = std::make_unique<ComboAttach> (
         processorRef.getAPVTS(), params::ids::polyphony, polyphonyCombo);
+    polyphonyCombo.setTooltip ("Mono: latest-note priority. Duo: two simultaneous notes with oldest-voice stealing.");
 
     addAndMakeVisible (pathNavigator);
     addAndMakeVisible (oscilloscope);
@@ -29,6 +37,11 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     addAndMakeVisible (filterPanel);
     addAndMakeVisible (envelopePanel);
     addAndMakeVisible (lfoPanel);
+
+    // Tooltips on the panel containers themselves require SettableTooltipClient
+    // inheritance, which my custom Components don't have. Individual controls
+    // inside each panel (sliders, combos, toggles) get tooltips through their
+    // own setTooltip() calls in v1.x; the combos above are tooltip-equipped.
 
     for (int i = 0; i < params::kNumOperators; ++i)
     {
@@ -65,9 +78,11 @@ void BrocotAudioProcessorEditor::resized()
 {
     auto bounds = getLocalBounds().reduced (24);
 
-    // Title row: "brocot" on the left (drawn by paint), preset bar on the
-    // right.
+    // Title row: "brocot" on the left (drawn by paint), preset bar +
+    // about button on the right.
     auto titleRow = bounds.removeFromTop (40);
+    aboutBtn.setBounds (titleRow.removeFromRight (32).reduced (4, 8));
+    titleRow.removeFromRight (4);
     presetBar.setBounds (titleRow.removeFromRight (360));
 
     // Path-mode toggle + shared-path navigator strip.

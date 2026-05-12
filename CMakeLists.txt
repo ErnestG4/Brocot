@@ -71,6 +71,7 @@ target_sources(Brocot PRIVATE
     source/ui/RatioReadout.cpp
     source/ui/Oscilloscope.cpp
     source/ui/PresetBar.cpp
+    source/ui/AboutDialog.cpp
     source/presets/PresetManager.cpp
     source/presets/PresetSchema.cpp
 )

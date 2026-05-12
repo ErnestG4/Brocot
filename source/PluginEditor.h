@@ -12,6 +12,7 @@
 #include "ui/RatioReadout.h"
 #include "ui/Oscilloscope.h"
 #include "ui/PresetBar.h"
+#include "ui/AboutDialog.h"
 
 namespace brocot
 {
@@ -29,7 +30,9 @@ private:
     BrocotAudioProcessor& processorRef;
 
     BrocotLookAndFeel lookAndFeel;
+    juce::TooltipWindow tooltipWindow { this, 700 };
 
+    juce::TextButton aboutBtn { "?" };
     PresetBar      presetBar { processorRef, processorRef.getPresetManager() };
     using ComboAttach = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
