@@ -184,7 +184,7 @@ def sample_exact_op_count(
     rng: np.random.Generator,
     n_enabled: int,
     *,
-    n_mods: int = 8,
+    n_mods: int = 16,
     max_path_depth: int = 6,
     landmark_bias: float = 0.0,        # landmarks at depth ~2-7; not in [0.04, 0.7]
     depth_range: tuple[float, float] = (MIN_DEPTH, 0.7),

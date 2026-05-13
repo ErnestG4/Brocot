@@ -59,10 +59,11 @@ def test_walk_path_rejects_invalid_chars():
 def test_sample_produces_valid_config():
     rng = np.random.default_rng(42)
     cfg = sample_random_config(rng)
-    assert len(cfg.mods) == 8
+    assert len(cfg.mods) == 16
     enabled_count = sum(1 for m in cfg.mods if m.enabled)
-    # P3.7 sampler floors at 4 enabled.
-    assert 4 <= enabled_count <= 8
+    # P3.7 sampler floors at 4 enabled; P3.9 raised n_mods 8→16 so the
+    # upper end is now 16.
+    assert 4 <= enabled_count <= 16
 
     for m in cfg.mods:
         if m.enabled:

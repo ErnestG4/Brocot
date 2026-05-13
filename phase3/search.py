@@ -55,8 +55,9 @@ from phase3.family_distance import composite_objective, family_distance
 
 def sample_random_config(
     rng: np.random.Generator,
-    n_mods: int = 8,
+    n_mods: int = 16,
     min_enabled: int = 4,
+    max_enabled: int | None = 8,
     max_path_depth: int = 16,
     sample_max_path_depth: int = 6,
     landmark_bias: float = 0.7,
@@ -80,7 +81,8 @@ def sample_random_config(
       landmark (Gaussian jitter); otherwise uniform over `depth_range`.
       Floored at MIN_DEPTH.
     """
-    n_enabled = int(rng.integers(min_enabled, n_mods + 1))
+    upper = n_mods if max_enabled is None else min(max_enabled, n_mods)
+    n_enabled = int(rng.integers(min_enabled, upper + 1))
     sample_cap = min(sample_max_path_depth, max_path_depth)
 
     mods: list[ModConfig] = []

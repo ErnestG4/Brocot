@@ -26,7 +26,7 @@ namespace brocot
 class BrocotVoice
 {
 public:
-    static constexpr int N_OPS = 8;  // must match params::kNumOperators
+    static constexpr int N_OPS = 16;  // must match params::kNumOperators
     static constexpr int kNoActiveNote = -1;
 
     void prepare (double sampleRate);
@@ -51,7 +51,7 @@ public:
         default-constructed instance reproduces pre-V2 behaviour. */
     struct PerSampleMod
     {
-        std::array<float, N_OPS> opDepthAdd { 0,0,0,0,0,0,0,0 };
+        std::array<float, N_OPS> opDepthAdd {};  // zero-initialised
         float carrierAmGain  { 1.0f };  // multiplicative on carrier amplitude
         float carrierFmHz    { 0.0f };  // additive Hz offset on carrier freq
     };

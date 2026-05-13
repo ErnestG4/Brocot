@@ -19,10 +19,12 @@ namespace params
 {
     // Must match BrocotVoice::N_OPS — bumping one without the other will
     // mismatch the APVTS layout against the voice's operator array.
-    // Reduced back to 8 for V2 build complexity (16-LFO bank is being added
-    // on top; total mod surface is 8 ops + 16 LFOs = 24 panels). High-
-    // density variants (32 / 64) remain a CMake-gated v1.x option.
-    inline constexpr int kNumOperators = 8;
+    // V2.1 reduced this from v1's 16 to free panel space for the LFO bank;
+    // P3.9 bumped it back to 16 after the textured-smooth experiments
+    // showed the J₀-dominant carpets benefit from more parallel ops (each
+    // adds ~30-50 partials at depth ≤ 0.7). Total surface is now 16 ops
+    // + 16 LFOs = 32 panels; both rendered as 8×2 grids stacked vertically.
+    inline constexpr int kNumOperators = 16;
 
     inline juce::String opId (int idx, const char* suffix)
     {

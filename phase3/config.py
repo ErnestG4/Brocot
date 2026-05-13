@@ -74,7 +74,7 @@ class Config:
     f_carrier: float = 220.0
 
     @classmethod
-    def silent(cls, n_mods: int = 8, f_carrier: float = 220.0) -> "Config":
+    def silent(cls, n_mods: int = 16, f_carrier: float = 220.0) -> "Config":
         return cls(mods=[ModConfig() for _ in range(n_mods)],
                    f_carrier=f_carrier)
 

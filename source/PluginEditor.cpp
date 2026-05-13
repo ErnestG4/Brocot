@@ -121,10 +121,11 @@ void BrocotAudioProcessorEditor::resized()
     auto lfoBankArea = bounds.removeFromBottom (320);
     bounds.removeFromBottom (8);
 
-    // 4-wide × 2-tall grid of operator panels.
+    // 8-wide × 2-tall grid of operator panels (16 ops total, matches the
+    // LFO bank grid below so the two strips are visually symmetric).
     {
-        const int cols = 4, rows = 2;
-        const int gap = 6;
+        const int cols = 8, rows = 2;
+        const int gap = 4;
         const int cellW = (bounds.getWidth() - gap * (cols - 1)) / cols;
         const int cellH = (bounds.getHeight() - gap * (rows - 1)) / rows;
 
