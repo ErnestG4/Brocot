@@ -40,6 +40,15 @@ private:
     juce::ComboBox lockKindCombo;
     juce::Slider   lockIndexSlider;
 
+    // Stern-Brocot path navigation for the lock-target ratio (visible only
+    // when lockKind != Free). Lets users lock LFO speeds to musical
+    // intervals: 2/1, 3/2, 4/3, 9/7, …
+    juce::Label      pqDisplay;
+    juce::TextButton btnL    { "L" };
+    juce::TextButton btnR    { "R" };
+    juce::TextButton btnUp   { "<" };
+    juce::TextButton btnHome { "1" };
+
     juce::ComboBox shapeCombo;
     juce::Slider   kappaSlider;
     juce::Slider   depthSlider;

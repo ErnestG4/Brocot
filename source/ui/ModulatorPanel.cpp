@@ -1,5 +1,6 @@
 #include "ModulatorPanel.h"
 #include "../PluginProcessor.h"
+#include "../audio/Path.h"
 #include "../util/Colors.h"
 #include "../util/Fonts.h"
 
@@ -45,6 +46,26 @@ ModulatorPanel::ModulatorPanel (BrocotAudioProcessor& processor, int modIndexIn)
     lockIndexSlider.setRange (0, 15, 1);
     lockIdxAttach = std::make_unique<SliderAttach> (
         apvts, params::modId (modIndex, "lockIndex"), lockIndexSlider);
+
+    // Stern-Brocot path nav for the lock ratio.
+    addAndMakeVisible (pqDisplay);
+    pqDisplay.setFont (fonts::serifItalic (12.0f));
+    pqDisplay.setJustificationType (juce::Justification::centredLeft);
+    pqDisplay.setColour (juce::Label::textColourId, colors::accent);
+
+    for (auto* btn : { &btnL, &btnR, &btnUp, &btnHome })
+        addAndMakeVisible (*btn);
+
+    auto mutatePath = [this] (auto mutator)
+    {
+        const juce::String current = proc.getModPath (modIndex);
+        proc.setModPath (modIndex, mutator (current));
+    };
+    btnL.onClick    = [this, mutatePath] { mutatePath ([] (const juce::String& s) { return s + "L"; }); };
+    btnR.onClick    = [this, mutatePath] { mutatePath ([] (const juce::String& s) { return s + "R"; }); };
+    btnUp.onClick   = [this, mutatePath] { mutatePath ([] (const juce::String& s)
+                                  { return s.isEmpty() ? s : s.dropLastCharacters (1); }); };
+    btnHome.onClick = [this, mutatePath] { mutatePath ([] (const juce::String&) { return juce::String(); }); };
 
     addAndMakeVisible (shapeCombo);
     shapeCombo.addItem ("sine",     1);
@@ -108,6 +129,15 @@ void ModulatorPanel::timerCallback()
     const char* zone = hz >= 20.0f ? "audio" : "sub";
     rateReadout.setText (juce::String::formatted ("%.2f Hz | %s", (double) hz, zone),
                          juce::dontSendNotification);
+
+    // Refresh path readout in case path or carrier changed externally.
+    const auto pathStr = proc.getModPath (modIndex);
+    const Path p (pathStr);
+    int n = 0, d = 0;
+    p.walk (n, d);
+    pqDisplay.setText (juce::String (n) + "/" + juce::String (d),
+                       juce::dontSendNotification);
+    btnUp.setEnabled (! pathStr.isEmpty());
 }
 
 void ModulatorPanel::updateVisibility()
@@ -119,9 +149,16 @@ void ModulatorPanel::updateVisibility()
     const bool showLockIdx = (lockKind == 2 || lockKind == 3);
     lockIndexSlider.setVisible (showLockIdx);
 
-    // Rate slider hidden when locked — the resolved rate readout shows the
-    // result; the lock kind + index determine the actual Hz.
-    rateSlider.setVisible (lockKind == 0);
+    // Rate slider hidden when locked — the path nav row + readout take its
+    // place; lock kind × SB-ratio = the resolved rate (shown in the header).
+    const bool isLocked = (lockKind != 0);
+    rateSlider.setVisible (! isLocked);
+
+    pqDisplay.setVisible (isLocked);
+    btnL.setVisible  (isLocked);
+    btnR.setVisible  (isLocked);
+    btnUp.setVisible (isLocked);
+    btnHome.setVisible (isLocked);
 
     // Target index meaningful for OpDepth(3) / OpPos(4) / ModRate(5) /
     // ModDepth(6).
@@ -158,8 +195,20 @@ void ModulatorPanel::resized()
     lockIndexSlider.setBounds (lockRow.reduced (1));
     r.removeFromTop (2);
 
-    // Rate slider (occupies the same row that idx would be in when free)
-    rateSlider.setBounds (r.removeFromTop (16));
+    // Rate slider OR path-nav row (mutually exclusive via visibility).
+    auto rateRow = r.removeFromTop (16);
+    rateSlider.setBounds (rateRow);
+
+    // Layout the path-nav widgets in the same slot:
+    //   [<] [1] [L] [R]    p/q
+    auto navArea = rateRow;
+    pqDisplay.setBounds (navArea.removeFromRight (navArea.getWidth() / 3));
+    const int btnW = navArea.getWidth() / 4;
+    btnUp.setBounds   (navArea.removeFromLeft (btnW).reduced (1, 0));
+    btnHome.setBounds (navArea.removeFromLeft (btnW).reduced (1, 0));
+    btnL.setBounds    (navArea.removeFromLeft (btnW).reduced (1, 0));
+    btnR.setBounds    (navArea.reduced (1, 0));
+
     r.removeFromTop (4);
 
     // Shape.
