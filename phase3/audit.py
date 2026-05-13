@@ -19,12 +19,16 @@ from pathlib import Path
 
 
 def _stats(presets: list[dict]) -> dict:
-    objs, depths, path_lens, enabled_counts = [], [], [], []
+    objs, fds, crits, depths, path_lens, enabled_counts = [], [], [], [], [], []
     for p in presets:
         prov = p.get("provenance", {})
         search = prov.get("search", {})
         if "objective" in search:
             objs.append(float(search["objective"]))
+        if "family_distance" in search:
+            fds.append(float(search["family_distance"]))
+        if "criticality" in search:
+            crits.append(float(search["criticality"]))
         ops = p.get("engine", {}).get("operators", [])
         n_enabled = sum(1 for o in ops if o.get("enabled"))
         enabled_counts.append(n_enabled)
@@ -38,6 +42,8 @@ def _stats(presets: list[dict]) -> dict:
         "obj_min":        min(objs) if objs else None,
         "obj_max":        max(objs) if objs else None,
         "obj_median":     sorted(objs)[len(objs) // 2] if objs else None,
+        "fd_median":      sorted(fds)[len(fds) // 2] if fds else None,
+        "crit_median":    sorted(crits)[len(crits) // 2] if crits else None,
         "depth_mean":     sum(depths) / max(1, len(depths)),
         "path_len_mean":  sum(path_lens) / max(1, len(path_lens)),
         "enabled_mean":   sum(enabled_counts) / max(1, len(enabled_counts)),
@@ -69,8 +75,9 @@ def main(argv: list[str]) -> int:
     print(f"\n{total} presets across {len(by_family)} families "
           f"under {root}\n")
     print(f"  {'family':<22s}{'n':>4s}{'obj min':>10s}{'med':>8s}"
-          f"{'max':>8s}{'depth̄':>9s}{'plen̄':>8s}{'on̄':>6s}")
-    print("  " + "-" * 65)
+          f"{'max':>8s}{'fd~':>8s}{'crit~':>8s}"
+          f"{'depth̄':>9s}{'plen̄':>8s}{'on̄':>6s}")
+    print("  " + "-" * 80)
 
     for fam in sorted(by_family.keys()):
         s = _stats(by_family[fam])
@@ -82,6 +89,8 @@ def main(argv: list[str]) -> int:
               f"{fmt(s['obj_min']):>10s}"
               f"{fmt(s['obj_median']):>8s}"
               f"{fmt(s['obj_max']):>8s}"
+              f"{fmt(s['fd_median']):>8s}"
+              f"{fmt(s['crit_median']):>8s}"
               f"{s['depth_mean']:>9.2f}"
               f"{s['path_len_mean']:>8.2f}"
               f"{s['enabled_mean']:>6.1f}")

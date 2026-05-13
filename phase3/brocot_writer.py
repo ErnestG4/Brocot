@@ -111,22 +111,31 @@ def _provenance_block(
         f"{fam_human} family discovery via Phase-3 ARS search "
         f"(objective {result.objective:.4f}, seed {result.seed})."
     )
+    search: dict[str, Any] = {
+        "family":    result.family,
+        "seed":      int(result.seed),
+        "objective": float(result.objective),
+        "params":    {
+            "n_phase1": int(n_phase1),
+            "k_top":    int(k_top),
+            "q_max":    int(q_max),
+        },
+        "timestamp": timestamp or _dt.datetime.now(_dt.timezone.utc).isoformat(),
+    }
+    # P3.7 adds the separated family_distance + criticality numbers so
+    # the audit can show how much of the score is family-fit vs
+    # liveness bonus. Older P3.6 results don't carry these fields;
+    # writing them only when present keeps the schema stable.
+    if getattr(result, "family_distance", 0.0) or getattr(result, "criticality", 0.0):
+        search["family_distance"] = float(result.family_distance)
+        search["criticality"]     = float(result.criticality)
+
     block: dict[str, Any] = {
         "kind":        "family-search",
         "author":      "ARS Phase 3",
         "description": description,
         "category":    fam_human,
-        "search": {
-            "family":    result.family,
-            "seed":      int(result.seed),
-            "objective": float(result.objective),
-            "params":    {
-                "n_phase1": int(n_phase1),
-                "k_top":    int(k_top),
-                "q_max":    int(q_max),
-            },
-            "timestamp": timestamp or _dt.datetime.now(_dt.timezone.utc).isoformat(),
-        },
+        "search":      search,
     }
     if ars_version is not None:
         block["ars_version"] = ars_version

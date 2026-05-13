@@ -54,6 +54,13 @@ def path_ratio(path: str) -> float:
 # Operator + Config dataclasses
 # ---------------------------------------------------------------------------
 
+# Minimum enabled-op depth (P3.7). Operators below this contribute
+# negligible spectral content and are effectively wasted slots — treat
+# them as off so the search explores configurations that actually
+# differ rather than wasting slots on inert near-zero mods.
+MIN_DEPTH = 0.04
+
+
 @dataclass
 class ModConfig:
     path: str = ""        # Stern-Brocot L/R path; "" = 1/1
@@ -85,6 +92,37 @@ class Config:
                 rs.append(path_ratio(m.path))
                 ds.append(m.depth)
         return rs, ds
+
+    def num_enabled(self) -> int:
+        return sum(1 for m in self.mods if m.enabled)
+
+    def canonicalised(self) -> "Config":
+        """Return a copy where the enabled operators are packed into
+        the leading slots and sorted by (path, depth).
+
+        Operator order is musically meaningless — partial_prediction
+        treats them as a parallel set — so two configurations that only
+        differ by slot assignment are the same patch. P3.7 dedup uses
+        this canonical form: same fingerprint → same patch.
+        """
+        enabled = sorted(
+            (m for m in self.mods if m.enabled),
+            key=lambda m: (m.path, round(m.depth, 4)),
+        )
+        n_total = len(self.mods)
+        new_mods = [replace(m) for m in enabled]
+        new_mods += [ModConfig() for _ in range(n_total - len(new_mods))]
+        return Config(mods=new_mods, f_carrier=self.f_carrier)
+
+    def fingerprint(self) -> tuple:
+        """Hashable identity of the patch. Quantises depths to 1e-3 so
+        floating-point jitter doesn't split otherwise-identical configs.
+        Drives the P3.7 dedup pass."""
+        c = self.canonicalised()
+        return tuple(
+            (m.path, round(m.depth, 3))
+            for m in c.mods if m.enabled
+        )
 
     def predict(
         self,

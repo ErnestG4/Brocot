@@ -198,3 +198,95 @@ def family_distance(
             rf_term = 0.0
 
     return kl + lambda_rf * rf_term
+
+
+# ---------------------------------------------------------------------------
+# Criticality (P3.7)
+# ---------------------------------------------------------------------------
+
+def criticality_score(
+    config,
+    family: Family,
+    *,
+    eps_depth: float = 0.02,
+    q_max: int = 16,
+    threshold_db: float = -50.0,
+    eps: float = 1e-3,
+) -> float:
+    """Quantify how sensitive a configuration's spectrum is to small
+    parameter changes — high score = sits near a bifurcation, low score
+    = bland steady tone.
+
+    For each enabled operator i, perturb its depth by ±eps_depth and
+    measure the L1 change in the quantised amplitude vector. Sum the
+    absolute changes. Divide by total spectral mass so the score is
+    scale-invariant (a louder patch isn't automatically "more critical").
+
+    The criticality value is what feeds the composite-objective bias
+    toward sounds that wobble between modes.
+
+    Cost: N_enabled × 2 extra spectrum evaluations. For N_enabled ≈ 4-8
+    that's a 8-16× slowdown over a single family_distance call.
+    """
+    from phase3.partial_prediction import predict_partials  # local
+
+    rs, ds = config.ratios_and_depths()
+    if not rs:
+        return 0.0
+
+    base_amps = quantize_to_integer_grid(
+        config.predict(threshold_db=threshold_db, eps=eps),
+        config.f_carrier, q_max,
+    )
+    total_mass = float(np.sum(base_amps)) + 1e-12
+
+    total_l1 = 0.0
+    for j in range(len(rs)):
+        for sign in (+1.0, -1.0):
+            ds_pert = list(ds)
+            ds_pert[j] = max(0.0, ds_pert[j] + sign * eps_depth)
+            sp_p = predict_partials(
+                ratios=rs, depths=ds_pert,
+                f_carrier=config.f_carrier,
+                threshold_db=threshold_db, eps=eps,
+            )
+            amps_p = quantize_to_integer_grid(sp_p, config.f_carrier, q_max)
+            total_l1 += float(np.abs(amps_p - base_amps).sum())
+
+    # Normalise per (param × sign) so the score is comparable across
+    # configurations with different enabled-op counts.
+    n_perturbations = 2 * len(rs)
+    return total_l1 / (total_mass * n_perturbations)
+
+
+def composite_objective(
+    config,
+    family: Family,
+    *,
+    f_carrier: float,
+    q_max: int = 16,
+    lambda_rf: float = 0.5,
+    lambda_crit: float = 0.0,
+    threshold_db: float = -50.0,
+    eps: float = 1e-3,
+    max_partials: int | None = None,
+) -> tuple[float, float, float]:
+    """Family-distance minus a criticality bonus.
+
+        obj = family_distance − λ_crit · criticality
+
+    Returns (obj, family_distance, criticality). If λ_crit = 0, the
+    criticality step is skipped entirely and the result matches a
+    plain family_distance call — keeping Phase-1 fast when criticality
+    is only wanted in refinement.
+    """
+    sp = config.predict(
+        threshold_db=threshold_db, eps=eps, max_partials=max_partials,
+    )
+    fd = family_distance(sp, family, f_carrier, q_max=q_max, lambda_rf=lambda_rf)
+    if lambda_crit == 0.0:
+        return fd, fd, 0.0
+    cs = criticality_score(
+        config, family, q_max=q_max, threshold_db=threshold_db, eps=eps,
+    )
+    return fd - lambda_crit * cs, fd, cs
