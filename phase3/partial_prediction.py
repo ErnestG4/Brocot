@@ -80,6 +80,7 @@ def predict_partials(
     f_max: float = 20000.0,
     eps: float = 1e-3,
     bin_resolution_hz: float = 0.5,
+    max_partials: int | None = None,
 ) -> Spectrum:
     """Build the audible partial set for a parallel-FM configuration.
 
@@ -131,22 +132,47 @@ def predict_partials(
         buckets[key] = buckets.get(key, 0.0) + amp
 
     # Recursion. partial_amp carries the product Π J_{n_k}(I_k) so far;
-    # sum_n_r carries Σ n_k · r_k so far. Both early-terminate when
-    # partial_amp drops below a coarse threshold.
-    early_cutoff = threshold * 0.1  # don't pre-prune too aggressively
+    # sum_n_r carries Σ n_k · r_k so far. Early-terminate when
+    # partial_amp drops below a coarse threshold; also abort the whole
+    # walk if `max_partials` is reached so pathological deep-multi-mod
+    # configurations don't time out (typical for the search workload).
+    early_cutoff = threshold * 0.1
+
+    # Precompute J_n(I_k) for every (k, n) in the per-modulator range —
+    # scipy's jv is expensive; we'd otherwise call it ~Π(2n_max[k]+1)
+    # times across the recursion. With small per-mod ranges (often 3-9)
+    # this is a sharp speedup.
+    j_tables: list[np.ndarray] = []
+    for k in range(n_mods):
+        I = depths[k]
+        n_k = n_max[k]
+        if I == 0.0:
+            t = np.zeros(2 * n_k + 1)
+            t[n_k] = 1.0  # n=0 → J_0(0)=1
+        else:
+            t = jv(np.arange(-n_k, n_k + 1), I)
+        j_tables.append(t)
+
+    aborted = [False]
 
     def recurse(idx: int, partial_amp: float, sum_n_r: float) -> None:
+        if aborted[0]:
+            return
         if idx == n_mods:
             emit(f_carrier * (1.0 + sum_n_r), partial_amp)
+            if max_partials is not None and len(buckets) > max_partials:
+                aborted[0] = True
             return
-        I = depths[idx]
         r = ratios[idx]
-        for n in range(-n_max[idx], n_max[idx] + 1):
-            J = jv(n, I) if I > 0.0 else (1.0 if n == 0 else 0.0)
-            next_amp = partial_amp * J
+        n_k = n_max[idx]
+        table = j_tables[idx]
+        for offset, J in enumerate(table):
+            next_amp = partial_amp * float(J)
             if abs(next_amp) < early_cutoff:
                 continue
-            recurse(idx + 1, next_amp, sum_n_r + n * r)
+            recurse(idx + 1, next_amp, sum_n_r + (offset - n_k) * r)
+            if aborted[0]:
+                return
 
     recurse(0, 1.0, 0.0)
 
