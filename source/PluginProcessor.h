@@ -83,6 +83,11 @@ public:
     juce::String getModPath (int idx) const;
     void setModPath (int idx, const juce::String& pathString);
 
+    /** UI-facing accessor for the modulator's live resolved rate (Hz)
+        after the lock-graph walk. The bank UI calls this on a timer to
+        show "x.xx Hz" readouts. */
+    float getResolvedModRate (int idx) const;
+
 private:
     juce::AudioProcessorValueTreeState apvts;
 

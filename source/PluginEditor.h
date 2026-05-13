@@ -7,13 +7,11 @@
 #include "ui/BrocotLookAndFeel.h"
 #include "ui/OperatorPanel.h"
 #include "ui/PathNavigator.h"
-#include "ui/FilterPanel.h"
-#include "ui/EnvelopePanel.h"
-#include "ui/LFOPanel.h"
 #include "ui/RatioReadout.h"
 #include "ui/Oscilloscope.h"
 #include "ui/PresetBar.h"
 #include "ui/AboutDialog.h"
+#include "ui/ModulatorPanel.h"
 
 namespace brocot
 {
@@ -50,9 +48,7 @@ private:
     Oscilloscope   oscilloscope  { processorRef };
     RatioReadout   ratioReadout  { processorRef };
     std::array<std::unique_ptr<OperatorPanel>, params::kNumOperators> operatorPanels;
-    FilterPanel    filterPanel   { processorRef };
-    EnvelopePanel  envelopePanel { processorRef };
-    LFOPanel       lfoPanel      { processorRef };
+    std::array<std::unique_ptr<ModulatorPanel>, params::kNumModulators> modulatorPanels;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessorEditor)
 };

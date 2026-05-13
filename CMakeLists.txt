@@ -65,9 +65,7 @@ target_sources(Brocot PRIVATE
     source/ui/OperatorPanel.cpp
     source/ui/DepthSlider.cpp
     source/ui/PathNavigator.cpp
-    source/ui/FilterPanel.cpp
-    source/ui/EnvelopePanel.cpp
-    source/ui/LFOPanel.cpp
+    source/ui/ModulatorPanel.cpp
     source/ui/RatioReadout.cpp
     source/ui/Oscilloscope.cpp
     source/ui/PresetBar.cpp

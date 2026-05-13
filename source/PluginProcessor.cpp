@@ -540,6 +540,12 @@ void BrocotAudioProcessor::setModPath (int idx, const juce::String& pathString)
     modRatios[(size_t) idx].store (ratio, std::memory_order_release);
 }
 
+float BrocotAudioProcessor::getResolvedModRate (int idx) const
+{
+    std::array<bool, params::kNumModulators> visited {};
+    return resolveModRate (idx, visited);
+}
+
 void BrocotAudioProcessor::applyModulatorParameters()
 {
     for (int i = 0; i < params::kNumModulators; ++i)
