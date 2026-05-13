@@ -147,6 +147,7 @@ if(BROCOT_BUILD_TESTS)
         tests/BesselTests.cpp
         tests/DepthRatioTests.cpp
         tests/PresetRoundtripTests.cpp
+        tests/UniversalModulatorTests.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
