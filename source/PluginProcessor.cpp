@@ -92,7 +92,10 @@ void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
         v.prepare (sampleRate);
     filter.prepare (sampleRate);
     lfo.prepare (sampleRate);
+    for (auto& m : modulators)
+        m.prepare (sampleRate);
     applyParametersToAllVoices();
+    applyModulatorParameters();
 }
 
 void BrocotAudioProcessor::releaseResources() {}
@@ -218,6 +221,17 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // is good enough for v1; per-sample smoothing arrives if/when a slider
     // is observed to click.
     applyParametersToAllVoices();
+    applyModulatorParameters();
+
+    // Resolve modulator rates for this block (lock graph walk). Recomputed
+    // per block, not per sample — carrier frequency is stable across a
+    // block in mono mode and close enough in duo mode.
+    std::array<float, params::kNumModulators> modRatesThisBlock {};
+    for (int i = 0; i < params::kNumModulators; ++i)
+    {
+        std::array<bool, params::kNumModulators> visited {};
+        modRatesThisBlock[(size_t) i] = resolveModRate (i, visited);
+    }
 
     float* const monoOut = buffer.getWritePointer (0);
     int processedSamples = 0;
@@ -448,6 +462,106 @@ bool BrocotAudioProcessor::isSharedMode() const
     if (auto* p = apvts.getRawParameterValue (params::ids::pathMode))
         return p->load() < 0.5f;   // 0 = shared, 1 = free
     return true;
+}
+
+juce::String BrocotAudioProcessor::getModPath (int idx) const
+{
+    if (idx < 0 || idx >= params::kNumModulators) return {};
+    const juce::ScopedLock lock (pathsLock);
+    return modPaths[(size_t) idx];
+}
+
+void BrocotAudioProcessor::setModPath (int idx, const juce::String& pathString)
+{
+    if (idx < 0 || idx >= params::kNumModulators) return;
+    const Path p (pathString);
+    {
+        const juce::ScopedLock lock (pathsLock);
+        modPaths[(size_t) idx] = pathString;
+    }
+    // Empty path → 1/1 ratio, useful as the "no SB multiplier" identity.
+    const float ratio = (float) p.ratio();
+    modRatios[(size_t) idx].store (ratio, std::memory_order_release);
+}
+
+void BrocotAudioProcessor::applyModulatorParameters()
+{
+    for (int i = 0; i < params::kNumModulators; ++i)
+    {
+        auto& m = modulators[(size_t) i];
+
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "shape")))
+            m.setShape ((envelope::Shape) juce::jlimit (0,
+                            (int) envelope::Shape::Count - 1,
+                            (int) std::round (p->load())));
+
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "kappa")))
+            m.setKappa (p->load());
+
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "depth")))
+            m.setDepth (p->load());
+
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "keySync")))
+            m.setKeySync (p->load() > 0.5f);
+
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "psk")))
+        {
+            // Choice index → state count. 0=off, 1=2, 2=4, 3=8, 4=16.
+            const int idx = (int) std::round (p->load());
+            const int counts[] = { 0, 2, 4, 8, 16 };
+            m.setPSKStates (counts[juce::jlimit (0, 4, idx)]);
+        }
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "pskSmooth")))
+            m.setPSKSmooth (p->load());
+    }
+}
+
+float BrocotAudioProcessor::resolveModRate (int idx,
+                                            std::array<bool, params::kNumModulators>& visited) const noexcept
+{
+    if (idx < 0 || idx >= params::kNumModulators) return 0.0f;
+    if (visited[(size_t) idx])
+    {
+        // Cycle break — fall back to the mod's free rate.
+        if (auto* p = apvts.getRawParameterValue (params::modId (idx, "rate")))
+            return p->load();
+        return 0.0f;
+    }
+    visited[(size_t) idx] = true;
+
+    int kind = 0;
+    if (auto* p = apvts.getRawParameterValue (params::modId (idx, "lockKind")))
+        kind = juce::jlimit (0, (int) params::LockTargetKind::Count - 1,
+                             (int) std::round (p->load()));
+
+    if (kind == (int) params::LockTargetKind::Free)
+    {
+        if (auto* p = apvts.getRawParameterValue (params::modId (idx, "rate")))
+            return p->load();
+        return 0.0f;
+    }
+
+    const float ratio = modRatios[(size_t) idx].load (std::memory_order_acquire);
+    const float carrierHz = voices[0].getCarrierHz();
+
+    if (kind == (int) params::LockTargetKind::Carrier)
+        return carrierHz * ratio;
+
+    int lockIdx = 0;
+    if (auto* p = apvts.getRawParameterValue (params::modId (idx, "lockIndex")))
+        lockIdx = juce::jlimit (0, 15, (int) std::round (p->load()));
+
+    if (kind == (int) params::LockTargetKind::Operator)
+    {
+        const int safeOpIdx = juce::jlimit (0, params::kNumOperators - 1, lockIdx);
+        const float opRatio = opRatios[(size_t) safeOpIdx].load (std::memory_order_acquire);
+        return carrierHz * opRatio * ratio;
+    }
+
+    if (kind == (int) params::LockTargetKind::Modulator)
+        return resolveModRate (lockIdx, visited) * ratio;
+
+    return 0.0f;
 }
 
 void BrocotAudioProcessor::refreshSharedRatios()

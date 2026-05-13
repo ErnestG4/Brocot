@@ -98,7 +98,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         juce::ParameterID (ids::filterResonance, 1),
         "Filter Resonance", juce::NormalisableRange<float> (0.0f, 1.0f), 0.15f));
 
-    // LFO (spec §2). Rate is in Hz with log skew; depth is normalized.
+    // LFO (legacy single-LFO; V2.8 retires this once the LFO bank is wired
+    // through completely). Kept for now so existing presets / state still load.
     layout.add (std::make_unique<ChoiceParam> (
         juce::ParameterID (ids::lfoShape, 1),
         "LFO Shape",
@@ -112,6 +113,76 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<BoolParam> (
         juce::ParameterID (ids::lfoKeySync, 1),
         "LFO Key Sync", false));
+
+    // V2 universal-modulator bank — 16 LFOs, each with its own rate
+    // (extralinear 0.1-800 Hz sweep), lock target, envelope shape, depth,
+    // routing target, PSK quantization, and key-sync flag.
+    const juce::StringArray shapeChoices {
+        "Sine", "Von Mises", "Gaussian", "Square", "SawRise", "SawFall",
+        "Triangle", "ExpDecay"
+    };
+    const juce::StringArray lockKindChoices {
+        "Free", "Carrier", "Op", "Mod"
+    };
+    const juce::StringArray targetKindChoices {
+        "Filter cutoff", "Carrier AM", "Carrier FM",
+        "Op depth", "Op position", "Mod rate", "Mod depth"
+    };
+    const juce::StringArray pskChoices { "Off", "2", "4", "8", "16" };
+
+    for (int i = 0; i < kNumModulators; ++i)
+    {
+        const auto name = "Mod " + juce::String (i + 1);
+
+        // Rate — log skew, midpoint at 5 Hz for natural feel across the
+        // sub-audio / audio bridge (1 Hz LFO / 5 Hz / 50 Hz / 500 Hz all
+        // reachable with decent resolution).
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (modId (i, "rate"), 1),
+            name + " Rate", logRange (0.1f, 800.0f, 5.0f), 4.0f));
+
+        // Lock target = kind + index (Op or Mod). Index is ignored for
+        // Free / Carrier kinds.
+        layout.add (std::make_unique<ChoiceParam> (
+            juce::ParameterID (modId (i, "lockKind"), 1),
+            name + " Lock Kind", lockKindChoices, 0));
+        layout.add (std::make_unique<IntParam> (
+            juce::ParameterID (modId (i, "lockIndex"), 1),
+            name + " Lock Index", 0, 15, 0));
+
+        layout.add (std::make_unique<ChoiceParam> (
+            juce::ParameterID (modId (i, "shape"), 1),
+            name + " Shape", shapeChoices, 0));
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (modId (i, "kappa"), 1),
+            name + " Sharpness",
+            juce::NormalisableRange<float> (0.0f, 50.0f), 8.0f));
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (modId (i, "depth"), 1),
+            name + " Depth",
+            juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+
+        // Routing target = kind + index (Op or Mod). Index ignored for
+        // FilterCutoff / CarrierAm / CarrierFm.
+        layout.add (std::make_unique<ChoiceParam> (
+            juce::ParameterID (modId (i, "targetKind"), 1),
+            name + " Target", targetKindChoices, 0));
+        layout.add (std::make_unique<IntParam> (
+            juce::ParameterID (modId (i, "targetIndex"), 1),
+            name + " Target Index", 0, 15, 0));
+
+        layout.add (std::make_unique<ChoiceParam> (
+            juce::ParameterID (modId (i, "psk"), 1),
+            name + " PSK", pskChoices, 0));
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (modId (i, "pskSmooth"), 1),
+            name + " PSK Smooth",
+            juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+
+        layout.add (std::make_unique<BoolParam> (
+            juce::ParameterID (modId (i, "keySync"), 1),
+            name + " Key Sync", false));
+    }
 
     return layout;
 }

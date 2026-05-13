@@ -37,6 +37,39 @@ namespace params
              + juce::String (".") + juce::String (suffix);
     }
 
+    // V2 LFO bank — 16 universal modulators.
+    inline constexpr int kNumModulators = 16;
+
+    inline juce::String modId (int idx, const char* suffix)
+    {
+        return juce::String ("mod") + juce::String (idx)
+             + juce::String (".") + juce::String (suffix);
+    }
+
+    // Encoded lock-target kinds (matches the order in the APVTS choice list).
+    enum class LockTargetKind : int
+    {
+        Free = 0,
+        Carrier,
+        Operator,
+        Modulator,
+        Count
+    };
+
+    // Encoded routing target kinds. Index = operator/modulator index for
+    // the per-target kinds; ignored for the unique-target kinds.
+    enum class TargetKind : int
+    {
+        FilterCutoff = 0,
+        CarrierAm,
+        CarrierFm,
+        OpDepth,
+        OpPosition,
+        ModRate,
+        ModDepth,
+        Count
+    };
+
     namespace ids
     {
         inline constexpr auto masterLevel = "master.level";

@@ -7,6 +7,7 @@
 #include "audio/BrocotVoice.h"
 #include "audio/FilterBank.h"
 #include "audio/LFO.h"
+#include "audio/UniversalModulator.h"
 #include "params/ParameterTree.h"
 #include "params/sources/MIDISource.h"
 #include "params/sources/EnvSource.h"
@@ -77,6 +78,11 @@ public:
     void setSharedPath (const juce::String& pathString);
     bool isSharedMode() const;
 
+    /** Per-modulator path (used when the mod's lock target is non-Free).
+        UI / preset thread accessors only — audio thread reads modRatios. */
+    juce::String getModPath (int idx) const;
+    void setModPath (int idx, const juce::String& pathString);
+
 private:
     juce::AudioProcessorValueTreeState apvts;
 
@@ -115,6 +121,22 @@ private:
     std::array<juce::String, params::kNumOperators> opPaths {};
     std::array<std::atomic<float>, params::kNumOperators> opRatios {};
     juce::CriticalSection pathsLock;
+
+    // V2 modulator bank. Each mod owns a path string (for lock-target SB
+    // ratio) just like ops do; the audio thread reads only the atomic ratio.
+    std::array<UniversalModulator, params::kNumModulators> modulators {};
+    std::array<juce::String, params::kNumModulators> modPaths {};
+    std::array<std::atomic<float>, params::kNumModulators> modRatios {};
+    // Scratch buffer for the last computed mod outputs each block — V2.4
+    // routing reads these. Bipolar; depth is already applied by the mod.
+    std::array<float, params::kNumModulators> modOutputs {};
+
+    void applyModulatorParameters();
+    /** Recursively resolves the rate (Hz) for modulator `idx`, following
+        lock-target indirection. `visited[i]=true` marks mod `i` as
+        currently-being-resolved to break cycles (fallback: free rate).
+        Audio-thread safe — reads atomic params only. */
+    float resolveModRate (int idx, std::array<bool, params::kNumModulators>& visited) const noexcept;
 
     // Lock-free scope buffer. The audio thread writes the rendered mono
     // mix into `scopeRing` and bumps `scopeWritePos`; the UI thread

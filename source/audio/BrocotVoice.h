@@ -43,6 +43,7 @@ public:
 
     int  getActiveNote() const noexcept { return activeNote; }
     bool isActive() const noexcept { return ampEnv.isActive(); }
+    float getCarrierHz() const noexcept { return carrierHz; }
 
     /** Renders `numSamples` of mono audio summed onto `out`. */
     void render (float* out, int numSamples) noexcept;
