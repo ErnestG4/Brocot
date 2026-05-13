@@ -19,10 +19,10 @@ namespace params
 {
     // Must match BrocotVoice::N_OPS — bumping one without the other will
     // mismatch the APVTS layout against the voice's operator array.
-    // v1.x candidates: 32 / 64 as a "Brocot High Density" build variant
-    // gated by a CMake option; the audio thread budget can comfortably
-    // accommodate either with sin() per op.
-    inline constexpr int kNumOperators = 16;
+    // Reduced back to 8 for V2 build complexity (16-LFO bank is being added
+    // on top; total mod surface is 8 ops + 16 LFOs = 24 panels). High-
+    // density variants (32 / 64) remain a CMake-gated v1.x option.
+    inline constexpr int kNumOperators = 8;
 
     inline juce::String opId (int idx, const char* suffix)
     {

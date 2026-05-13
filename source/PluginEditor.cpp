@@ -121,10 +121,9 @@ void BrocotAudioProcessorEditor::resized()
     keyboard.setBounds (bounds.removeFromBottom (64));
     bounds.removeFromBottom (8);
 
-    // 8-wide × 2-tall grid of operator panels (was 4×2 in the spec §7 mock
-    // which had 8 operators; the bumped 16-op count keeps the visual rhythm
-    // by widening the columns and halving each cell's horizontal real estate).
-    const int cols = 8, rows = 2;
+    // 4-wide × 2-tall grid of operator panels (8 ops total for V2 — the
+    // 16-LFO bank below will fill the remaining vertical real estate).
+    const int cols = 4, rows = 2;
     const int gap = 6;
     const int cellW = (bounds.getWidth() - gap * (cols - 1)) / cols;
     const int cellH = (bounds.getHeight() - gap * (rows - 1)) / rows;
