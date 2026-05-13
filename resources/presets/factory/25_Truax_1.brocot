@@ -1,26 +1,77 @@
 {
   "name": "Truax 1 - 1:1:2:3",
-  "author": "Brocot factory",
-  "description": "After Truax 1978. Polyphonic Farey-style C:M ratios 1:1, 1:2, 1:3 with classical FM indices.",
-  "version": "1.0",
-  "category": "Truax",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "After Truax 1978. Polyphonic Farey-style C:M ratios 1:1, 1:2, 1:3 with classical FM indices.",
+    "category": "Truax"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "free",
     "operators": [
-      {"enabled": true,  "path": "",   "depth": 1.5},
-      {"enabled": true,  "path": "R",  "depth": 2.0},
-      {"enabled": true,  "path": "RR", "depth": 2.5},
-      {"enabled": false, "path": "",   "depth": 0.0},
-      {"enabled": false, "path": "",   "depth": 0.0},
-      {"enabled": false, "path": "",   "depth": 0.0},
-      {"enabled": false, "path": "",   "depth": 0.0},
-      {"enabled": false, "path": "",   "depth": 0.0}
+      {
+        "enabled": true,
+        "path": "",
+        "depth": 1.5
+      },
+      {
+        "enabled": true,
+        "path": "R",
+        "depth": 2.0
+      },
+      {
+        "enabled": true,
+        "path": "RR",
+        "depth": 2.5
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.75, "resonance": 0.1},
-  "envelope": {"attack": 0.005, "decay": 0.2, "sustain": 0.7, "release": 0.4},
-  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.4}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.75,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.005,
+    "decay": 0.2,
+    "sustain": 0.7,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.4
+  }
 }

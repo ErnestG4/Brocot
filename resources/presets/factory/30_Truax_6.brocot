@@ -1,26 +1,77 @@
 {
   "name": "Truax 6 - mallet",
-  "author": "Brocot factory",
-  "description": "After Truax 1978. Percussive mallet: short envelope, modulators at 7/2 and 11/2 for inharmonic strike.",
-  "version": "1.0",
-  "category": "Truax",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "After Truax 1978. Percussive mallet: short envelope, modulators at 7/2 and 11/2 for inharmonic strike.",
+    "category": "Truax"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "free",
     "operators": [
-      {"enabled": true,  "path": "RRRL",  "depth": 3.5},
-      {"enabled": true,  "path": "RRRRL", "depth": 2.5},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0}
+      {
+        "enabled": true,
+        "path": "RRRL",
+        "depth": 3.5
+      },
+      {
+        "enabled": true,
+        "path": "RRRRL",
+        "depth": 2.5
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "bp", "cutoff": 0.75, "resonance": 0.4},
-  "envelope": {"attack": 0.001, "decay": 0.3, "sustain": 0.0, "release": 0.5},
-  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.4}
+  "filter": {
+    "type": "bp",
+    "cutoff": 0.75,
+    "resonance": 0.4
+  },
+  "envelope": {
+    "attack": 0.001,
+    "decay": 0.3,
+    "sustain": 0.0,
+    "release": 0.5
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.4
+  }
 }

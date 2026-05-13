@@ -1,27 +1,78 @@
 {
   "name": "Pure",
-  "author": "Brocot factory",
-  "description": "Carrier only, all modulators off. The reference timbre.",
-  "version": "1.0",
-  "category": "first principles",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "Carrier only, all modulators off. The reference timbre.",
+    "category": "first principles"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "shared",
     "sharedPath": "",
     "operators": [
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0}
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.9,  "resonance": 0.05},
-  "envelope": {"attack": 0.005, "decay": 0.1, "sustain": 1.0, "release": 0.3},
-  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.5}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.9,
+    "resonance": 0.05
+  },
+  "envelope": {
+    "attack": 0.005,
+    "decay": 0.1,
+    "sustain": 1.0,
+    "release": 0.3
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
 }

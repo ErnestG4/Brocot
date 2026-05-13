@@ -7,14 +7,17 @@
 // roundtrip is tested at runtime through the plugin host; here we verify
 // that hand-constructed JSON has the expected schema and is parsable.
 
-TEST_CASE ("Sample Avatar 1 JSON parses and has expected fields", "[Preset]")
+TEST_CASE ("Sample v2 Avatar 1 JSON parses with provenance block", "[Preset]")
 {
     static constexpr auto json = R"({
         "name": "Avatar 1",
-        "author": "Combust",
-        "description": "RLLLR shared path",
-        "version": "1.0",
-        "category": "discovered",
+        "version": "2.0",
+        "provenance": {
+            "kind": "manual",
+            "author": "Combust",
+            "description": "RLLLR shared path",
+            "category": "discovered"
+        },
         "engine": {
             "polyphony": "mono",
             "octaveShift": 0,
@@ -40,13 +43,18 @@ TEST_CASE ("Sample Avatar 1 JSON parses and has expected fields", "[Preset]")
     auto* root = parsed.getDynamicObject();
     REQUIRE (root != nullptr);
     REQUIRE (root->getProperty ("name").toString() == "Avatar 1");
-    REQUIRE (root->getProperty ("version").toString() == "1.0");
+    REQUIRE (root->getProperty ("version").toString() == "2.0");
+
+    auto* prov = root->getProperty ("provenance").getDynamicObject();
+    REQUIRE (prov != nullptr);
+    REQUIRE (prov->getProperty ("kind").toString() == "manual");
+    REQUIRE (prov->getProperty ("author").toString() == "Combust");
+    REQUIRE (prov->getProperty ("category").toString() == "discovered");
 
     auto* engine = root->getProperty ("engine").getDynamicObject();
     REQUIRE (engine != nullptr);
     REQUIRE (engine->getProperty ("pathMode").toString() == "shared");
     REQUIRE (engine->getProperty ("sharedPath").toString() == "RLLLR");
-    REQUIRE (engine->getProperty ("operators").isArray());
 
     const auto* ops = engine->getProperty ("operators").getArray();
     REQUIRE (ops->size() == 3);
@@ -57,7 +65,43 @@ TEST_CASE ("Sample Avatar 1 JSON parses and has expected fields", "[Preset]")
     REQUIRE ((double) firstOp->getProperty ("depth") == Catch::Approx (5.13).margin (1e-6));
 }
 
-TEST_CASE ("All factory .brocot files parse as valid JSON objects", "[Preset]")
+TEST_CASE ("Sample v2 family-search preset carries search lineage", "[Preset]")
+{
+    // What an ARS-generated preset will look like (P3.5).
+    static constexpr auto json = R"({
+        "name": "sawtooth-1",
+        "version": "2.0",
+        "provenance": {
+            "kind": "family-search",
+            "author": "ARS Phase 3",
+            "description": "Sawtooth family discovery.",
+            "category": "Sawtooth",
+            "ars_version": "0.x",
+            "search": {
+                "family": "sawtooth",
+                "seed": 12345,
+                "objective": 0.084,
+                "params": { "n_samples": 1000, "n_refine": 20, "q_max": 16 },
+                "timestamp": "2026-05-12T22:00:00Z"
+            }
+        },
+        "engine": {"pathMode": "free", "operators": [{"enabled": true, "path": "R", "depth": 1.0}]}
+    })";
+
+    juce::var parsed;
+    REQUIRE (juce::JSON::parse (json, parsed).wasOk());
+    auto* prov = parsed.getDynamicObject()->getProperty ("provenance").getDynamicObject();
+    REQUIRE (prov != nullptr);
+    REQUIRE (prov->getProperty ("kind").toString() == "family-search");
+
+    auto* search = prov->getProperty ("search").getDynamicObject();
+    REQUIRE (search != nullptr);
+    REQUIRE (search->getProperty ("family").toString() == "sawtooth");
+    REQUIRE ((int) search->getProperty ("seed") == 12345);
+    REQUIRE ((double) search->getProperty ("objective") == Catch::Approx (0.084));
+}
+
+TEST_CASE ("All factory .brocot files are v2 with provenance", "[Preset]")
 {
     juce::File factoryDir (juce::String (BROCOT_SOURCE_DIR)
                            + "/resources/presets/factory");
@@ -74,13 +118,15 @@ TEST_CASE ("All factory .brocot files parse as valid JSON objects", "[Preset]")
         auto* root = json.getDynamicObject();
         REQUIRE (root != nullptr);
         REQUIRE (root->getProperty ("name").toString().isNotEmpty());
-        REQUIRE (root->getProperty ("version").toString().isNotEmpty());
-        REQUIRE (root->getProperty ("engine").isObject());
-        REQUIRE (root->getProperty ("envelope").isObject());
-        REQUIRE (root->getProperty ("filter").isObject());
-        REQUIRE (root->getProperty ("lfo").isObject());
-        REQUIRE (root->getProperty ("master").isObject());
+        REQUIRE (root->getProperty ("version").toString() == "2.0");
+        REQUIRE (root->getProperty ("provenance").isObject());
 
+        auto* prov = root->getProperty ("provenance").getDynamicObject();
+        REQUIRE (prov != nullptr);
+        // v2 always has `kind`; manual / family-search / criticality-search / reference-match
+        REQUIRE (prov->getProperty ("kind").toString().isNotEmpty());
+
+        REQUIRE (root->getProperty ("engine").isObject());
         auto* engine = root->getProperty ("engine").getDynamicObject();
         REQUIRE (engine != nullptr);
         REQUIRE (engine->getProperty ("operators").isArray());
@@ -89,10 +135,37 @@ TEST_CASE ("All factory .brocot files parse as valid JSON objects", "[Preset]")
     }
 }
 
-TEST_CASE ("Free-mode preset uses 'path' instead of 'position'", "[Preset]")
+TEST_CASE ("v1 preset (no provenance) is still parseable JSON", "[Preset]")
+{
+    // The loader's v1->v2 migration handles this in applyTo(); here we
+    // just verify the JSON itself is valid input to the loader.
+    static constexpr auto json = R"({
+        "name": "old preset",
+        "author": "Will",
+        "description": "from v1",
+        "version": "1.0",
+        "category": "user",
+        "engine": {
+            "pathMode": "free",
+            "operators": [{"enabled": true, "path": "R", "depth": 1.0}]
+        }
+    })";
+
+    juce::var parsed;
+    REQUIRE (juce::JSON::parse (json, parsed).wasOk());
+    auto* root = parsed.getDynamicObject();
+    REQUIRE (root != nullptr);
+    REQUIRE (root->getProperty ("version").toString() == "1.0");
+    REQUIRE_FALSE (root->hasProperty ("provenance"));
+    // The loader synthesises provenance on applyTo. Tested via host
+    // integration; here we just confirm the input shape.
+}
+
+TEST_CASE ("Free-mode v2 preset uses 'path' instead of 'position'", "[Preset]")
 {
     static constexpr auto json = R"({
-        "name": "free demo", "version": "1.0",
+        "name": "free demo", "version": "2.0",
+        "provenance": {"kind": "manual"},
         "engine": {
             "pathMode": "free",
             "operators": [

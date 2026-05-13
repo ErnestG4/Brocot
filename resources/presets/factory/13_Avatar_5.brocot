@@ -1,27 +1,78 @@
 {
   "name": "Avatar 5 (placeholder)",
-  "author": "TBD",
-  "description": "Placeholder. L-side trunk for sub-unity ratios.",
-  "version": "1.0",
-  "category": "Avatar",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "TBD",
+    "description": "Placeholder. L-side trunk for sub-unity ratios.",
+    "category": "Avatar"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "shared",
     "sharedPath": "LRRRR",
     "operators": [
-      {"enabled": true,  "position": 1, "depth": 4.21},
-      {"enabled": true,  "position": 3, "depth": 0.9},
-      {"enabled": true,  "position": 5, "depth": 0.8},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0}
+      {
+        "enabled": true,
+        "position": 1,
+        "depth": 4.21
+      },
+      {
+        "enabled": true,
+        "position": 3,
+        "depth": 0.9
+      },
+      {
+        "enabled": true,
+        "position": 5,
+        "depth": 0.8
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.6, "resonance": 0.1},
-  "envelope": {"attack": 0.01, "decay": 0.3, "sustain": 0.8, "release": 0.6},
-  "lfo":      {"shape": "sine", "rate": 0.4, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.5}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.6,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.3,
+    "sustain": 0.8,
+    "release": 0.6
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.4,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
 }

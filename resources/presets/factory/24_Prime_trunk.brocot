@@ -1,26 +1,77 @@
 {
   "name": "Prime trunk",
-  "author": "Brocot factory",
-  "description": "Free-mode operators at successive prime denominators (1/3, 1/5, 1/7, 1/11, 1/13). Placeholder until ARS analysis fills in the principled path.",
-  "version": "1.0",
-  "category": "path canon",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "Free-mode operators at successive prime denominators (1/3, 1/5, 1/7, 1/11, 1/13). Placeholder until ARS analysis fills in the principled path.",
+    "category": "path canon"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "free",
     "operators": [
-      {"enabled": true,  "path": "LL",     "depth": 0.7},
-      {"enabled": true,  "path": "LLLL",   "depth": 0.5},
-      {"enabled": true,  "path": "LLLLLL", "depth": 0.4},
-      {"enabled": true,  "path": "LRLL",   "depth": 0.3},
-      {"enabled": true,  "path": "LRLLLL", "depth": 0.25},
-      {"enabled": false, "path": "",       "depth": 0.0},
-      {"enabled": false, "path": "",       "depth": 0.0},
-      {"enabled": false, "path": "",       "depth": 0.0}
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.7
+      },
+      {
+        "enabled": true,
+        "path": "LLLL",
+        "depth": 0.5
+      },
+      {
+        "enabled": true,
+        "path": "LLLLLL",
+        "depth": 0.4
+      },
+      {
+        "enabled": true,
+        "path": "LRLL",
+        "depth": 0.3
+      },
+      {
+        "enabled": true,
+        "path": "LRLLLL",
+        "depth": 0.25
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.65, "resonance": 0.1},
-  "envelope": {"attack": 0.05, "decay": 0.4, "sustain": 0.8, "release": 0.7},
-  "lfo":      {"shape": "sine", "rate": 0.2, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.45}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.65,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.05,
+    "decay": 0.4,
+    "sustain": 0.8,
+    "release": 0.7
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.2,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.45
+  }
 }

@@ -1,26 +1,77 @@
 {
   "name": "Truax 4 - missing fundamental",
-  "author": "Brocot factory",
-  "description": "After Truax 1978. Sidebands implying a missing fundamental: modulators at 3/2 and 5/2 of carrier.",
-  "version": "1.0",
-  "category": "Truax",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "After Truax 1978. Sidebands implying a missing fundamental: modulators at 3/2 and 5/2 of carrier.",
+    "category": "Truax"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "free",
     "operators": [
-      {"enabled": true,  "path": "RL",   "depth": 2.5},
-      {"enabled": true,  "path": "RRL",  "depth": 1.8},
-      {"enabled": false, "path": "",     "depth": 0.0},
-      {"enabled": false, "path": "",     "depth": 0.0},
-      {"enabled": false, "path": "",     "depth": 0.0},
-      {"enabled": false, "path": "",     "depth": 0.0},
-      {"enabled": false, "path": "",     "depth": 0.0},
-      {"enabled": false, "path": "",     "depth": 0.0}
+      {
+        "enabled": true,
+        "path": "RL",
+        "depth": 2.5
+      },
+      {
+        "enabled": true,
+        "path": "RRL",
+        "depth": 1.8
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.1},
-  "envelope": {"attack": 0.01, "decay": 0.3, "sustain": 0.7, "release": 0.6},
-  "lfo":      {"shape": "sine", "rate": 0.3, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.4}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.7,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.3,
+    "sustain": 0.7,
+    "release": 0.6
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.3,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.4
+  }
 }

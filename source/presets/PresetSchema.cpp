@@ -67,12 +67,21 @@ juce::var serialise (const BrocotAudioProcessor& proc)
 {
     const auto& apvts = proc.getAPVTS();
 
+    // Schema v2: required top-level fields are `name`, `version`,
+    // `provenance`, and the synth-state blocks. Metadata (author,
+    // description, category) lives inside `provenance` rather than at top
+    // level; that makes "where did this preset come from?" explicit and
+    // gives ARS-generated presets a home for search params + objective.
     auto* root = new juce::DynamicObject();
-    root->setProperty ("name",        "untitled");
-    root->setProperty ("author",      "");
-    root->setProperty ("description", "");
-    root->setProperty ("version",     kFormatVersion);
-    root->setProperty ("category",    "user");
+    root->setProperty ("name",    "untitled");
+    root->setProperty ("version", kFormatVersion);
+
+    auto* provenance = new juce::DynamicObject();
+    provenance->setProperty ("kind",        "manual");  // manual edits / saves
+    provenance->setProperty ("author",      "");
+    provenance->setProperty ("description", "");
+    provenance->setProperty ("category",    "user");
+    root->setProperty ("provenance", juce::var (provenance));
 
     auto* engine = new juce::DynamicObject();
     engine->setProperty ("polyphony",
@@ -141,6 +150,24 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
     {
         if (outError) *outError = "Root is not a JSON object";
         return false;
+    }
+
+    // v1 -> v2 migration: synthesise a provenance block from the old flat
+    // `author` / `description` / `category` fields. Existing v1 presets
+    // (factory v1 + any user-saved v1 files) thus continue to load. The
+    // saver always emits v2, so the migration is lazy / one-way at load.
+    const juce::String fileVersion = root->getProperty ("version").toString();
+    if (! root->hasProperty ("provenance") && fileVersion.startsWith ("1."))
+    {
+        auto* synth = new juce::DynamicObject();
+        synth->setProperty ("kind",        "manual");
+        synth->setProperty ("author",      root->getProperty ("author").toString());
+        synth->setProperty ("description", root->getProperty ("description").toString());
+        synth->setProperty ("category",
+                            root->hasProperty ("category")
+                                ? root->getProperty ("category").toString()
+                                : juce::String ("user"));
+        root->setProperty ("provenance", juce::var (synth));
     }
 
     auto& apvts = proc.getAPVTS();

@@ -1,27 +1,78 @@
 {
   "name": "Avatar 7 (placeholder)",
-  "author": "TBD",
-  "description": "Placeholder. Very subtle near-unity, all 8 ops engaged at low depth.",
-  "version": "1.0",
-  "category": "Avatar",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "TBD",
+    "description": "Placeholder. Very subtle near-unity, all 8 ops engaged at low depth.",
+    "category": "Avatar"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "shared",
     "sharedPath": "RLLLLLRR",
     "operators": [
-      {"enabled": true,  "position": 1, "depth": 0.2},
-      {"enabled": true,  "position": 2, "depth": 0.2},
-      {"enabled": true,  "position": 3, "depth": 0.15},
-      {"enabled": true,  "position": 4, "depth": 0.15},
-      {"enabled": true,  "position": 5, "depth": 0.12},
-      {"enabled": true,  "position": 6, "depth": 0.12},
-      {"enabled": true,  "position": 7, "depth": 0.1},
-      {"enabled": true,  "position": 8, "depth": 0.1}
+      {
+        "enabled": true,
+        "position": 1,
+        "depth": 0.2
+      },
+      {
+        "enabled": true,
+        "position": 2,
+        "depth": 0.2
+      },
+      {
+        "enabled": true,
+        "position": 3,
+        "depth": 0.15
+      },
+      {
+        "enabled": true,
+        "position": 4,
+        "depth": 0.15
+      },
+      {
+        "enabled": true,
+        "position": 5,
+        "depth": 0.12
+      },
+      {
+        "enabled": true,
+        "position": 6,
+        "depth": 0.12
+      },
+      {
+        "enabled": true,
+        "position": 7,
+        "depth": 0.1
+      },
+      {
+        "enabled": true,
+        "position": 8,
+        "depth": 0.1
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.1},
-  "envelope": {"attack": 0.2, "decay": 1.5, "sustain": 0.9, "release": 2.0},
-  "lfo":      {"shape": "sine", "rate": 0.1, "depth": 0.1, "keySync": false},
-  "master":   {"level": 0.5}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.7,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.2,
+    "decay": 1.5,
+    "sustain": 0.9,
+    "release": 2.0
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.1,
+    "depth": 0.1,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
 }

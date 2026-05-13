@@ -1,27 +1,78 @@
 {
   "name": "Avatar 2 (placeholder)",
-  "author": "TBD",
-  "description": "Placeholder — to be replaced by Will during prototype testing. RLLR shared path, deeper stacking.",
-  "version": "1.0",
-  "category": "Avatar",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "TBD",
+    "description": "Placeholder \u2014 to be replaced by Will during prototype testing. RLLR shared path, deeper stacking.",
+    "category": "Avatar"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "shared",
     "sharedPath": "RLLR",
     "operators": [
-      {"enabled": true,  "position": 1, "depth": 1.841},
-      {"enabled": true,  "position": 2, "depth": 0.7},
-      {"enabled": true,  "position": 3, "depth": 0.5},
-      {"enabled": true,  "position": 4, "depth": 0.3},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0}
+      {
+        "enabled": true,
+        "position": 1,
+        "depth": 1.841
+      },
+      {
+        "enabled": true,
+        "position": 2,
+        "depth": 0.7
+      },
+      {
+        "enabled": true,
+        "position": 3,
+        "depth": 0.5
+      },
+      {
+        "enabled": true,
+        "position": 4,
+        "depth": 0.3
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.1},
-  "envelope": {"attack": 0.02, "decay": 0.25, "sustain": 0.8, "release": 0.5},
-  "lfo":      {"shape": "sine", "rate": 0.3, "depth": 0.05, "keySync": false},
-  "master":   {"level": 0.5}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.7,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.02,
+    "decay": 0.25,
+    "sustain": 0.8,
+    "release": 0.5
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.3,
+    "depth": 0.05,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
 }

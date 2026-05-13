@@ -1,27 +1,78 @@
 {
   "name": "Silver",
-  "author": "Brocot factory",
-  "description": "Shared path RRLRRL converges toward 1+sqrt(2) (silver ratio continued fraction).",
-  "version": "1.0",
-  "category": "path canon",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "Shared path RRLRRL converges toward 1+sqrt(2) (silver ratio continued fraction).",
+    "category": "path canon"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "shared",
     "sharedPath": "RRLRRLRR",
     "operators": [
-      {"enabled": true,  "position": 1, "depth": 1.0},
-      {"enabled": true,  "position": 2, "depth": 0.7},
-      {"enabled": true,  "position": 4, "depth": 0.5},
-      {"enabled": true,  "position": 5, "depth": 0.4},
-      {"enabled": true,  "position": 7, "depth": 0.3},
-      {"enabled": true,  "position": 8, "depth": 0.25},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0}
+      {
+        "enabled": true,
+        "position": 1,
+        "depth": 1.0
+      },
+      {
+        "enabled": true,
+        "position": 2,
+        "depth": 0.7
+      },
+      {
+        "enabled": true,
+        "position": 4,
+        "depth": 0.5
+      },
+      {
+        "enabled": true,
+        "position": 5,
+        "depth": 0.4
+      },
+      {
+        "enabled": true,
+        "position": 7,
+        "depth": 0.3
+      },
+      {
+        "enabled": true,
+        "position": 8,
+        "depth": 0.25
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.7, "resonance": 0.1},
-  "envelope": {"attack": 0.05, "decay": 0.4, "sustain": 0.8, "release": 0.7},
-  "lfo":      {"shape": "sine", "rate": 0.2, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.4}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.7,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.05,
+    "decay": 0.4,
+    "sustain": 0.8,
+    "release": 0.7
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.2,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.4
+  }
 }

@@ -1,26 +1,77 @@
 {
   "name": "Octave J1",
-  "author": "Brocot factory",
-  "description": "Single modulator at 2/1, depth 1.841 (first J1 peak). Strong odd-harmonic spectrum at the first sideband.",
-  "version": "1.0",
-  "category": "first principles",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "Single modulator at 2/1, depth 1.841 (first J1 peak). Strong odd-harmonic spectrum at the first sideband.",
+    "category": "first principles"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "free",
     "operators": [
-      {"enabled": true,  "path": "R", "depth": 1.841},
-      {"enabled": false, "path": "",  "depth": 0.0},
-      {"enabled": false, "path": "",  "depth": 0.0},
-      {"enabled": false, "path": "",  "depth": 0.0},
-      {"enabled": false, "path": "",  "depth": 0.0},
-      {"enabled": false, "path": "",  "depth": 0.0},
-      {"enabled": false, "path": "",  "depth": 0.0},
-      {"enabled": false, "path": "",  "depth": 0.0}
+      {
+        "enabled": true,
+        "path": "R",
+        "depth": 1.841
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.85, "resonance": 0.1},
-  "envelope": {"attack": 0.005, "decay": 0.15, "sustain": 0.85, "release": 0.35},
-  "lfo":      {"shape": "sine", "rate": 0.5, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.5}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.005,
+    "decay": 0.15,
+    "sustain": 0.85,
+    "release": 0.35
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
 }

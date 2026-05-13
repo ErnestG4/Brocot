@@ -1,27 +1,78 @@
 {
   "name": "Truax 8 - drone",
-  "author": "Brocot factory",
-  "description": "After Truax 1978. Sustained drone: 6 modulators on a long shared path at increasing positions.",
-  "version": "1.0",
-  "category": "Truax",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "After Truax 1978. Sustained drone: 6 modulators on a long shared path at increasing positions.",
+    "category": "Truax"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": -1,
     "pathMode": "shared",
     "sharedPath": "RLLLRLLLR",
     "operators": [
-      {"enabled": true,  "position": 1, "depth": 1.0},
-      {"enabled": true,  "position": 2, "depth": 0.8},
-      {"enabled": true,  "position": 4, "depth": 0.6},
-      {"enabled": true,  "position": 5, "depth": 0.5},
-      {"enabled": true,  "position": 7, "depth": 0.4},
-      {"enabled": true,  "position": 9, "depth": 0.3},
-      {"enabled": false, "position": 0, "depth": 0.0},
-      {"enabled": false, "position": 0, "depth": 0.0}
+      {
+        "enabled": true,
+        "position": 1,
+        "depth": 1.0
+      },
+      {
+        "enabled": true,
+        "position": 2,
+        "depth": 0.8
+      },
+      {
+        "enabled": true,
+        "position": 4,
+        "depth": 0.6
+      },
+      {
+        "enabled": true,
+        "position": 5,
+        "depth": 0.5
+      },
+      {
+        "enabled": true,
+        "position": 7,
+        "depth": 0.4
+      },
+      {
+        "enabled": true,
+        "position": 9,
+        "depth": 0.3
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "position": 0,
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "lp", "cutoff": 0.6, "resonance": 0.15},
-  "envelope": {"attack": 0.5, "decay": 1.0, "sustain": 0.9, "release": 2.0},
-  "lfo":      {"shape": "sine", "rate": 0.05, "depth": 0.15, "keySync": false},
-  "master":   {"level": 0.45}
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.6,
+    "resonance": 0.15
+  },
+  "envelope": {
+    "attack": 0.5,
+    "decay": 1.0,
+    "sustain": 0.9,
+    "release": 2.0
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.05,
+    "depth": 0.15,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.45
+  }
 }

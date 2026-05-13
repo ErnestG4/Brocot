@@ -1,26 +1,77 @@
 {
   "name": "Truax 3 - bell",
-  "author": "Brocot factory",
-  "description": "After Truax 1978. Inharmonic bell: ratios 3.5, 5.5, 7.5 approximated by paths RRRLL, RRRRLL.",
-  "version": "1.0",
-  "category": "Truax",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "After Truax 1978. Inharmonic bell: ratios 3.5, 5.5, 7.5 approximated by paths RRRLL, RRRRLL.",
+    "category": "Truax"
+  },
   "engine": {
     "polyphony": "mono",
     "octaveShift": 0,
     "pathMode": "free",
     "operators": [
-      {"enabled": true,  "path": "RRL",   "depth": 2.0},
-      {"enabled": true,  "path": "RRLL",  "depth": 1.5},
-      {"enabled": true,  "path": "RRRLL", "depth": 1.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0},
-      {"enabled": false, "path": "",      "depth": 0.0}
+      {
+        "enabled": true,
+        "path": "RRL",
+        "depth": 2.0
+      },
+      {
+        "enabled": true,
+        "path": "RRLL",
+        "depth": 1.5
+      },
+      {
+        "enabled": true,
+        "path": "RRRLL",
+        "depth": 1.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
     ]
   },
-  "filter":   {"type": "bp", "cutoff": 0.7, "resonance": 0.3},
-  "envelope": {"attack": 0.001, "decay": 1.2, "sustain": 0.2, "release": 2.0},
-  "lfo":      {"shape": "sine", "rate": 0.3, "depth": 0.0, "keySync": false},
-  "master":   {"level": 0.35}
+  "filter": {
+    "type": "bp",
+    "cutoff": 0.7,
+    "resonance": 0.3
+  },
+  "envelope": {
+    "attack": 0.001,
+    "decay": 1.2,
+    "sustain": 0.2,
+    "release": 2.0
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.3,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.35
+  }
 }
