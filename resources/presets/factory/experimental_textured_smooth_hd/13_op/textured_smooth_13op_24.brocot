@@ -1,0 +1,128 @@
+{
+  "name": "Textured\u00b713op\u00b724  (H=7.13, n=2443)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 13 ops, objective 26.6800 (H=7.133, peak/mean=33.81, n_partials=2443, crit=0.0049).",
+    "category": "Textured-Smooth \u00b7 13 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 13,
+      "seed": 8205,
+      "objective": 26.679981690842475,
+      "entropy": 7.133202973607645,
+      "peak_mean": 33.813343516367354,
+      "n_partials": 2443,
+      "criticality": 0.004887587461750326,
+      "timestamp": "2026-05-13T21:23:06.916033+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LLR",
+        "depth": 0.20088218933915197
+      },
+      {
+        "enabled": true,
+        "path": "LLR",
+        "depth": 0.656427829108083
+      },
+      {
+        "enabled": true,
+        "path": "LLR",
+        "depth": 0.6647327571577292
+      },
+      {
+        "enabled": true,
+        "path": "LLRLLRLL",
+        "depth": 0.6724519654649721
+      },
+      {
+        "enabled": true,
+        "path": "LRLLLLLRRLLR",
+        "depth": 0.3695361838218105
+      },
+      {
+        "enabled": true,
+        "path": "LRLLRRLLLRR",
+        "depth": 0.20089092850305854
+      },
+      {
+        "enabled": true,
+        "path": "LRRL",
+        "depth": 0.12617187116700282
+      },
+      {
+        "enabled": true,
+        "path": "LRRLL",
+        "depth": 0.35304745346739796
+      },
+      {
+        "enabled": true,
+        "path": "LRRLRRLRRL",
+        "depth": 0.37277136956937545
+      },
+      {
+        "enabled": true,
+        "path": "RLLRRLLR",
+        "depth": 0.5645195485754023
+      },
+      {
+        "enabled": true,
+        "path": "RLR",
+        "depth": 0.6692885065945338
+      },
+      {
+        "enabled": true,
+        "path": "RLRRLRRLLLLR",
+        "depth": 0.4788531169230937
+      },
+      {
+        "enabled": true,
+        "path": "RRLR",
+        "depth": 0.5935119371438157
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}
