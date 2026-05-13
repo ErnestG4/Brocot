@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b76op\u00b753  (H=3.40, n=94)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 6 ops, objective 9.0203 (H=3.397, peak/mean=12.40, n_partials=94, crit=0.0109).",
+    "category": "Textured-Smooth \u00b7 6 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 6,
+      "seed": 4103,
+      "objective": 9.0202981191819,
+      "entropy": 3.397186409085822,
+      "peak_mean": 12.398388178743623,
+      "n_partials": 94,
+      "criticality": 0.010901231102904946,
+      "timestamp": "2026-05-13T19:52:54.776557+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.2309210383264404
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.5653762409434128
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.6283243844060276
+      },
+      {
+        "enabled": true,
+        "path": "LLLRRLLRLLR",
+        "depth": 0.4070887930191145
+      },
+      {
+        "enabled": true,
+        "path": "RLLLLL",
+        "depth": 0.29227523514060844
+      },
+      {
+        "enabled": true,
+        "path": "RLLLLLLLLR",
+        "depth": 0.09895459475114776
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

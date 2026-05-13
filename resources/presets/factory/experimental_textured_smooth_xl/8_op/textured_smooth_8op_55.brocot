@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b78op\u00b755  (H=4.63, n=304)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 8 ops, objective 20.5962 (H=4.629, peak/mean=25.22, n_partials=304, crit=0.0066).",
+    "category": "Textured-Smooth \u00b7 8 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 8,
+      "seed": 4105,
+      "objective": 20.596192644559217,
+      "entropy": 4.628556095676133,
+      "peak_mean": 25.21949209321876,
+      "n_partials": 304,
+      "criticality": 0.00661150175916648,
+      "timestamp": "2026-05-13T19:56:11.530918+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.557498434235742
+      },
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.6004288540021967
+      },
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.6632418397920085
+      },
+      {
+        "enabled": true,
+        "path": "LLLRRRLRLRL",
+        "depth": 0.4271801038939827
+      },
+      {
+        "enabled": true,
+        "path": "LLRLLLLR",
+        "depth": 0.2765340516263495
+      },
+      {
+        "enabled": true,
+        "path": "RR",
+        "depth": 0.41409742589906323
+      },
+      {
+        "enabled": true,
+        "path": "RRLLL",
+        "depth": 0.5562533157247836
+      },
+      {
+        "enabled": true,
+        "path": "RRLLLRR",
+        "depth": 0.17472278076698947
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

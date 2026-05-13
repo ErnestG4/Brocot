@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b78op\u00b7117  (H=5.20, n=561)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 8 ops, objective 25.8087 (H=5.196, peak/mean=31.00, n_partials=561, crit=0.0096).",
+    "category": "Textured-Smooth \u00b7 8 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 8,
+      "seed": 4105,
+      "objective": 25.808668635978517,
+      "entropy": 5.195767690698801,
+      "peak_mean": 31.002790219887665,
+      "n_partials": 561,
+      "criticality": 0.009594777994686107,
+      "timestamp": "2026-05-13T19:56:11.540252+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LLLLRLRLL",
+        "depth": 0.07298538814710748
+      },
+      {
+        "enabled": true,
+        "path": "LLLLRRRL",
+        "depth": 0.6666857988002616
+      },
+      {
+        "enabled": true,
+        "path": "LLLR",
+        "depth": 0.6704569204887022
+      },
+      {
+        "enabled": true,
+        "path": "LLLR",
+        "depth": 0.6744628611470308
+      },
+      {
+        "enabled": true,
+        "path": "LLLRLLRLLR",
+        "depth": 0.48792291713904323
+      },
+      {
+        "enabled": true,
+        "path": "LR",
+        "depth": 0.04121636934016711
+      },
+      {
+        "enabled": true,
+        "path": "LRLLLRRR",
+        "depth": 0.2990223211480532
+      },
+      {
+        "enabled": true,
+        "path": "RRRLLRRLRLRL",
+        "depth": 0.3902130097433416
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

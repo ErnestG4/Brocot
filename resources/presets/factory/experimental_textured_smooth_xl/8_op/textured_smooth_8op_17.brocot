@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b78op\u00b717  (H=4.48, n=251)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 8 ops, objective 15.8147 (H=4.485, peak/mean=20.29, n_partials=251, crit=0.0057).",
+    "category": "Textured-Smooth \u00b7 8 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 8,
+      "seed": 4105,
+      "objective": 15.814694786265854,
+      "entropy": 4.484671970275945,
+      "peak_mean": 20.292547653049425,
+      "n_partials": 251,
+      "criticality": 0.005745119988333726,
+      "timestamp": "2026-05-13T19:56:11.524580+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.6654406322731106
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.6691788454290272
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.6864448722242468
+      },
+      {
+        "enabled": true,
+        "path": "LLRLR",
+        "depth": 0.1853044530605222
+      },
+      {
+        "enabled": true,
+        "path": "LR",
+        "depth": 0.04869046718077779
+      },
+      {
+        "enabled": true,
+        "path": "LRLRLLRRLRR",
+        "depth": 0.620245210585012
+      },
+      {
+        "enabled": true,
+        "path": "RLR",
+        "depth": 0.48566980522484005
+      },
+      {
+        "enabled": true,
+        "path": "RRRRLRRLRLL",
+        "depth": 0.45798893248729106
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

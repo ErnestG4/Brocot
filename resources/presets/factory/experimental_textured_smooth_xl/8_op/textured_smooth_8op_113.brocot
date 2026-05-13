@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b78op\u00b7113  (H=5.34, n=661)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 8 ops, objective 25.4121 (H=5.336, peak/mean=30.75, n_partials=661, crit=0.0091).",
+    "category": "Textured-Smooth \u00b7 8 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 8,
+      "seed": 4105,
+      "objective": 25.412078657535307,
+      "entropy": 5.336129332409293,
+      "peak_mean": 30.746994017096384,
+      "n_partials": 661,
+      "criticality": 0.009058728799759904,
+      "timestamp": "2026-05-13T19:56:11.539681+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.6871338766878297
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.6939475810144782
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.050765194084002076
+      },
+      {
+        "enabled": true,
+        "path": "RLL",
+        "depth": 0.668320285656833
+      },
+      {
+        "enabled": true,
+        "path": "RLLL",
+        "depth": 0.3372613264491616
+      },
+      {
+        "enabled": true,
+        "path": "RLLRRRR",
+        "depth": 0.16049719533527967
+      },
+      {
+        "enabled": true,
+        "path": "RLRRRRRR",
+        "depth": 0.3542639702737577
+      },
+      {
+        "enabled": true,
+        "path": "RRRRLLLR",
+        "depth": 0.6042274799257198
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

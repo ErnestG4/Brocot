@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b78op\u00b793  (H=5.68, n=769)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 8 ops, objective 23.8236 (H=5.682, peak/mean=29.50, n_partials=769, crit=0.0063).",
+    "category": "Textured-Smooth \u00b7 8 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 8,
+      "seed": 4105,
+      "objective": 23.823606539277282,
+      "entropy": 5.682066082328902,
+      "peak_mean": 29.50432900945793,
+      "n_partials": 769,
+      "criticality": 0.006285840429063826,
+      "timestamp": "2026-05-13T19:56:11.536422+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.41905938453813935
+      },
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.6936536401309221
+      },
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.6992381057296037
+      },
+      {
+        "enabled": true,
+        "path": "LLRR",
+        "depth": 0.14462213371962948
+      },
+      {
+        "enabled": true,
+        "path": "LRLR",
+        "depth": 0.5513031372956517
+      },
+      {
+        "enabled": true,
+        "path": "LRRRL",
+        "depth": 0.4502506825912236
+      },
+      {
+        "enabled": true,
+        "path": "LRRRRRLRLR",
+        "depth": 0.4841807123953094
+      },
+      {
+        "enabled": true,
+        "path": "RRLRRRRLLLL",
+        "depth": 0.6817314497293512
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

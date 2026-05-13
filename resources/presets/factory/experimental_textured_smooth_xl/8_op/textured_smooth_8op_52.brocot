@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b78op\u00b752  (H=4.35, n=244)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 8 ops, objective 20.1896 (H=4.355, peak/mean=24.54, n_partials=244, crit=0.0063).",
+    "category": "Textured-Smooth \u00b7 8 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 8,
+      "seed": 4105,
+      "objective": 20.189615096166154,
+      "entropy": 4.3546589970727245,
+      "peak_mean": 24.53733917417871,
+      "n_partials": 244,
+      "criticality": 0.006309011256540369,
+      "timestamp": "2026-05-13T19:56:11.530431+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.6634703481384845
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.6836184728625981
+      },
+      {
+        "enabled": true,
+        "path": "R",
+        "depth": 0.6994914360734105
+      },
+      {
+        "enabled": true,
+        "path": "RL",
+        "depth": 0.38059991568819707
+      },
+      {
+        "enabled": true,
+        "path": "RLR",
+        "depth": 0.07748810078986401
+      },
+      {
+        "enabled": true,
+        "path": "RLRRLRLLRLLL",
+        "depth": 0.6848052574944495
+      },
+      {
+        "enabled": true,
+        "path": "RRL",
+        "depth": 0.10199486490115026
+      },
+      {
+        "enabled": true,
+        "path": "RRR",
+        "depth": 0.22029629926737868
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

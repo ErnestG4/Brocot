@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b77op\u00b7103  (H=4.45, n=285)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 7 ops, objective 18.2390 (H=4.452, peak/mean=22.69, n_partials=285, crit=0.0098).",
+    "category": "Textured-Smooth \u00b7 7 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 7,
+      "seed": 4104,
+      "objective": 18.23903895802874,
+      "entropy": 4.452348838610519,
+      "peak_mean": 22.68632525918835,
+      "n_partials": 285,
+      "criticality": 0.00977503204371875,
+      "timestamp": "2026-05-13T19:54:15.435501+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.6739574085205967
+      },
+      {
+        "enabled": true,
+        "path": "LLL",
+        "depth": 0.6948227714284302
+      },
+      {
+        "enabled": true,
+        "path": "LLLRLLL",
+        "depth": 0.3291031444584241
+      },
+      {
+        "enabled": true,
+        "path": "LLRRL",
+        "depth": 0.6967597823285407
+      },
+      {
+        "enabled": true,
+        "path": "LR",
+        "depth": 0.1743504560051692
+      },
+      {
+        "enabled": true,
+        "path": "RRLRRRLLRR",
+        "depth": 0.2773436586117967
+      },
+      {
+        "enabled": true,
+        "path": "RRRRLLLR",
+        "depth": 0.09809465980969959
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}
