@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CFC Synth v4 — FM / PM / RM / PWM</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;max-width:920px;margin:24px auto;padding:0 16px;
+       background:#111;color:#ccc}
+  h1{font-size:14px;font-weight:600;color:#eee;margin:0 0 14px;letter-spacing:.03em}
+  .row{display:flex;align-items:center;gap:10px;margin:0 0 7px;font-size:13px}
+  .row label{color:#888;min-width:130px;flex-shrink:0}
+  .row .val{font-weight:600;min-width:54px;text-align:right;font-variant-numeric:tabular-nums;color:#eee}
+  .row input[type=range]{flex:1;accent-color:#6C63FF;cursor:pointer}
+  .row select{font-size:13px;flex:1;background:#1e1e1e;color:#ddd;border:1px solid #2e2e2e;
+              padding:3px 6px;border-radius:4px;cursor:pointer}
+  .section{font-size:10px;color:#3a3a3a;margin:14px 0 6px;text-transform:uppercase;
+           letter-spacing:.08em;border-bottom:1px solid #1e1e1e;padding-bottom:4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  button{background:#1e1e1e;color:#aaa;border:1px solid #2e2e2e;padding:5px 12px;
+         border-radius:4px;cursor:pointer;font-size:13px;transition:all .1s}
+  button:hover{background:#252525;color:#eee;border-color:#444}
+  button.on{background:#6C63FF22;border-color:#6C63FF88;color:#9d97ff}
+  .presets{display:flex;gap:5px;flex-wrap:wrap}
+  .presets button{font-size:11px;padding:3px 9px}
+  .status{font-size:11px;color:#3a3a3a}
+  canvas{width:100%;display:block;background:#0a0a0a;border-radius:4px;border:1px solid #1a1a1a;margin-bottom:2px}
+  .mode-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap}
+  .mode-tab{font-size:12px;padding:4px 14px;border-radius:20px;border:1px solid #2e2e2e;
+            background:#1a1a1a;color:#666;cursor:pointer;transition:all .15s}
+  .mode-tab:hover{color:#aaa;border-color:#444}
+  .mode-tab.active{background:#6C63FF22;border-color:#6C63FF;color:#9d97ff}
+  .tip{font-size:11px;color:#2e2e2e;margin:8px 0 0;line-height:1.6}
+  .tip b{color:#3a3a3a}
+  #mode-desc{font-size:12px;color:#555;margin:4px 0 10px;min-height:16px}
+  .param-block{transition:opacity .2s}
+  .param-block.hidden{opacity:.25;pointer-events:none}
+</style>
+</head>
+<body>
+<h1>CFC + FM / PM / RM / PWM Synthesizer</h1>
+
+<div class="row" style="gap:12px;margin-bottom:10px">
+  <button id="btn-play" style="min-width:76px">Play</button>
+  <span class="status" id="status">off</span>
+</div>
+<div class="row">
+  <label for="vol">Master volume</label>
+  <input type="range" id="vol" min="0" max="100" step="1" value="22">
+  <span class="val" id="vol-v">0.22</span>
+</div>
+
+<!-- Synthesis mode tabs -->
+<div class="section">Synthesis mode</div>
+<div class="mode-tabs">
+  <div class="mode-tab active" data-mode="cfc">CFC / AM</div>
+  <div class="mode-tab" data-mode="fm">FM</div>
+  <div class="mode-tab" data-mode="pm">PM</div>
+  <div class="mode-tab" data-mode="rm">Ring Mod</div>
+  <div class="mode-tab" data-mode="pwm">PWM</div>
+  <div class="mode-tab" data-mode="cfcfm">CFC + FM</div>
+  <div class="mode-tab" data-mode="psk">PSK</div>
+</div>
+<div id="mode-desc">Modulator gates carrier amplitude via shaped envelope — classic theta-gamma CFC.</div>
+
+<div class="section">Presets</div>
+<div class="presets">
+  <button data-p="cfcbuzz">CFC buzz</button>
+  <button data-p="fmbell">FM bell</button>
+  <button data-p="fmbass">FM bass</button>
+  <button data-p="fminharmonic">FM clang</button>
+  <button data-p="pmvowel">PM vowel</button>
+  <button data-p="rmdrone">RM drone</button>
+  <button data-p="pwmchorus">PWM chorus</button>
+  <button data-p="cfcfmclang">CFC+FM clang</button>
+  <button data-p="bpskclick">BPSK click</button>
+  <button data-p="qpskchime">QPSK chime</button>
+  <button data-p="psk8swarm">8-PSK swarm</button>
+</div>
+
+<div class="grid2" style="margin-top:14px">
+  <div>
+    <div class="section">Modulator</div>
+    <div class="row">
+      <label for="shape" id="shape-label">Env shape</label>
+      <select id="shape">
+        <option value="vonmises" selected>Von Mises</option>
+        <option value="gaussian">Gaussian</option>
+        <option value="square">Square/duty</option>
+        <option value="sawtoothRise">Saw rising</option>
+        <option value="sawtoothFall">Saw falling</option>
+        <option value="triangle">Triangle</option>
+        <option value="exponential">Exp decay</option>
+        <option value="dualPeak">Dual peak</option>
+        <option value="sine">Sine (FM/PM/RM)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="mod">Mod rate (Hz)</label>
+      <input type="range" id="mod" min="0.5" max="800" step="0.5" value="220">
+      <span class="val" id="mod-v">220.0</span>
+    </div>
+    <div class="sync-row row">
+      <label>Sync mod→f₁</label>
+      <button id="sync-btn" style="font-size:11px;padding:3px 9px;border-radius:12px">off</button>
+      <select id="sync-ratio" style="width:130px;font-size:12px;background:#1e1e1e;color:#ddd;border:1px solid #2e2e2e;padding:2px 5px;border-radius:4px">
+        <option value="1">1:1  mod = f₁</option>
+        <option value="0.5">1:2  mod = ½f₁</option>
+        <option value="0.333">1:3  mod = ⅓f₁</option>
+        <option value="0.25">1:4  mod = ¼f₁</option>
+        <option value="2">2:1  mod = 2f₁</option>
+        <option value="3">3:1  mod = 3f₁</option>
+        <option value="1.5">3:2  mod = 1.5f₁</option>
+        <option value="0.667">2:3  mod = ⅔f₁</option>
+        <option value="1.333">4:3  mod = 4/3f₁</option>
+      </select>
+      <span id="sync-disp" style="font-size:11px;color:#6C63FF;min-width:60px;font-variant-numeric:tabular-nums"></span>
+    </div>
+
+    <!-- Farey Cascade -->
+    <div style="border:1px solid #222;border-radius:5px;padding:8px 10px;margin:6px 0 10px">
+      <div style="font-size:10px;color:#3a3a3a;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">
+        Farey cascade — mod₂ modulates mod rate
+      </div>
+      <div class="row">
+        <label style="min-width:130px">Cascade</label>
+        <button id="cas-btn" style="font-size:11px;padding:3px 9px;border-radius:12px">off</button>
+        <select id="cas-ratio" style="flex:1;font-size:12px;background:#1e1e1e;color:#ddd;border:1px solid #2e2e2e;padding:2px 5px;border-radius:4px">
+          <option value="1.5"   >3:2  fifth     (same as primary)</option>
+          <option value="0.667" >2:3  inv fifth</option>
+          <option value="1.667" >5:3  mediant(3:2, 2:1)</option>
+          <option value="1.4"   >7:5  mediant(3:2, 4:3)</option>
+          <option value="1.2"   >6:5  min third</option>
+          <option value="1.618" >φ    golden ratio</option>
+          <option value="1.333" >4:3  fourth</option>
+          <option value="2.0"   >2:1  octave</option>
+          <option value="0.75"  >3:4  inv fourth</option>
+          <option value="2.25"  >9:4  3:2 squared</option>
+          <option value="3.375" >27:8 3:2 cubed</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="cas-rate" style="min-width:130px">Cascade rate</label>
+        <button id="cas-lock-btn" style="font-size:11px;padding:3px 9px;border-radius:12px;flex-shrink:0">lock</button>
+        <input type="range" id="cas-rate" min="0.1" max="800" step="0.5" value="0.5">
+        <span class="val" id="cas-rate-v">0.5 Hz</span>
+      </div>
+      <div class="row">
+        <label for="cas-depth" style="min-width:130px">Cascade depth</label>
+        <input type="range" id="cas-depth" min="0" max="100" step="1" value="30">
+        <span class="val" id="cas-depth-v">0.30</span>
+      </div>
+      <div class="row">
+        <label for="cas-shape" style="min-width:130px">Cascade shape</label>
+        <select id="cas-shape" style="flex:1;font-size:12px;background:#1e1e1e;color:#ddd;border:1px solid #2e2e2e;padding:2px 5px;border-radius:4px">
+          <option value="sine" selected>Sine</option>
+          <option value="triangle">Triangle</option>
+          <option value="sawtoothRise">Saw rise</option>
+          <option value="sawtoothFall">Saw fall</option>
+          <option value="square">Square</option>
+          <option value="vonmises">Von Mises</option>
+        </select>
+      </div>
+      <div style="font-size:10px;color:#2e2e2e;margin-top:4px;line-height:1.5">
+        Cascade rate × cascade ratio = sub-modulator frequency.<br>
+        Depth sweeps primary mod rate ± (depth × f_mod). At audio rate + same ratio as sync: self-similar phase nesting.
+      </div>
+    </div>
+
+    <!-- CFC-specific params -->
+    <div class="param-block" id="pb-cfc">
+      <div class="row"><label for="kappa" id="kappa-label">Sharpness κ</label>
+        <input type="range" id="kappa" min="0" max="50" step=".1" value="40">
+        <span class="val" id="kappa-v">40.0</span></div>
+      <div class="row"><label for="depth">PAC depth</label>
+        <input type="range" id="depth" min="0" max="100" step="1" value="100">
+        <span class="val" id="depth-v">1.00</span></div>
+    </div>
+
+    <!-- FM/PM-specific params -->
+    <div class="param-block hidden" id="pb-fm">
+      <div class="row"><label for="modidx">Mod index</label>
+        <input type="range" id="modidx" min="0" max="20" step=".1" value="5">
+        <span class="val" id="modidx-v">5.0</span></div>
+      <div class="tip" style="margin-left:130px"><b>Index 0–1:</b> vibrato. <b>2–5:</b> FM timbres. <b>6+:</b> dense sidebands.</div>
+    </div>
+
+    <!-- PWM-specific params -->
+    <div class="param-block hidden" id="pb-pwm">
+      <div class="row"><label for="pwmcenter">Duty center</label>
+        <input type="range" id="pwmcenter" min="5" max="95" step="1" value="50">
+        <span class="val" id="pwmcenter-v">50%</span></div>
+      <div class="row"><label for="pwmdepth">PWM depth</label>
+        <input type="range" id="pwmdepth" min="0" max="100" step="1" value="80">
+        <span class="val" id="pwmdepth-v">0.80</span></div>
+    </div>
+
+    <!-- PSK-specific params -->
+    <div class="param-block hidden" id="pb-psk">
+      <div class="row"><label for="pskn">States (N)</label>
+        <select id="pskn" style="flex:1;font-size:13px;background:#1e1e1e;color:#ddd;border:1px solid #2e2e2e;padding:3px 6px;border-radius:4px">
+          <option value="2">2 — BPSK (0° / 180°)</option>
+          <option value="4" selected>4 — QPSK (0° / 90° / 180° / 270°)</option>
+          <option value="8">8 — 8-PSK (45° steps)</option>
+          <option value="16">16 — 16-PSK (22.5° steps)</option>
+          <option value="3">3 — 3-PSK (120° steps)</option>
+          <option value="6">6 — 6-PSK (60° steps)</option>
+        </select>
+        <span class="val" id="pskn-v">4</span></div>
+      <div class="row"><label for="psksmooth">State smooth</label>
+        <input type="range" id="psksmooth" min="0" max="100" step="1" value="0">
+        <span class="val" id="psksmooth-v">0.00</span></div>
+      <div class="row"><label for="pskdepth">Phase depth</label>
+        <input type="range" id="pskdepth" min="0" max="100" step="1" value="100">
+        <span class="val" id="pskdepth-v">1.00</span></div>
+      <div class="tip" style="margin-left:130px">
+        <b>Smooth=0:</b> hard jumps → clicks at every transition.<br>
+        <b>Smooth→1:</b> interpolated → smoother, PM-like timbre.<br>
+        <b>Depth &lt;1:</b> partial phase shifts — between PSK and PM.
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section">Carrier</div>
+    <div class="row">
+      <label for="wave">Waveform</label>
+      <select id="wave">
+        <option value="sine" selected>Sine</option>
+        <option value="triangle">Triangle</option>
+        <option value="saw">Sawtooth</option>
+        <option value="square">Square</option>
+      </select>
+    </div>
+    <div class="row"><label for="car1">f₁ (Hz)</label>
+      <input type="range" id="car1" min="40" max="800" step="1" value="220">
+      <span class="val" id="car1-v">220</span></div>
+    <div class="row"><label for="ratio">f₂ interval</label>
+      <select id="ratio">
+        <option value="0">none</option>
+        <option value="1">1:1 unison</option>
+        <option value="1.5" selected>3:2 fifth</option>
+        <option value="1.333333">4:3 fourth</option>
+        <option value="1.25">5:4 maj 3rd</option>
+        <option value="1.2">6:5 min 3rd</option>
+        <option value="1.666667">5:3 maj 6th</option>
+        <option value="2">2:1 octave</option>
+        <option value="2.5">5:2 oct+3rd</option>
+        <option value="3">3:1 oct+5th</option>
+        <option value="7">7:1 θ-γ</option>
+      </select></div>
+    <div class="row"><label for="car2mix">f₂ mix</label>
+      <input type="range" id="car2mix" min="0" max="100" step="1" value="60">
+      <span class="val" id="car2mix-v">0.60</span></div>
+    <div class="row"><label for="c2off">f₂ phase offset</label>
+      <input type="range" id="c2off" min="-180" max="180" step="1" value="0">
+      <span class="val" id="c2off-v">0°</span></div>
+    <div class="row"><label for="pan">Stereo pan</label>
+      <input type="range" id="pan" min="-100" max="100" step="1" value="0">
+      <span class="val" id="pan-v">0</span></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:14px">Spectrum (0–4 kHz)</div>
+<canvas id="spec" width="1320" height="160"></canvas>
+<div class="section">Waveform</div>
+<canvas id="wave-cv" width="1320" height="120"></canvas>
+
+<p class="tip">
+  <b>CFC/AM:</b> modulator shapes carrier amplitude — high κ + depth=1 + sync = pulse train / harmonic buzz.<br>
+  <b>FM:</b> modulator shifts carrier frequency — index controls sideband density. Harmonic ratios → tonal. Non-integer → clangorous/metallic.<br>
+  <b>PM:</b> modulator shifts carrier phase — similar to FM but softer fundamental, brighter at high index. Yamaha DX7 is PM, not FM.<br>
+  <b>Ring Mod:</b> straight multiplication — sum+difference only, no carrier fundamental. Carrier disappears, sidebands only.<br>
+  <b>PWM:</b> modulates duty cycle of square wave — creates hollow phasing chorus sound at audio-rate modulation.<br>
+  <b>CFC+FM:</b> envelope gates amplitude AND FM pitches the carrier simultaneously — very thick at high index + sync.
+</p>
+
+<script>
+(function(){
+  let audioCtx=null,scriptNode=null,panNode=null,analyser=null,isPlaying=false;
+  let synthMode='cfc', syncOn=false, casOn=false, casLock=false;
+  let mPA=0,c1PA=0,c2PA=0,casPA=0;
+  const waveBuf=new Float32Array(4096); let wIdx=0;
+
+  const $=id=>document.getElementById(id);
+  const gF=id=>parseFloat($(id).value);
+  const gS=id=>$(id).value;
+
+  const modeDescs={
+    cfc:   'Modulator gates carrier amplitude via shaped envelope — classic theta-gamma CFC.',
+    fm:    'Frequency modulation: modulator deflects carrier pitch. Index = deviation in carrier-freq units. Sidebands at f_c ± n·f_m.',
+    pm:    'Phase modulation: modulator shifts carrier phase each sample. Sounds like FM but carrier is always audible at any index.',
+    rm:    'Ring modulation: multiply carrier × modulator directly. Output = sum + difference frequencies only. Carrier fundamental disappears.',
+    pwm:   'Pulse-width modulation: modulator sweeps duty cycle of square wave. Rich chorus/phasing at audio rate.',
+    cfcfm: 'CFC + FM stacked: envelope shapes amplitude AND FM pitches the carrier. At high index + sync, extremely dense.',
+    psk:   'Phase shift keying: modulator quantizes carrier phase to N discrete states. Phase jumps create click transients — at audio rate, a dense comb-like spectrum. Smooth blends states.'
+  };
+
+  const kappaLabels={vonmises:'Sharpness κ',gaussian:'Width (inv)',square:'Duty cycle',
+    sawtoothRise:'(no param)',sawtoothFall:'(no param)',triangle:'(no param)',
+    exponential:'Decay rate',dualPeak:'Dual sharp',sine:'(not used)'};
+
+  // Returns instantaneous mod rate, perturbed by cascade if on
+  function getModRate(casSignal){
+    const base = syncOn ? gF('car1')*parseFloat(gS('sync-ratio')) : gF('mod');
+    if(!casOn || casSignal===undefined) return base;
+    const depth = gF('cas-depth')/100;
+    return Math.max(0.1, base + casSignal * depth * base);
+  }
+
+  // Cascade modulator signal — computed from casPA, called per-sample in audioProcess
+  function casModSignal(p, shape){
+    p=((p%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+    switch(shape){
+      case 'sine':         return Math.sin(p);
+      case 'triangle':     return p<Math.PI?(2*p/Math.PI-1):(3-2*p/Math.PI);
+      case 'sawtoothRise': return 2*(p/(2*Math.PI))-1;
+      case 'sawtoothFall': return 1-2*(p/(2*Math.PI));
+      case 'square':       return p<Math.PI?1:-1;
+      case 'vonmises':     return Math.exp(8*(Math.cos(p)-1))*2-1; // normalised -1..1
+      default: return Math.sin(p);
+    }
+  }
+
+  function readouts(){
+    $('mod-v').textContent     = syncOn ? getModRate().toFixed(1) : gF('mod').toFixed(1);
+    $('kappa-v').textContent   = gF('kappa').toFixed(1);
+    $('depth-v').textContent   = (gF('depth')/100).toFixed(2);
+    $('car1-v').textContent    = gF('car1').toFixed(0);
+    $('car2mix-v').textContent = (gF('car2mix')/100).toFixed(2);
+    $('c2off-v').textContent   = gF('c2off').toFixed(0)+'°';
+    $('vol-v').textContent     = (gF('vol')/100).toFixed(2);
+    $('pan-v').textContent     = gF('pan').toFixed(0);
+    $('modidx-v').textContent  = gF('modidx').toFixed(1);
+    $('pwmcenter-v').textContent = gF('pwmcenter').toFixed(0)+'%';
+    $('pwmdepth-v').textContent  = (gF('pwmdepth')/100).toFixed(2);
+    $('kappa-label').textContent = kappaLabels[gS('shape')]||'Shape κ';
+    if(panNode) panNode.pan.value=gF('pan')/100;
+    $('pskn-v').textContent     = gS('pskn');
+    $('psksmooth-v').textContent = (gF('psksmooth')/100).toFixed(2);
+    $('pskdepth-v').textContent  = (gF('pskdepth')/100).toFixed(2);
+    $('sync-disp').textContent = syncOn ? getModRate().toFixed(1)+' Hz' : '';
+    const casBaseRate = casLock ? gF('car1') : gF('cas-rate');
+    $('cas-rate-v').textContent  = (casBaseRate * parseFloat(gS('cas-ratio'))).toFixed(1)+' Hz';
+    $('cas-depth-v').textContent = (gF('cas-depth')/100).toFixed(2);
+  }
+
+  ['mod','kappa','depth','car1','car2mix','c2off','vol','pan','modidx','pwmcenter','pwmdepth','psksmooth','pskdepth','cas-rate','cas-depth']
+    .forEach(id=>$(id).addEventListener('input',readouts));
+  ['shape','wave','ratio','sync-ratio','pskn','cas-ratio','cas-shape'].forEach(id=>$(id).addEventListener('change',readouts));
+
+  // Cascade lock button — pins cas-rate to f1 × cas-ratio
+  $('cas-lock-btn').addEventListener('click',()=>{
+    casLock=!casLock;
+    $('cas-lock-btn').textContent=casLock?'locked':'lock';
+    $('cas-lock-btn').classList.toggle('on',casLock);
+    $('cas-rate').disabled=casLock;
+    $('cas-rate').style.opacity=casLock?'0.3':'1';
+    readouts();
+  });
+
+  // Cascade button
+  $('cas-btn').addEventListener('click',()=>{
+    casOn=!casOn;
+    $('cas-btn').textContent=casOn?'on':'off';
+    $('cas-btn').classList.toggle('on',casOn);
+  });
+
+  // Mode tabs
+  document.querySelectorAll('.mode-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      document.querySelectorAll('.mode-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      synthMode=tab.dataset.mode;
+      $('mode-desc').textContent=modeDescs[synthMode]||'';
+      // Show/hide param blocks
+      const isFM  = synthMode==='fm'||synthMode==='pm'||synthMode==='cfcfm';
+      const isCFC = synthMode==='cfc'||synthMode==='cfcfm';
+      const isPWM = synthMode==='pwm';
+      const isRM  = synthMode==='rm';
+      $('pb-cfc').classList.toggle('hidden', !(isCFC));
+      $('pb-fm').classList.toggle('hidden',  !(isFM));
+      $('pb-pwm').classList.toggle('hidden', !isPWM);
+      // shape selector useful for CFC modes; for pure FM/PM/RM default to sine
+      $('shape-label').textContent = (isCFC) ? 'Env shape' : 'Mod wave';
+    });
+  });
+
+  // Sync
+  $('sync-btn').addEventListener('click',()=>{
+    syncOn=!syncOn;
+    $('sync-btn').textContent=syncOn?'on':'off';
+    $('sync-btn').classList.toggle('on',syncOn);
+    $('mod').disabled=syncOn;
+    $('mod').style.opacity=syncOn?'0.3':'1';
+    readouts();
+  });
+
+  // ── Envelope shapes ──────────────────────────────────────────────────────────
+  function envAt(p,shape,kappa){
+    p=((p%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+    switch(shape){
+      case 'vonmises':   return Math.exp(kappa*(Math.cos(p)-1));
+      case 'gaussian':{const d=Math.min(p,2*Math.PI-p),s=Math.PI/(1+kappa*.5);return Math.exp(-d*d/(2*s*s));}
+      case 'square':{const du=Math.max(.02,Math.min(.98,.5+(kappa-25)/52));return p<du*2*Math.PI?1:0;}
+      case 'sawtoothRise':  return p/(2*Math.PI);
+      case 'sawtoothFall':  return 1-p/(2*Math.PI);
+      case 'triangle':      return p<Math.PI?p/Math.PI:2-p/Math.PI;
+      case 'exponential':   return Math.exp(-(1+kappa*.4)*p/(2*Math.PI));
+      case 'dualPeak':      return Math.exp(kappa*(Math.cos(2*p)-1));
+      case 'sine':          return .5+.5*Math.sin(p-Math.PI/2); // 0..1
+      default: return 1;
+    }
+  }
+
+  // Modulator as bipolar signal (-1..1) for FM/PM/RM
+  function modSignal(p,shape){
+    p=((p%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+    switch(shape){
+      case 'sine':          return Math.sin(p);
+      case 'triangle':      return p<Math.PI?(2*p/Math.PI-1):(3-2*p/Math.PI);
+      case 'saw':
+      case 'sawtoothRise':  return 2*(p/(2*Math.PI))-1;
+      case 'sawtoothFall':  return 1-2*(p/(2*Math.PI));
+      case 'square':        return p<Math.PI?1:-1;
+      default:              return Math.sin(p); // fallback
+    }
+  }
+
+  function carrierWave(p,type){
+    p=((p%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+    switch(type){
+      case 'sine':     return Math.sin(p);
+      case 'saw':      return 2*(p/(2*Math.PI))-1;
+      case 'square':   return p<Math.PI?1:-1;
+      case 'triangle': return p<Math.PI?(2*p/Math.PI-1):(3-2*p/Math.PI);
+      default: return Math.sin(p);
+    }
+  }
+
+  function audioProcess(e){
+    const out=e.outputBuffer.getChannelData(0);
+    const sr=audioCtx.sampleRate, N=out.length;
+    const kappa  =gF('kappa'),  depth  =gF('depth')/100;
+    const fCar1  =gF('car1'),   ratio  =parseFloat(gS('ratio'));
+    const car2Mix=gF('car2mix')/100, c2Off=gF('c2off')*Math.PI/180;
+    const vol    =gF('vol')/100;
+    const shape  =gS('shape'),  carForm=gS('wave');
+    const modIdx =gF('modidx');
+    const pwmCtr =gF('pwmcenter')/100, pwmDep=gF('pwmdepth')/100;
+    const mode   =synthMode;
+
+    const TAU=2*Math.PI;
+    const dC1=TAU*fCar1/sr;
+    const dC2=TAU*fCar1*ratio/sr;
+    const inc2=ratio>0.01;
+
+    const casFBase = (casLock ? gF('car1') : gF('cas-rate')) * parseFloat(gS('cas-ratio'));
+    const dCas = 2*Math.PI*casFBase/sr;
+    const casShape = gS('cas-shape');
+
+    for(let i=0;i<N;i++){
+      let s=0;
+      // Cascade: advance sub-modulator and compute instantaneous mod rate deviation
+      const casS = casOn ? casModSignal(casPA, casShape) : 0;
+      const fModI = getModRate(casS);          // instantaneous mod rate this sample
+      const dMi   = 2*Math.PI*fModI/sr;       // instantaneous mod phase step
+      const ms=modSignal(mPA,shape);         // bipolar -1..1
+      const me=envAt(mPA,shape,kappa);       // unipolar 0..1
+      const me2=envAt(mPA+c2Off,shape,kappa);
+
+      if(mode==='cfc'){
+        const env =(1-depth)+depth*me;
+        const env2=(1-depth)+depth*me2;
+        const c1=carrierWave(c1PA,carForm);
+        const c2=inc2?carrierWave(c2PA,carForm):0;
+        s=c1*env+c2*car2Mix*env2;
+
+      }else if(mode==='fm'){
+        // Instantaneous frequency deviation: modIdx * fMod * modSignal
+        // Integrate into phase accumulator via extra phase offset each sample
+        const fmOff=modIdx*ms; // in radians (scaled: 1 = 1 cycle deviation per carrier cycle)
+        const actualPhase=c1PA+fmOff*TAU;
+        const c1=Math.sin(actualPhase);
+        const actualPhase2=c2PA+(inc2?fmOff*TAU:0);
+        const c2=inc2?Math.sin(actualPhase2):0;
+        s=c1+c2*car2Mix;
+
+      }else if(mode==='pm'){
+        // Phase modulation: add modulator directly to phase
+        const pmOff=modIdx*Math.PI*ms;
+        const c1=carrierWave(c1PA+pmOff,carForm);
+        const c2=inc2?carrierWave(c2PA+pmOff+c2Off,carForm):0;
+        s=c1+c2*car2Mix;
+
+      }else if(mode==='rm'){
+        // Ring mod: multiply carrier by modulator signal
+        const c1=carrierWave(c1PA,carForm)*ms;
+        const c2=inc2?carrierWave(c2PA,carForm)*modSignal(mPA+c2Off,shape):0;
+        s=c1+c2*car2Mix;
+
+      }else if(mode==='pwm'){
+        // PWM: duty cycle swept by modulator
+        const duty=Math.max(.01,Math.min(.99,pwmCtr+pwmDep*.5*ms));
+        const duty2=Math.max(.01,Math.min(.99,pwmCtr+pwmDep*.5*modSignal(mPA+c2Off,shape)));
+        const p1=((c1PA%(TAU))+TAU)%TAU;
+        const p2=((c2PA%(TAU))+TAU)%TAU;
+        const c1=p1<duty*TAU?1:-1;
+        const c2=inc2?(p2<duty2*TAU?1:-1):0;
+        s=c1+c2*car2Mix;
+
+
+      }else if(mode==='psk'){
+        // Phase shift keying: modulator value → discrete phase state → carrier phase offset
+        const nStates  = parseInt(gS('pskn'));
+        const smooth   = gF('psksmooth')/100;
+        const pskDepth = gF('pskdepth')/100;
+        const casDepth = gF('cas-depth')/100;
+
+        // Cascade contributes two things in PSK mode:
+        //   1. Rate mod — already baked into dMi/mPA advance above
+        //   2. Constellation rotation — casS directly offsets the state float,
+        //      rotating which state the modulator lands on independently of timing
+        const casStateOffset = casOn ? casS * casDepth * nStates * 0.5 : 0;
+
+        // Helper: compute PSK phase shift for a given modulator signal + cascade offset
+        function pskShift(sig, stateOff){
+          const sf  = ((sig+1)/2)*nStates + stateOff;
+          const si  = Math.floor(sf) % nStates;
+          const sfrac = sf - Math.floor(sf);
+          const ni  = (si+1) % nStates;
+          const pA  = si * (TAU/nStates);
+          const pB  = ni * (TAU/nStates);
+          if(smooth < 0.001) return pA * pskDepth;
+          const t = Math.pow(sfrac, 1/Math.max(0.01, smooth));
+          return (pA + t*(pB-pA)) * pskDepth;
+        }
+
+        const phShift  = pskShift(ms, casStateOffset);
+        const phShift2 = pskShift(modSignal(mPA+c2Off, shape), casStateOffset);
+
+        const c1 = carrierWave(c1PA + phShift,  carForm);
+        const c2 = inc2 ? carrierWave(c2PA + phShift2, carForm) : 0;
+        s = c1 + c2*car2Mix;
+
+      }else if(mode==='cfcfm'){
+        // CFC envelope × FM carrier
+        const env =(1-depth)+depth*me;
+        const env2=(1-depth)+depth*me2;
+        const fmOff=modIdx*ms;
+        const c1=Math.sin(c1PA+fmOff*TAU);
+        const c2=inc2?Math.sin(c2PA+fmOff*TAU+c2Off):0;
+        s=(c1*env+c2*car2Mix*env2);
+      }
+
+      const sample=vol*s*0.28;
+      out[i]=sample;
+      waveBuf[wIdx]=sample; wIdx=(wIdx+1)%waveBuf.length;
+      mPA =(mPA +dMi)%TAU;
+      casPA=(casPA+dCas)%TAU;
+      c1PA=(c1PA+dC1)%TAU;
+      c2PA=(c2PA+dC2)%TAU;
+    }
+  }
+
+  $('btn-play').addEventListener('click',()=>{
+    if(!audioCtx){
+      try{
+        audioCtx  =new(window.AudioContext||window.webkitAudioContext)();
+        scriptNode=audioCtx.createScriptProcessor(1024,0,1);
+        scriptNode.onaudioprocess=audioProcess;
+        panNode   =audioCtx.createStereoPanner();
+        analyser  =audioCtx.createAnalyser();
+        analyser.fftSize=8192;
+        scriptNode.connect(panNode);
+        panNode.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        panNode.pan.value=gF('pan')/100;
+        isPlaying=true;
+        $('btn-play').textContent='Stop';
+        $('status').textContent='playing';
+      }catch(err){$('status').textContent='error: '+err.message;}
+      return;
+    }
+    if(isPlaying){
+      audioCtx.suspend();isPlaying=false;
+      $('btn-play').textContent='Play';$('status').textContent='paused';
+    }else{
+      audioCtx.resume();isPlaying=true;
+      $('btn-play').textContent='Stop';$('status').textContent='playing';
+    }
+  });
+
+  // ── Presets ──────────────────────────────────────────────────────────────────
+  const P={
+    cfcbuzz:    {mode:'cfc',   shape:'vonmises',  mod:220, kappa:45,depth:100,modidx:5, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:220,ratio:'1.5',mix:50,c2off:0,  syncOn:true, syncR:'1'},
+    fmbell:     {mode:'fm',    shape:'sine',      mod:220, kappa:30,depth:100,modidx:3.5,pwmc:50,pwmd:80,pan:0,wave:'sine',    f1:220,ratio:'0', mix:0, c2off:0,  syncOn:true, syncR:'1'},
+    fmbass:     {mode:'fm',    shape:'exponential',mod:55, kappa:30,depth:100,modidx:4, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:55, ratio:'2', mix:50,c2off:0,  syncOn:true, syncR:'1'},
+    fminharmonic:{mode:'fm',   shape:'sine',      mod:314, kappa:30,depth:100,modidx:6, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:220,ratio:'1.5',mix:60,c2off:90, syncOn:false,syncR:'1'},
+    pmvowel:    {mode:'pm',    shape:'sine',      mod:110, kappa:20,depth:80, modidx:2.5,pwmc:50,pwmd:80,pan:0,wave:'saw',     f1:110,ratio:'2', mix:45,c2off:0,  syncOn:true, syncR:'0.5'},
+    rmdrone:    {mode:'rm',    shape:'sine',      mod:163, kappa:20,depth:100,modidx:1, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:220,ratio:'1.5',mix:60,c2off:45, syncOn:false,syncR:'1'},
+    pwmchorus:  {mode:'pwm',   shape:'sine',      mod:3,   kappa:20,depth:100,modidx:1, pwmc:50,pwmd:70,pan:0, wave:'square',  f1:110,ratio:'1.5',mix:55,c2off:180,syncOn:false,syncR:'1'},
+
+    bpskclick:  {mode:'psk', shape:'vonmises',   mod:220, kappa:45,depth:100,modidx:5, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:220,ratio:'1.5',mix:50,c2off:90,  syncOn:true, syncR:'1',    pskn:'2',psksmooth:0,  pskdepth:100},
+    qpskchime:  {mode:'psk', shape:'gaussian',   mod:110, kappa:38,depth:100,modidx:5, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:440,ratio:'2',  mix:60,c2off:90,  syncOn:true, syncR:'0.5',  pskn:'4',psksmooth:15, pskdepth:100},
+    psk8swarm:  {mode:'psk', shape:'sawtoothRise',mod:163,kappa:20,depth:100,modidx:5, pwmc:50,pwmd:80,pan:30,wave:'triangle',f1:220,ratio:'1.333333',mix:65,c2off:45,syncOn:false,syncR:'1',  pskn:'8',psksmooth:25, pskdepth:85},
+    cfcfmclang: {mode:'cfcfm', shape:'exponential',mod:220,kappa:40,depth:100,modidx:7, pwmc:50,pwmd:80,pan:0, wave:'sine',    f1:220,ratio:'1.333333',mix:55,c2off:0,syncOn:true,syncR:'1'},
+  };
+
+  document.querySelectorAll('button[data-p]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const p=P[btn.dataset.p]; if(!p) return;
+      // Set mode
+      document.querySelectorAll('.mode-tab').forEach(t=>{
+        t.classList.toggle('active',t.dataset.mode===p.mode);
+      });
+      synthMode=p.mode;
+      $('mode-desc').textContent=modeDescs[p.mode]||'';
+      const isFM=p.mode==='fm'||p.mode==='pm'||p.mode==='cfcfm';
+      const isCFC=p.mode==='cfc'||p.mode==='cfcfm';
+      const isPWM=p.mode==='pwm';
+      const isPSK=p.mode==='psk';
+      $('pb-cfc').classList.toggle('hidden',!isCFC);
+      $('pb-fm').classList.toggle('hidden',!isFM);
+      $('pb-pwm').classList.toggle('hidden',!isPWM);
+      $('pb-psk').classList.toggle('hidden',!isPSK);
+      $('shape-label').textContent=isCFC?'Env shape':'Mod wave';
+      // Set values
+      $('shape').value   =p.shape;
+      $('mod').value     =p.mod;
+      $('kappa').value   =p.kappa;
+      $('depth').value   =p.depth;
+      $('modidx').value  =p.modidx;
+      $('pwmcenter').value=p.pwmc;
+      $('pwmdepth').value=p.pwmd;
+      $('pan').value     =p.pan;
+      $('wave').value    =p.wave;
+      $('car1').value    =p.f1;
+      $('ratio').value   =p.ratio;
+      $('car2mix').value =p.mix;
+      $('c2off').value   =p.c2off;
+      $('sync-ratio').value=p.syncR;
+      if(p.pskn!==undefined){$('pskn').value=p.pskn;$('psksmooth').value=p.psksmooth;$('pskdepth').value=p.pskdepth;}
+      syncOn=p.syncOn;
+      $('sync-btn').textContent=syncOn?'on':'off';
+      $('sync-btn').classList.toggle('on',syncOn);
+      $('mod').disabled=syncOn;
+      $('mod').style.opacity=syncOn?'0.3':'1';
+      readouts();
+    });
+  });
+
+  // ── Spectrum ─────────────────────────────────────────────────────────────────
+  function drawSpec(){
+    const cv=$('spec'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    [0,500,1000,1500,2000,2500,3000,3500,4000].forEach(f=>{
+      const x=(f/4000)*W;
+      ctx.strokeStyle='#161616';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H-14);ctx.stroke();
+      ctx.fillStyle='#252525';ctx.font='10px sans-serif';
+      ctx.fillText(f,x+2,H-4);
+    });
+    if(!isPlaying||!analyser){
+      ctx.fillStyle='#222';ctx.font='12px sans-serif';ctx.fillText('press play',10,H/2);return;
+    }
+    const buf=new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(buf);
+    const sr=audioCtx.sampleRate,fmax=4000,binMax=Math.floor(fmax*analyser.fftSize/sr);
+    for(let k=1;k<binMax;k++){
+      const f=k*sr/analyser.fftSize,x=(f/fmax)*W,v=buf[k]/255,h=Math.pow(v,1.1)*(H-18);
+      if(h<.5)continue;
+      ctx.fillStyle=`hsl(${240+v*80},65%,${22+v*45}%)`;
+      ctx.fillRect(x-1,H-14-h,2.5,h);
+    }
+    // markers
+    const fC=gF('car1'),rat=parseFloat(gS('ratio')),fM=getModRate();
+    ctx.setLineDash([3,3]);
+    [[fC,'#D85A3066'],[rat>0.01?fC*rat:null,'#D85A3066'],[fM,'#6C63FF66']].forEach(([f,col])=>{
+      if(!f||f>fmax)return;
+      ctx.strokeStyle=col;ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo((f/fmax)*W,0);ctx.lineTo((f/fmax)*W,H-14);ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  function drawWave(){
+    const cv=$('wave-cv'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='#161616';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();
+    if(!isPlaying){ctx.fillStyle='#222';ctx.font='12px sans-serif';ctx.fillText('press play',10,H/2+4);return;}
+    ctx.strokeStyle='#6C63FF';ctx.lineWidth=1.2;ctx.beginPath();
+    for(let i=0;i<2048;i++){
+      const x=(i/2048)*W,y=H/2-waveBuf[(wIdx+i)%waveBuf.length]*H*.85;
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+
+  function loop(){drawSpec();drawWave();requestAnimationFrame(loop);}
+  readouts();
+  loop();
+})();
+</script>
+</body>
+</html>

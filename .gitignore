@@ -42,3 +42,9 @@ Testing/
 
 # Local config
 .claude/settings.local.json
+
+# Phase 3 (Python tool)
+phase3/.venv/
+phase3/**/__pycache__/
+phase3/.pytest_cache/
+.pytest_cache/

@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>unified · duophonic rational-lattice synth</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    max-width: 1180px; margin: 20px auto; padding: 0 16px;
+    background: #0a0908; color: #c8c2b0;
+    font-size: 12px;
+  }
+  h1 {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 28px; font-style: italic; font-weight: 500;
+    color: #e8d9b8; margin: 0 0 4px;
+  }
+  .subtitle {
+    font-size: 10px; color: #6a614e; letter-spacing: 0.3em;
+    text-transform: uppercase; margin-bottom: 16px;
+  }
+  .section {
+    font-size: 10px; color: #5a5142; margin: 14px 0 6px;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    border-bottom: 1px solid #1c1815; padding-bottom: 4px;
+  }
+  .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .row label {
+    color: #7a715e; min-width: 100px; flex-shrink: 0;
+    font-size: 11px;
+  }
+  .row .val {
+    font-weight: 600; min-width: 50px; text-align: right;
+    font-variant-numeric: tabular-nums; color: #d8c9a8;
+    font-size: 11px;
+  }
+  .row input[type=range] { flex: 1; accent-color: #c89d4a; cursor: pointer; }
+  .row select, .row input[type=text] {
+    font-family: inherit;
+    background: #15110d; color: #c8c2b0;
+    border: 1px solid #2a2520; padding: 3px 6px;
+    border-radius: 3px; cursor: pointer;
+    font-size: 11px;
+  }
+  button {
+    background: #15110d; color: #9d9482;
+    border: 1px solid #2a2520; padding: 4px 10px;
+    border-radius: 3px; cursor: pointer; font-size: 11px;
+    font-family: inherit;
+    transition: all 0.1s;
+  }
+  button:hover { background: #1f1a14; color: #d8c9a8; border-color: #4a4133; }
+  button.on { background: #3a2e18; border-color: #c89d4a; color: #f0d8a0; }
+  button.lock-on { background: #2a3a18; border-color: #8aac4a; color: #d0e8a0; }
+  .play-btn { font-size: 13px; padding: 6px 18px; min-width: 80px; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0; margin-bottom: 12px;
+    border-bottom: 1px solid #1c1815;
+  }
+
+  .carrier-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 12px; margin-bottom: 12px;
+  }
+  .carrier-panel {
+    background: #0f0d0a; border: 1px solid #2a2218; padding: 10px;
+    border-radius: 3px;
+  }
+  .carrier-panel.f2 { border-color: #3a2820; }
+  .carrier-label {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-style: italic; font-size: 18px; color: #e8d9b8;
+    margin-bottom: 6px;
+  }
+
+  .mods-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .mod-panel {
+    background: #0f0d0a; border: 1px solid #2a2218; padding: 8px;
+    border-radius: 3px; position: relative;
+  }
+  .mod-panel.active-rate-audio { border-left: 2px solid #c89d4a; }
+  .mod-panel.active-rate-sub   { border-left: 2px solid #8aac4a; }
+  .mod-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .mod-id {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-style: italic; font-size: 16px; color: #d8c9a8;
+  }
+  .mod-meta {
+    font-size: 9px; color: #5a5142; letter-spacing: 0.1em;
+  }
+  .mod-pq {
+    font-family: 'EB Garamond', Georgia, serif;
+    font-size: 14px; color: #c89d4a; font-variant-numeric: tabular-nums;
+  }
+
+  .nav-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 3px; margin: 4px 0;
+  }
+  .nav-btn { font-size: 10px; padding: 2px; }
+
+  canvas {
+    width: 100%; display: block;
+    background: #050403; border-radius: 3px;
+    border: 1px solid #1c1815;
+  }
+
+  .lock-graph {
+    background: #0a0807; padding: 8px; border: 1px solid #1c1815;
+    border-radius: 3px; margin-top: 4px;
+  }
+
+  .small-select { font-size: 10px; padding: 2px 4px; }
+
+  .group {
+    border: 1px solid #1c1815; padding: 6px; border-radius: 3px;
+    margin: 4px 0;
+  }
+  .group-title {
+    font-size: 9px; color: #5a5142; letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+
+  .info {
+    font-size: 10px; color: #4a4133; line-height: 1.6;
+    margin: 8px 0; padding: 6px 8px;
+    border-left: 2px solid #2a2218; background: #0a0807;
+  }
+  .info b { color: #6a614e; }
+</style>
+</head>
+<body>
+
+<h1>unified · duophonic rational-lattice synth</h1>
+<div class="subtitle">prototype · stern-brocot + cfc + lock-graph topology</div>
+
+<div class="toolbar">
+  <button id="btn-play" class="play-btn">▶ play</button>
+  <span style="color:#5a5142;font-size:10px" id="status">stopped</span>
+  <div style="flex:1"></div>
+  <label style="color:#7a715e">master</label>
+  <input type="range" id="vol" min="0" max="100" step="1" value="20" style="width:140px;accent-color:#c89d4a">
+  <span class="val" id="vol-v" style="min-width:36px">0.20</span>
+</div>
+
+<!-- Carriers -->
+<div class="carrier-row">
+  <div class="carrier-panel">
+    <div class="carrier-label">carrier f₁</div>
+    <div class="row">
+      <label>frequency</label>
+      <input type="range" id="f1" min="40" max="800" step="1" value="220">
+      <span class="val" id="f1-v">220 Hz</span>
+    </div>
+    <div class="row">
+      <label>waveform</label>
+      <select id="f1-wave">
+        <option value="sine" selected>sine</option>
+        <option value="triangle">triangle</option>
+        <option value="saw">sawtooth</option>
+        <option value="square">square</option>
+      </select>
+    </div>
+  </div>
+  <div class="carrier-panel f2">
+    <div class="carrier-label">carrier f₂</div>
+    <div class="row">
+      <label>interval</label>
+      <select id="f2-ratio">
+        <option value="0">none (mute)</option>
+        <option value="1">1:1 unison</option>
+        <option value="1.5" selected>3:2 fifth</option>
+        <option value="1.333333">4:3 fourth</option>
+        <option value="1.25">5:4 major third</option>
+        <option value="1.666667">5:3 mediant(3:2,2:1)</option>
+        <option value="1.4">7:5 mediant(3:2,4:3)</option>
+        <option value="2">2:1 octave</option>
+        <option value="1.618">φ golden</option>
+        <option value="7">7:1 θ-γ</option>
+      </select>
+      <span class="val" id="f2-v">330 Hz</span>
+    </div>
+    <div class="row">
+      <label>waveform</label>
+      <select id="f2-wave">
+        <option value="sine" selected>sine</option>
+        <option value="triangle">triangle</option>
+        <option value="saw">sawtooth</option>
+        <option value="square">square</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>mix</label>
+      <input type="range" id="f2-mix" min="0" max="100" step="1" value="60">
+      <span class="val" id="f2-mix-v">0.60</span>
+    </div>
+  </div>
+</div>
+
+<!-- Modulator bank -->
+<div class="section">modulator bank · 6 universal modulators</div>
+<div class="mods-grid" id="mods-grid"></div>
+
+<!-- Lock graph readout -->
+<div class="section">lock graph topology</div>
+<div class="lock-graph" id="lock-graph"></div>
+
+<!-- Visualization -->
+<div class="section">spectrum 0–4 kHz</div>
+<canvas id="spec" width="1180" height="140"></canvas>
+<div class="section">waveform</div>
+<canvas id="wave" width="1180" height="100"></canvas>
+
+<!-- Presets -->
+<div class="section">presets</div>
+<div style="display:flex;gap:4px;flex-wrap:wrap" id="presets">
+  <button data-p="duo-clean">duophonic clean (no modulation)</button>
+  <button data-p="cfc-classic">theta-gamma CFC (sub-audio envelope on f₁)</button>
+  <button data-p="fm-saw">farey-fm sawtooth (audio-rate FM lattice)</button>
+  <button data-p="cross-cfc">cross-carrier CFC (one envelope on both)</button>
+  <button data-p="cascade-depth">cascade lock-graph (m₃ → m₂ → m₁)</button>
+  <button data-p="psk-buzz">PSK quantization (BR_artifact regime)</button>
+  <button data-p="spectro-temporal">spectro-temporal stack (audio FM + sub-audio env)</button>
+</div>
+
+<div class="info">
+  <b>Architecture.</b> Two carriers (f₁, f₂) at a chosen Stern-Brocot interval.
+  Six universal modulators, each with rate-base (sliding from sub-audio to audio),
+  lock-target (free, f₁-sync, f₂-sync, or cascade-lock to another modulator),
+  Stern-Brocot path for the lock ratio, envelope shape with κ, depth, PSK
+  toggle, and target routing. <b>Border colors</b>: amber-left = audio-rate
+  modulator (timbral/spectral role), green-left = sub-audio (envelope/rhythmic
+  role). Rate-locking lets you commit a relationship and have it track when
+  carriers move. <b>Lock-graph topology</b> below the bank shows the directed
+  graph of rate dependencies.
+</div>
+
+<script>
+(function(){
+
+// ── Utility ─────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2;
+
+// Stern-Brocot walk: given L/R path, return p/q + L/R children
+function walkPath(path) {
+  let lP = 0, lQ = 1, rP = 1, rQ = 0, cP = 1, cQ = 1;
+  for (const s of path) {
+    if (s === 'L') { rP = cP; rQ = cQ; }
+    else           { lP = cP; lQ = cQ; }
+    cP = lP + rP; cQ = lQ + rQ;
+  }
+  return {
+    p: cP, q: cQ,
+    L: { p: cP + lP, q: cQ + lQ },
+    R: { p: cP + rP, q: cQ + rQ }
+  };
+}
+
+// Envelope at phase p, shape, sharpness κ
+function envAt(p, shape, kappa) {
+  p = ((p % TAU) + TAU) % TAU;
+  switch (shape) {
+    case 'vonmises':     return Math.exp(kappa * (Math.cos(p) - 1));
+    case 'gaussian': {
+      const d = Math.min(p, TAU - p);
+      const s = Math.PI / (1 + kappa * 0.5);
+      return Math.exp(-d * d / (2 * s * s));
+    }
+    case 'square': {
+      const du = Math.max(0.02, Math.min(0.98, 0.5 + (kappa - 25) / 52));
+      return p < du * TAU ? 1 : 0;
+    }
+    case 'sawrise':  return p / TAU;
+    case 'sawfall':  return 1 - p / TAU;
+    case 'triangle': return p < Math.PI ? p / Math.PI : 2 - p / Math.PI;
+    case 'expdecay': return Math.exp(-(1 + kappa * 0.4) * p / TAU);
+    case 'sine':     return 0.5 + 0.5 * Math.sin(p - Math.PI / 2);
+    default: return 1;
+  }
+}
+
+// Bipolar modulator signal (for FM/PM/RM targets)
+function modSignal(p, shape, kappa) {
+  p = ((p % TAU) + TAU) % TAU;
+  switch (shape) {
+    case 'sine':     return Math.sin(p);
+    case 'triangle': return p < Math.PI ? (2 * p / Math.PI - 1) : (3 - 2 * p / Math.PI);
+    case 'sawrise':  return 2 * (p / TAU) - 1;
+    case 'sawfall':  return 1 - 2 * (p / TAU);
+    case 'square':   return p < Math.PI ? 1 : -1;
+    case 'vonmises': return Math.exp(kappa * (Math.cos(p) - 1)) * 2 - 1;
+    case 'gaussian': {
+      const d = Math.min(p, TAU - p);
+      const s = Math.PI / (1 + kappa * 0.5);
+      return Math.exp(-d * d / (2 * s * s)) * 2 - 1;
+    }
+    case 'expdecay': return Math.exp(-(1 + kappa * 0.4) * p / TAU) * 2 - 1;
+    default: return Math.sin(p);
+  }
+}
+
+// Carrier waveform
+function carrierWave(p, type) {
+  p = ((p % TAU) + TAU) % TAU;
+  switch (type) {
+    case 'sine':     return Math.sin(p);
+    case 'triangle': return p < Math.PI ? (2 * p / Math.PI - 1) : (3 - 2 * p / Math.PI);
+    case 'saw':      return 2 * (p / TAU) - 1;
+    case 'square':   return p < Math.PI ? 1 : -1;
+    default: return Math.sin(p);
+  }
+}
+
+// ── State ───────────────────────────────────────────────────────────────────
+const NUM_MODS = 6;
+
+const mods = Array.from({ length: NUM_MODS }, (_, i) => ({
+  id: i,
+  // rate-base in Hz (used when lock = 'free')
+  rateBase: 4,
+  // lock-target: 'free' | 'f1' | 'f2' | 'm0'..'m5' (cascade to another mod)
+  lockTarget: 'free',
+  // Stern-Brocot path (used when lock != 'free')
+  path: [],
+  // envelope/modulator shape
+  shape: 'sine',
+  kappa: 8,
+  // amplitude/index
+  depth: 0,
+  // routing target: 'f1-am' | 'f1-fm' | 'f2-am' | 'f2-fm' | 'both-am' | 'both-fm' | 'rm-f1' | 'm{j}-rate' | 'm{j}-depth'
+  target: 'f1-am',
+  // PSK
+  pskN: 0,  // 0 = off; otherwise number of states
+  pskSmooth: 0,
+  // runtime phase (set by audio thread)
+  phase: 0,
+}));
+
+let audioCtx = null, scriptNode = null, analyser = null, isPlaying = false;
+let f1Phase = 0, f2Phase = 0;
+const waveBuf = new Float32Array(4096);
+let wIdx = 0;
+
+// ── Resolve effective modulator rate (handles lock graph) ──────────────────
+// Returns Hz; resolves transitively through cascade locks.
+function modRateHz(mod, visited) {
+  visited = visited || new Set();
+  if (visited.has(mod.id)) return mod.rateBase;  // cycle guard
+  visited.add(mod.id);
+  if (mod.lockTarget === 'free') return mod.rateBase;
+  const w = walkPath(mod.path);
+  const ratio = w.q === 0 ? 1 : w.p / w.q;
+  if (mod.lockTarget === 'f1') return parseFloat($('f1').value) * ratio;
+  if (mod.lockTarget === 'f2') {
+    const f1 = parseFloat($('f1').value);
+    const f2r = parseFloat($('f2-ratio').value);
+    if (f2r === 0) return mod.rateBase;
+    return f1 * f2r * ratio;
+  }
+  if (mod.lockTarget.startsWith('m')) {
+    const tgtId = parseInt(mod.lockTarget.slice(1));
+    if (tgtId === mod.id) return mod.rateBase;
+    return modRateHz(mods[tgtId], visited) * ratio;
+  }
+  return mod.rateBase;
+}
+
+// ── Audio process ──────────────────────────────────────────────────────────
+function audioProcess(e) {
+  const out = e.outputBuffer.getChannelData(0);
+  const sr  = audioCtx.sampleRate;
+  const vol = parseFloat($('vol').value) / 100;
+  const f1  = parseFloat($('f1').value);
+  const f2r = parseFloat($('f2-ratio').value);
+  const f2  = f2r === 0 ? 0 : f1 * f2r;
+  const f1w = $('f1-wave').value;
+  const f2w = $('f2-wave').value;
+  const f2mix = parseFloat($('f2-mix').value) / 100;
+
+  // Pre-compute mod rates for this block
+  const rates = mods.map(m => modRateHz(m, new Set()));
+  const dPhases = rates.map(r => TAU * r / sr);
+
+  const dF1 = TAU * f1 / sr;
+  const dF2 = TAU * f2 / sr;
+
+  for (let i = 0; i < out.length; i++) {
+    // Advance modulator phases and compute their outputs
+    const modOuts = new Float32Array(NUM_MODS);
+    for (let m = 0; m < NUM_MODS; m++) {
+      const mod = mods[m];
+      let signal = modSignal(mod.phase, mod.shape, mod.kappa);
+      // PSK phase quantization
+      if (mod.pskN >= 2) {
+        const step = TAU / mod.pskN;
+        const quantPhase = Math.round(mod.phase / step) * step;
+        const smooth = mod.pskSmooth;
+        const blendedPhase = mod.phase * smooth + quantPhase * (1 - smooth);
+        signal = modSignal(blendedPhase, mod.shape, mod.kappa);
+      }
+      modOuts[m] = signal * mod.depth;
+    }
+
+    // Aggregate routing contributions
+    let f1Am = 1, f1Fm = 0, f2Am = 1, f2Fm = 0, rmF1 = 0;
+    for (let m = 0; m < NUM_MODS; m++) {
+      const mod = mods[m];
+      const sig = modOuts[m];
+      const envSig = envAt(mods[m].phase, mod.shape, mod.kappa);  // 0..1
+      const depth = mod.depth;
+      switch (mod.target) {
+        case 'f1-am':   f1Am *= (1 - depth) + depth * envSig; break;
+        case 'f1-fm':   f1Fm += sig; break;
+        case 'f2-am':   f2Am *= (1 - depth) + depth * envSig; break;
+        case 'f2-fm':   f2Fm += sig; break;
+        case 'both-am': f1Am *= (1 - depth) + depth * envSig;
+                        f2Am *= (1 - depth) + depth * envSig; break;
+        case 'both-fm': f1Fm += sig; f2Fm += sig; break;
+        case 'rm-f1':   rmF1 += sig; break;
+        // cascade targets handled by modRateHz / modDepth at block start
+      }
+    }
+
+    // Synthesize carriers
+    const c1Sample = carrierWave(f1Phase + f1Fm, f1w) * f1Am;
+    const c2Sample = f2 === 0 ? 0 : carrierWave(f2Phase + f2Fm, f2w) * f2Am;
+    const rmContrib = rmF1 !== 0 ? c1Sample * rmF1 : 0;
+
+    let sample = c1Sample + c2Sample * f2mix + rmContrib;
+    sample *= vol * 0.4;
+    out[i] = sample;
+    waveBuf[wIdx] = sample; wIdx = (wIdx + 1) % waveBuf.length;
+
+    // Advance phases
+    f1Phase = (f1Phase + dF1) % TAU;
+    f2Phase = (f2Phase + dF2) % TAU;
+    for (let m = 0; m < NUM_MODS; m++) {
+      mods[m].phase = (mods[m].phase + dPhases[m]) % TAU;
+    }
+  }
+}
+
+// ── UI: render modulator panels ─────────────────────────────────────────────
+function renderMods() {
+  const grid = $('mods-grid');
+  grid.innerHTML = '';
+  mods.forEach((mod, i) => {
+    const rate = modRateHz(mod, new Set());
+    const isAudio = rate >= 20;
+    const w = walkPath(mod.path);
+    const panel = document.createElement('div');
+    panel.className = 'mod-panel ' + (isAudio ? 'active-rate-audio' : 'active-rate-sub');
+    panel.innerHTML = `
+      <div class="mod-header">
+        <span class="mod-id">mod ${i + 1}</span>
+        <span class="mod-meta">${rate.toFixed(2)} Hz · ${isAudio ? 'audio' : 'sub-audio'}</span>
+      </div>
+
+      <div class="group">
+        <div class="group-title">rate · lock-target</div>
+        <div class="row">
+          <label>lock to</label>
+          <select class="mod-lock small-select" data-i="${i}">
+            <option value="free" ${mod.lockTarget === 'free' ? 'selected' : ''}>free (abs Hz)</option>
+            <option value="f1" ${mod.lockTarget === 'f1' ? 'selected' : ''}>sync f₁ × p/q</option>
+            <option value="f2" ${mod.lockTarget === 'f2' ? 'selected' : ''}>sync f₂ × p/q</option>
+            ${mods.map((_, j) => j === i ? '' :
+              `<option value="m${j}" ${mod.lockTarget === 'm' + j ? 'selected' : ''}>cascade mod ${j + 1} × p/q</option>`
+            ).join('')}
+          </select>
+        </div>
+        ${mod.lockTarget === 'free' ? `
+          <div class="row">
+            <label>rate (Hz)</label>
+            <input type="range" class="mod-rate" data-i="${i}" min="0.1" max="800" step="0.1" value="${mod.rateBase}">
+            <span class="val">${mod.rateBase.toFixed(1)}</span>
+          </div>
+        ` : `
+          <div class="row">
+            <label>path L/R</label>
+            <div style="flex:1;display:flex;gap:3px">
+              <button class="mod-path-l nav-btn" data-i="${i}">← L (${w.L.p}/${w.L.q})</button>
+              <button class="mod-path-r nav-btn" data-i="${i}">R → (${w.R.p}/${w.R.q})</button>
+            </div>
+          </div>
+          <div class="row">
+            <label></label>
+            <div style="flex:1;display:flex;gap:3px;align-items:center">
+              <button class="mod-path-up nav-btn" data-i="${i}" ${mod.path.length === 0 ? 'disabled' : ''}>↑ parent</button>
+              <button class="mod-path-home nav-btn" data-i="${i}">⌂ 1/1</button>
+              <span class="mod-pq" style="margin-left:6px">${w.p}/${w.q}</span>
+            </div>
+          </div>
+        `}
+      </div>
+
+      <div class="group">
+        <div class="group-title">envelope · shape · depth</div>
+        <div class="row">
+          <label>shape</label>
+          <select class="mod-shape small-select" data-i="${i}">
+            <option value="sine" ${mod.shape === 'sine' ? 'selected' : ''}>sine</option>
+            <option value="vonmises" ${mod.shape === 'vonmises' ? 'selected' : ''}>von mises</option>
+            <option value="gaussian" ${mod.shape === 'gaussian' ? 'selected' : ''}>gaussian</option>
+            <option value="square" ${mod.shape === 'square' ? 'selected' : ''}>square/duty</option>
+            <option value="sawrise" ${mod.shape === 'sawrise' ? 'selected' : ''}>saw rise</option>
+            <option value="sawfall" ${mod.shape === 'sawfall' ? 'selected' : ''}>saw fall</option>
+            <option value="triangle" ${mod.shape === 'triangle' ? 'selected' : ''}>triangle</option>
+            <option value="expdecay" ${mod.shape === 'expdecay' ? 'selected' : ''}>exp decay</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>κ (sharpness)</label>
+          <input type="range" class="mod-kappa" data-i="${i}" min="0" max="50" step="0.5" value="${mod.kappa}">
+          <span class="val">${mod.kappa.toFixed(1)}</span>
+        </div>
+        <div class="row">
+          <label>depth</label>
+          <input type="range" class="mod-depth" data-i="${i}" min="0" max="100" step="1" value="${mod.depth * 100}">
+          <span class="val">${mod.depth.toFixed(2)}</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">routing · psk</div>
+        <div class="row">
+          <label>target</label>
+          <select class="mod-target small-select" data-i="${i}">
+            <option value="f1-am" ${mod.target === 'f1-am' ? 'selected' : ''}>f₁ amplitude (AM/CFC)</option>
+            <option value="f1-fm" ${mod.target === 'f1-fm' ? 'selected' : ''}>f₁ frequency (FM)</option>
+            <option value="f2-am" ${mod.target === 'f2-am' ? 'selected' : ''}>f₂ amplitude (AM/CFC)</option>
+            <option value="f2-fm" ${mod.target === 'f2-fm' ? 'selected' : ''}>f₂ frequency (FM)</option>
+            <option value="both-am" ${mod.target === 'both-am' ? 'selected' : ''}>both amplitude (cross-AM)</option>
+            <option value="both-fm" ${mod.target === 'both-fm' ? 'selected' : ''}>both frequency (cross-FM)</option>
+            <option value="rm-f1" ${mod.target === 'rm-f1' ? 'selected' : ''}>ring mod f₁</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>PSK</label>
+          <select class="mod-psk small-select" data-i="${i}">
+            <option value="0" ${mod.pskN === 0 ? 'selected' : ''}>off</option>
+            <option value="2" ${mod.pskN === 2 ? 'selected' : ''}>BPSK (2)</option>
+            <option value="4" ${mod.pskN === 4 ? 'selected' : ''}>QPSK (4)</option>
+            <option value="8" ${mod.pskN === 8 ? 'selected' : ''}>8-PSK</option>
+            <option value="16" ${mod.pskN === 16 ? 'selected' : ''}>16-PSK</option>
+          </select>
+        </div>
+        ${mod.pskN >= 2 ? `
+          <div class="row">
+            <label>smooth</label>
+            <input type="range" class="mod-psksmooth" data-i="${i}" min="0" max="100" step="1" value="${mod.pskSmooth * 100}">
+            <span class="val">${mod.pskSmooth.toFixed(2)}</span>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    grid.appendChild(panel);
+  });
+
+  // Wire up event handlers
+  document.querySelectorAll('.mod-lock').forEach(el => {
+    el.addEventListener('change', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].lockTarget = e.target.value;
+      if (e.target.value !== 'free' && mods[i].path.length === 0) {
+        mods[i].path = [];  // start at 1/1
+      }
+      renderMods(); renderLockGraph();
+    });
+  });
+  document.querySelectorAll('.mod-rate').forEach(el => {
+    el.addEventListener('input', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].rateBase = parseFloat(e.target.value);
+      e.target.parentElement.querySelector('.val').textContent = mods[i].rateBase.toFixed(1);
+      const rate = modRateHz(mods[i], new Set());
+      const panel = e.target.closest('.mod-panel');
+      panel.className = 'mod-panel ' + (rate >= 20 ? 'active-rate-audio' : 'active-rate-sub');
+      panel.querySelector('.mod-meta').textContent = `${rate.toFixed(2)} Hz · ${rate >= 20 ? 'audio' : 'sub-audio'}`;
+    });
+  });
+  document.querySelectorAll('.mod-path-l').forEach(el => {
+    el.addEventListener('click', e => {
+      const i = parseInt(e.currentTarget.dataset.i);
+      mods[i].path = [...mods[i].path, 'L'];
+      renderMods(); renderLockGraph();
+    });
+  });
+  document.querySelectorAll('.mod-path-r').forEach(el => {
+    el.addEventListener('click', e => {
+      const i = parseInt(e.currentTarget.dataset.i);
+      mods[i].path = [...mods[i].path, 'R'];
+      renderMods(); renderLockGraph();
+    });
+  });
+  document.querySelectorAll('.mod-path-up').forEach(el => {
+    el.addEventListener('click', e => {
+      const i = parseInt(e.currentTarget.dataset.i);
+      mods[i].path = mods[i].path.slice(0, -1);
+      renderMods(); renderLockGraph();
+    });
+  });
+  document.querySelectorAll('.mod-path-home').forEach(el => {
+    el.addEventListener('click', e => {
+      const i = parseInt(e.currentTarget.dataset.i);
+      mods[i].path = [];
+      renderMods(); renderLockGraph();
+    });
+  });
+  document.querySelectorAll('.mod-shape').forEach(el => {
+    el.addEventListener('change', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].shape = e.target.value;
+    });
+  });
+  document.querySelectorAll('.mod-kappa').forEach(el => {
+    el.addEventListener('input', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].kappa = parseFloat(e.target.value);
+      e.target.parentElement.querySelector('.val').textContent = mods[i].kappa.toFixed(1);
+    });
+  });
+  document.querySelectorAll('.mod-depth').forEach(el => {
+    el.addEventListener('input', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].depth = parseFloat(e.target.value) / 100;
+      e.target.parentElement.querySelector('.val').textContent = mods[i].depth.toFixed(2);
+    });
+  });
+  document.querySelectorAll('.mod-target').forEach(el => {
+    el.addEventListener('change', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].target = e.target.value;
+    });
+  });
+  document.querySelectorAll('.mod-psk').forEach(el => {
+    el.addEventListener('change', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].pskN = parseInt(e.target.value);
+      renderMods();  // re-render to show/hide smooth slider
+    });
+  });
+  document.querySelectorAll('.mod-psksmooth').forEach(el => {
+    el.addEventListener('input', e => {
+      const i = parseInt(e.target.dataset.i);
+      mods[i].pskSmooth = parseFloat(e.target.value) / 100;
+      e.target.parentElement.querySelector('.val').textContent = mods[i].pskSmooth.toFixed(2);
+    });
+  });
+}
+
+// ── Lock graph rendering ────────────────────────────────────────────────────
+function renderLockGraph() {
+  const container = $('lock-graph');
+  // Compute rate for each mod and lock targets
+  const lines = [];
+  mods.forEach((m, i) => {
+    const rate = modRateHz(m, new Set());
+    const w = walkPath(m.path);
+    const tgt = m.lockTarget === 'free' ? '— (free)' :
+                m.lockTarget === 'f1' ? `f₁ × ${w.p}/${w.q}` :
+                m.lockTarget === 'f2' ? `f₂ × ${w.p}/${w.q}` :
+                `mod ${parseInt(m.lockTarget.slice(1)) + 1} × ${w.p}/${w.q}`;
+    const routing = m.target.replace('f1-', 'f₁ ').replace('f2-', 'f₂ ').replace('both-', 'both ').replace('rm-f1', 'RM f₁');
+    lines.push(`<div style="display:grid;grid-template-columns:60px 200px 100px 1fr;gap:8px;padding:2px 0;font-size:11px">
+      <span style="color:#c89d4a">mod ${i + 1}</span>
+      <span style="color:#9d9482">lock: ${tgt}</span>
+      <span style="color:#7a715e" class="val">${rate.toFixed(2)} Hz</span>
+      <span style="color:#6a614e">→ ${routing}</span>
+    </div>`);
+  });
+  container.innerHTML = lines.join('');
+}
+
+// ── Carrier UI ──────────────────────────────────────────────────────────────
+function updateCarrierReadouts() {
+  $('f1-v').textContent = parseFloat($('f1').value).toFixed(0) + ' Hz';
+  const f2r = parseFloat($('f2-ratio').value);
+  const f2 = f2r === 0 ? 0 : parseFloat($('f1').value) * f2r;
+  $('f2-v').textContent = f2 === 0 ? 'muted' : f2.toFixed(0) + ' Hz';
+  $('f2-mix-v').textContent = (parseFloat($('f2-mix').value) / 100).toFixed(2);
+  $('vol-v').textContent = (parseFloat($('vol').value) / 100).toFixed(2);
+  renderMods(); renderLockGraph();
+}
+['f1', 'f2-ratio', 'f2-mix', 'vol'].forEach(id => {
+  $(id).addEventListener('input', updateCarrierReadouts);
+  $(id).addEventListener('change', updateCarrierReadouts);
+});
+
+// ── Play/stop ───────────────────────────────────────────────────────────────
+$('btn-play').addEventListener('click', () => {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      scriptNode = audioCtx.createScriptProcessor(1024, 0, 1);
+      scriptNode.onaudioprocess = audioProcess;
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 8192;
+      scriptNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      isPlaying = true;
+      $('btn-play').textContent = '■ stop';
+      $('status').textContent = 'playing';
+    } catch (err) { $('status').textContent = 'error: ' + err.message; }
+    return;
+  }
+  if (isPlaying) {
+    audioCtx.suspend(); isPlaying = false;
+    $('btn-play').textContent = '▶ play'; $('status').textContent = 'paused';
+  } else {
+    audioCtx.resume(); isPlaying = true;
+    $('btn-play').textContent = '■ stop'; $('status').textContent = 'playing';
+  }
+});
+
+// ── Visualizers ─────────────────────────────────────────────────────────────
+function drawSpec() {
+  const cv = $('spec'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.fillStyle = '#050403'; ctx.fillRect(0, 0, W, H);
+  // grid
+  [0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000].forEach(f => {
+    const x = (f / 4000) * W;
+    ctx.strokeStyle = '#15110d'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H - 14); ctx.stroke();
+    ctx.fillStyle = '#2a2520'; ctx.font = '9px monospace';
+    ctx.fillText(f, x + 2, H - 4);
+  });
+  if (!isPlaying || !analyser) {
+    ctx.fillStyle = '#3a3225'; ctx.font = '11px monospace';
+    ctx.fillText('press play', 10, H / 2); return;
+  }
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(buf);
+  const sr = audioCtx.sampleRate, fmax = 4000;
+  const binMax = Math.floor(fmax * analyser.fftSize / sr);
+  for (let k = 1; k < binMax; k++) {
+    const f = k * sr / analyser.fftSize, x = (f / fmax) * W;
+    const v = buf[k] / 255, h = Math.pow(v, 1.1) * (H - 18);
+    if (h < 0.5) continue;
+    ctx.fillStyle = `hsl(${30 + v * 20}, 70%, ${25 + v * 40}%)`;
+    ctx.fillRect(x - 1, H - 14 - h, 2, h);
+  }
+  // carrier markers
+  const f1 = parseFloat($('f1').value);
+  const f2r = parseFloat($('f2-ratio').value);
+  const f2 = f2r === 0 ? null : f1 * f2r;
+  ctx.setLineDash([3, 3]);
+  [[f1, '#c89d4a88'], [f2, '#8aac4a88']].forEach(([f, col]) => {
+    if (!f || f > 4000) return;
+    ctx.strokeStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo((f / 4000) * W, 0); ctx.lineTo((f / 4000) * W, H - 14);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+function drawWave() {
+  const cv = $('wave'), ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.fillStyle = '#050403'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#15110d'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+  if (!isPlaying) {
+    ctx.fillStyle = '#3a3225'; ctx.font = '11px monospace';
+    ctx.fillText('press play', 10, H / 2 + 4); return;
+  }
+  // glow
+  ctx.strokeStyle = '#c89d4a44'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  for (let i = 0; i < 2048; i++) {
+    const x = (i / 2048) * W;
+    const y = H / 2 - waveBuf[(wIdx + i) % waveBuf.length] * H * 0.85;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  // sharp
+  ctx.strokeStyle = '#e8b878'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 2048; i++) {
+    const x = (i / 2048) * W;
+    const y = H / 2 - waveBuf[(wIdx + i) % waveBuf.length] * H * 0.85;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+
+// ── Presets ─────────────────────────────────────────────────────────────────
+const presets = {
+  'duo-clean': {
+    f1: 220, f2ratio: '1.5', f2mix: 60,
+    mods: [
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+  'cfc-classic': {
+    f1: 220, f2ratio: '0', f2mix: 0,
+    mods: [
+      { rateBase: 6, lockTarget: 'free', path: [], shape: 'vonmises', kappa: 20, depth: 0.9, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+  'fm-saw': {
+    f1: 220, f2ratio: '0', f2mix: 0,
+    mods: [
+      { rateBase: 0, lockTarget: 'f1', path: ['R'], shape: 'sine', kappa: 8, depth: 0.3, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'f1', path: ['R', 'L'], shape: 'sine', kappa: 8, depth: 0.2, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'f1', path: ['R', 'L', 'L'], shape: 'sine', kappa: 8, depth: 0.15, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'f1', path: ['R', 'L', 'R'], shape: 'sine', kappa: 8, depth: 0.1, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+  'cross-cfc': {
+    f1: 220, f2ratio: '1.5', f2mix: 70,
+    mods: [
+      { rateBase: 5, lockTarget: 'free', path: [], shape: 'vonmises', kappa: 25, depth: 0.85, target: 'both-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+  'cascade-depth': {
+    // mod3 → mod2 → mod1, demonstrating cascade lock-graph
+    f1: 220, f2ratio: '0', f2mix: 0,
+    mods: [
+      { rateBase: 8, lockTarget: 'free', path: [], shape: 'vonmises', kappa: 15, depth: 0.8, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'm0', path: ['L'], shape: 'sine', kappa: 8, depth: 0.5, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'm1', path: ['L', 'L'], shape: 'sine', kappa: 8, depth: 0.3, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+  'psk-buzz': {
+    f1: 220, f2ratio: '0', f2mix: 0,
+    mods: [
+      { rateBase: 0, lockTarget: 'f1', path: [], shape: 'sine', kappa: 8, depth: 0.5, target: 'f1-fm', pskN: 8, pskSmooth: 0.1 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+  'spectro-temporal': {
+    // audio-rate FM stack + sub-audio envelope on top
+    f1: 220, f2ratio: '1.5', f2mix: 50,
+    mods: [
+      { rateBase: 0, lockTarget: 'f1', path: ['R'], shape: 'sine', kappa: 8, depth: 0.4, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'f1', path: ['R', 'L'], shape: 'sine', kappa: 8, depth: 0.3, target: 'f1-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 0, lockTarget: 'f2', path: ['R'], shape: 'sine', kappa: 8, depth: 0.3, target: 'f2-fm', pskN: 0, pskSmooth: 0 },
+      { rateBase: 3, lockTarget: 'free', path: [], shape: 'vonmises', kappa: 20, depth: 0.7, target: 'both-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+      { rateBase: 4, lockTarget: 'free', path: [], shape: 'sine', kappa: 8, depth: 0, target: 'f1-am', pskN: 0, pskSmooth: 0 },
+    ]
+  },
+};
+
+document.querySelectorAll('#presets button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = presets[btn.dataset.p]; if (!p) return;
+    $('f1').value = p.f1;
+    $('f2-ratio').value = p.f2ratio;
+    $('f2-mix').value = p.f2mix;
+    p.mods.forEach((cfg, i) => {
+      Object.assign(mods[i], cfg);
+    });
+    updateCarrierReadouts();
+  });
+});
+
+// ── Animation loop ──────────────────────────────────────────────────────────
+function loop() {
+  drawSpec(); drawWave();
+  requestAnimationFrame(loop);
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+renderMods();
+renderLockGraph();
+updateCarrierReadouts();
+loop();
+
+})();
+</script>
+</body>
+</html>
