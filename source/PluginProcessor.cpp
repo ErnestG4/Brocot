@@ -271,6 +271,14 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     auto midiIter = midi.cbegin();
     const auto midiEnd = midi.cend();
 
+    // Per-sample cascade contributions. `modRateAdj` scales the resolved
+    // block rate (1 + adj); `modDepthAdj` is an additive offset on depth.
+    // Both arrays carry the previous sample's contributions into this
+    // sample's tick — i.e., one-sample delay on cascade-rate / depth, which
+    // is inaudible at any reasonable buffer size.
+    std::array<float, params::kNumModulators> modRateAdj {};
+    std::array<float, params::kNumModulators> modDepthAdj {};
+
     for (int n = 0; n < numSamples; ++n)
     {
         // 1. Apply any MIDI events scheduled for this sample.
@@ -312,10 +320,21 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             ++midiIter;
         }
 
-        // 2. Tick the modulator bank at the rates resolved for this block.
+        // 2. Tick the modulator bank, applying the cascade rate / depth
+        //    contributions accumulated from the previous sample's outputs.
         std::array<float, params::kNumModulators> modOut {};
         for (int i = 0; i < params::kNumModulators; ++i)
-            modOut[(size_t) i] = modulators[(size_t) i].tickBipolar (modRatesThisBlock[(size_t) i]);
+        {
+            const float effRate  = modRatesThisBlock[(size_t) i]
+                                   * (1.0f + modRateAdj[(size_t) i]);
+            const float depthOff = modDepthAdj[(size_t) i];
+            modOut[(size_t) i] = modulators[(size_t) i].tickBipolar (effRate, depthOff);
+        }
+
+        // Reset cascade accumulators; the routing pass below refills them
+        // for next sample.
+        modRateAdj.fill (0.0f);
+        modDepthAdj.fill (0.0f);
 
         // 3. Dispatch each mod's output to its routing target.
         BrocotVoice::PerSampleMod psm;
@@ -362,11 +381,21 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                     break;
                 }
                 case params::TargetKind::ModRate:
-                case params::TargetKind::ModDepth:
-                    // Cascade — rate cascade already in the resolver; depth
-                    // cascade lands when the per-mod APVTS depth gets
-                    // continuously-driven by another mod (V2.7 hooks the UI).
+                {
+                    // ±50% rate swing at full LFO amplitude. The
+                    // accumulator is consumed by the next sample's tick.
+                    const int safe = juce::jlimit (0, params::kNumModulators - 1, idx);
+                    modRateAdj[(size_t) safe] += v * 0.5f;
                     break;
+                }
+                case params::TargetKind::ModDepth:
+                {
+                    // Additive depth offset (full LFO swing ±1). Effective
+                    // depth is clamped at zero inside the mod's tick.
+                    const int safe = juce::jlimit (0, params::kNumModulators - 1, idx);
+                    modDepthAdj[(size_t) safe] += v;
+                    break;
+                }
                 case params::TargetKind::Count:
                     break;
             }

@@ -46,23 +46,25 @@ public:
     float getPhase() const noexcept           { return phase; }
 
     /** Advances phase by one sample at the given Hz and returns the bipolar
-        output ([-1, +1]) scaled by depth. Use for FM / PM / ring-mod targets. */
-    inline float tickBipolar (float rateHz) noexcept
+        output ([-1, +1]) scaled by depth. `depthOffset` is an additive
+        contribution from V2.7 cascade chaining (one mod modulating another's
+        depth); the effective depth is clamped at zero. */
+    inline float tickBipolar (float rateHz, float depthOffset = 0.0f) noexcept
     {
         const float pUsed = pskN >= 2 ? envelope::pskQuantize (phase, pskN, pskSmooth) : phase;
         const float raw = envelope::bipolar (pUsed, shape, kappa);
         advance (rateHz);
-        return raw * smoothedDepth.getNextValue();
+        return raw * std::max (0.0f, smoothedDepth.getNextValue() + depthOffset);
     }
 
     /** Advances phase and returns the unipolar envelope value ([0, 1]) scaled
-        by depth. Use for AM / amplitude shaping / CFC targets. */
-    inline float tickUnipolar (float rateHz) noexcept
+        by depth. */
+    inline float tickUnipolar (float rateHz, float depthOffset = 0.0f) noexcept
     {
         const float pUsed = pskN >= 2 ? envelope::pskQuantize (phase, pskN, pskSmooth) : phase;
         const float raw = envelope::unipolar (pUsed, shape, kappa);
         advance (rateHz);
-        return raw * smoothedDepth.getNextValue();
+        return raw * std::max (0.0f, smoothedDepth.getNextValue() + depthOffset);
     }
 
 private:
