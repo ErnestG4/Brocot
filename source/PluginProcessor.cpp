@@ -217,15 +217,11 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // incoming MIDI buffer. This is a no-op when no UI keyboard is active.
     keyboardState.processNextMidiBuffer (midi, 0, numSamples, true);
 
-    // Pull current parameter snapshot once per block. Block-level smoothing
-    // is good enough for v1; per-sample smoothing arrives if/when a slider
-    // is observed to click.
+    // Pull current parameter snapshot once per block.
     applyParametersToAllVoices();
     applyModulatorParameters();
 
-    // Resolve modulator rates for this block (lock graph walk). Recomputed
-    // per block, not per sample — carrier frequency is stable across a
-    // block in mono mode and close enough in duo mode.
+    // Resolve modulator rates for this block (lock graph walk).
     std::array<float, params::kNumModulators> modRatesThisBlock {};
     for (int i = 0; i < params::kNumModulators; ++i)
     {
@@ -233,8 +229,25 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         modRatesThisBlock[(size_t) i] = resolveModRate (i, visited);
     }
 
+    // Cache routing target choices and indices for this block — reading
+    // these per-sample-per-mod would be ~8k atomic reads per block.
+    std::array<int, params::kNumModulators> modTargetKinds {};
+    std::array<int, params::kNumModulators> modTargetIndices {};
+    for (int i = 0; i < params::kNumModulators; ++i)
+    {
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "targetKind")))
+            modTargetKinds[(size_t) i] = juce::jlimit (0,
+                (int) params::TargetKind::Count - 1, (int) std::round (p->load()));
+        if (auto* p = apvts.getRawParameterValue (params::modId (i, "targetIndex")))
+            modTargetIndices[(size_t) i] = juce::jlimit (0, 15,
+                (int) std::round (p->load()));
+    }
+
+    float baseCutoff01 = 0.85f;
+    if (auto* p = apvts.getRawParameterValue (params::ids::filterCutoff))
+        baseCutoff01 = p->load();
+
     float* const monoOut = buffer.getWritePointer (0);
-    int processedSamples = 0;
 
     auto refreshAllCarriers = [this]
     {
@@ -243,71 +256,114 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                 v.setCarrierHz (midiNoteWithBend (v.getActiveNote()));
     };
 
-    auto renderVoices = [this, monoOut] (int from, int count)
-    {
-        if (count <= 0) return;
-        const int activeCount = isDuoMode() ? kMaxVoices : 1;
-        for (int i = 0; i < activeCount; ++i)
-            voices[(size_t) i].render (monoOut + from, count);
-    };
-
-    for (const auto meta : midi)
-    {
-        const int eventSample = juce::jlimit (0, numSamples, meta.samplePosition);
-        renderVoices (processedSamples, eventSample - processedSamples);
-        processedSamples = eventSample;
-
-        const auto msg = meta.getMessage();
-
-        if (msg.isNoteOn())
-        {
-            const float vel = msg.getFloatVelocity();
-            velocitySource.setVelocity (vel);
-
-            const int idx = allocateVoice (msg.getNoteNumber());
-            voices[(size_t) idx].noteOn (msg.getNoteNumber(), vel);
-            voices[(size_t) idx].setCarrierHz (midiNoteWithBend (msg.getNoteNumber()));
-            voiceNoteOnOrder[(size_t) idx] = ++noteOnCounter;
-            lfo.onNoteOn();   // optional phase reset if key-sync is enabled
-        }
-        else if (msg.isNoteOff())
-        {
-            noteOffOnAnyVoice (msg.getNoteNumber());
-        }
-        else if (msg.isPitchWheel())
-        {
-            pitchBendSource.setBendRaw14 (msg.getPitchWheelValue());
-            refreshAllCarriers();
-        }
-        else if (msg.isController())
-        {
-            if (msg.getControllerNumber() == 1)
-                modWheelSource.setRaw14 (msg.getControllerValue());
-        }
-        else if (msg.isChannelPressure())
-        {
-            pressureSource.setRaw7 (msg.getChannelPressureValue());
-        }
-    }
-
-    renderVoices (processedSamples, numSamples - processedSamples);
-
-    // Apply the LFO → filter cutoff route per sample. Base cutoff is a 0..1
-    // APVTS value mapped logarithmically to 20 Hz..20 kHz; the LFO modulates
-    // ±2 octaves at full depth. Sample-level smoothing of cutoff comes from
-    // recomputing each sample — coefficients are cheap.
-    float baseCutoff01 = 0.85f;
-    if (auto* p = apvts.getRawParameterValue (params::ids::filterCutoff))
-        baseCutoff01 = p->load();
+    // Per-sample loop: apply MIDI events at their exact sample positions,
+    // tick the modulator bank, route to targets, render voices, apply
+    // filter, write scope.
+    const int activeVoiceCount = isDuoMode() ? kMaxVoices : 1;
+    auto midiIter = midi.cbegin();
+    const auto midiEnd = midi.cend();
 
     for (int n = 0; n < numSamples; ++n)
     {
-        const float lfoValue = lfo.tickScaled();   // [-depth, +depth]
-        const float cutoff01 = juce::jlimit (0.0f, 1.0f,
-                                             baseCutoff01 + lfoValue * 0.5f);
-        const float cutoffHz = 20.0f * std::pow (1000.0f, cutoff01);  // 20..20k
+        // 1. Apply any MIDI events scheduled for this sample.
+        while (midiIter != midiEnd
+               && juce::jlimit (0, numSamples, (*midiIter).samplePosition) <= n)
+        {
+            const auto msg = (*midiIter).getMessage();
+
+            if (msg.isNoteOn())
+            {
+                const float vel = msg.getFloatVelocity();
+                velocitySource.setVelocity (vel);
+                const int idx = allocateVoice (msg.getNoteNumber());
+                voices[(size_t) idx].noteOn (msg.getNoteNumber(), vel);
+                voices[(size_t) idx].setCarrierHz (midiNoteWithBend (msg.getNoteNumber()));
+                voiceNoteOnOrder[(size_t) idx] = ++noteOnCounter;
+                for (auto& m : modulators)
+                    m.onNoteOn();   // honours each mod's keySync flag
+            }
+            else if (msg.isNoteOff())
+            {
+                noteOffOnAnyVoice (msg.getNoteNumber());
+            }
+            else if (msg.isPitchWheel())
+            {
+                pitchBendSource.setBendRaw14 (msg.getPitchWheelValue());
+                refreshAllCarriers();
+            }
+            else if (msg.isController())
+            {
+                if (msg.getControllerNumber() == 1)
+                    modWheelSource.setRaw14 (msg.getControllerValue());
+            }
+            else if (msg.isChannelPressure())
+            {
+                pressureSource.setRaw7 (msg.getChannelPressureValue());
+            }
+
+            ++midiIter;
+        }
+
+        // 2. Tick the modulator bank at the rates resolved for this block.
+        std::array<float, params::kNumModulators> modOut {};
+        for (int i = 0; i < params::kNumModulators; ++i)
+            modOut[(size_t) i] = modulators[(size_t) i].tickBipolar (modRatesThisBlock[(size_t) i]);
+
+        // 3. Dispatch each mod's output to its routing target.
+        BrocotVoice::PerSampleMod psm;
+        float cutoffMod01 = 0.0f;   // additive offset on 0..1 cutoff space
+
+        for (int i = 0; i < params::kNumModulators; ++i)
+        {
+            const float v = modOut[(size_t) i];
+            const auto kind = (params::TargetKind) modTargetKinds[(size_t) i];
+            const int idx = modTargetIndices[(size_t) i];
+
+            switch (kind)
+            {
+                case params::TargetKind::FilterCutoff:
+                    cutoffMod01 += v * 0.5f;        // ±0.5 of normalised range
+                    break;
+                case params::TargetKind::CarrierAm:
+                    psm.carrierAmGain *= (1.0f + v); // ±1.0 range; clamp below
+                    break;
+                case params::TargetKind::CarrierFm:
+                    if (! voices.empty())
+                        psm.carrierFmHz += v * voices[0].getCarrierHz();
+                    break;
+                case params::TargetKind::OpDepth:
+                {
+                    const int safe = juce::jlimit (0, BrocotVoice::N_OPS - 1, idx);
+                    psm.opDepthAdd[(size_t) safe] += v;
+                    break;
+                }
+                case params::TargetKind::OpPosition:
+                    // Deferred to V2.6 — needs phase-coherent ratio crossfade.
+                    break;
+                case params::TargetKind::ModRate:
+                case params::TargetKind::ModDepth:
+                    // Cascade — rate cascade already in the resolver; depth
+                    // cascade lands when the per-mod APVTS depth gets
+                    // continuously-driven by another mod (V2.7 hooks the UI).
+                    break;
+                case params::TargetKind::Count:
+                    break;
+            }
+        }
+
+        // Clamp carrier AM so heavy modulation doesn't go negative.
+        psm.carrierAmGain = juce::jlimit (0.0f, 4.0f, psm.carrierAmGain);
+
+        // 4. Render the voices into a mono sum.
+        float mono = 0.0f;
+        for (int v = 0; v < activeVoiceCount; ++v)
+            mono += voices[(size_t) v].renderSample (psm);
+
+        // 5. Apply filter with modulated cutoff.
+        const float cutoff01 = juce::jlimit (0.0f, 1.0f, baseCutoff01 + cutoffMod01);
+        const float cutoffHz = 20.0f * std::pow (1000.0f, cutoff01);
         filter.setCutoff (cutoffHz);
-        monoOut[n] = filter.processSample (monoOut[n]);
+        monoOut[n] = filter.processSample (mono);
     }
 
     // Feed the scope ring before mirroring to stereo so the scope sees the

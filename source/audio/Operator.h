@@ -53,10 +53,15 @@ public:
 
     /** Returns this operator's contribution to the carrier's instantaneous
         frequency in Hz, and advances internal phase. Caller passes the
-        carrier's base frequency in Hz and the inverse sample rate. */
-    inline float processSample (float carrierHz, float invSampleRate) noexcept
+        carrier's base frequency in Hz and the inverse sample rate.
+        `depthOffset` is an additive contribution from the V2 LFO bank's
+        per-sample routing — negative values that drive effective depth
+        below zero are clamped at zero (the FM math expects non-negative I). */
+    inline float processSample (float carrierHz, float invSampleRate,
+                                float depthOffset = 0.0f) noexcept
     {
-        const float currentDepth = smoothedDepth.getNextValue();
+        const float currentDepth =
+            std::max (0.0f, smoothedDepth.getNextValue() + depthOffset);
         if (currentDepth <= 1.0e-5f)
             return 0.0f;
 

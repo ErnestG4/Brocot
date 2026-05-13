@@ -46,28 +46,34 @@ void BrocotVoice::noteOff (int midiNoteNumber) noexcept
     }
 }
 
-void BrocotVoice::render (float* out, int numSamples) noexcept
+float BrocotVoice::renderSample (const PerSampleMod& mod) noexcept
 {
     constexpr float twoPi = 6.2831853071795864769f;
 
+    const float envSample = ampEnv.getNextSample();
+    const float lev = smoothedLevel.getNextValue();
+
+    float deltaSum = mod.carrierFmHz;
+    for (size_t i = 0; i < ops.size(); ++i)
+        deltaSum += ops[i].processSample (carrierHz, invSampleRate,
+                                          mod.opDepthAdd[i]);
+
+    const float instFreq = carrierHz + deltaSum;
+    const float sample = std::sin (twoPi * carrierPhase)
+                       * lev * envSample * mod.carrierAmGain;
+
+    carrierPhase += instFreq * invSampleRate;
+    if (carrierPhase >= 1.0f)      carrierPhase -= std::floor (carrierPhase);
+    else if (carrierPhase < 0.0f)  carrierPhase -= std::floor (carrierPhase);
+
+    return sample;
+}
+
+void BrocotVoice::render (float* out, int numSamples) noexcept
+{
+    const PerSampleMod neutral;
     for (int n = 0; n < numSamples; ++n)
-    {
-        const float envSample = ampEnv.getNextSample();
-        const float lev = smoothedLevel.getNextValue();
-
-        float deltaSum = 0.0f;
-        for (auto& o : ops)
-            deltaSum += o.processSample (carrierHz, invSampleRate);
-
-        const float instFreq = carrierHz + deltaSum;
-        const float sample = std::sin (twoPi * carrierPhase) * lev * envSample;
-
-        carrierPhase += instFreq * invSampleRate;
-        if (carrierPhase >= 1.0f)      carrierPhase -= std::floor (carrierPhase);
-        else if (carrierPhase < 0.0f)  carrierPhase -= std::floor (carrierPhase);
-
-        out[n] += sample;
-    }
+        out[n] += renderSample (neutral);
 }
 
 } // namespace brocot

@@ -45,7 +45,23 @@ public:
     bool isActive() const noexcept { return ampEnv.isActive(); }
     float getCarrierHz() const noexcept { return carrierHz; }
 
-    /** Renders `numSamples` of mono audio summed onto `out`. */
+    /** Per-sample modulation contributions sourced from the V2 LFO bank.
+        Constructed once per sample on the audio thread and passed to
+        renderSample(). All fields default to neutral (no contribution) so a
+        default-constructed instance reproduces pre-V2 behaviour. */
+    struct PerSampleMod
+    {
+        std::array<float, N_OPS> opDepthAdd { 0,0,0,0,0,0,0,0 };
+        float carrierAmGain  { 1.0f };  // multiplicative on carrier amplitude
+        float carrierFmHz    { 0.0f };  // additive Hz offset on carrier freq
+    };
+
+    /** Render one sample. Returns the produced value for this voice, summed
+        with whatever you do in the caller (e.g., add to mono mix). */
+    float renderSample (const PerSampleMod& mod) noexcept;
+
+    /** Block-rate convenience wrapper for tests and any code path that
+        doesn't need modulation. Sums onto `out`. */
     void render (float* out, int numSamples) noexcept;
 
 private:
