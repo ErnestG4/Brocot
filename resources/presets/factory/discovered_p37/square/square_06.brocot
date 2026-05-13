@@ -1,0 +1,91 @@
+{
+  "name": "Square\u00b76  (obj=7.5164)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Square family discovery via Phase-3 ARS search (objective 7.5164, seed 1338).",
+    "category": "Square",
+    "search": {
+      "family": "square",
+      "seed": 1338,
+      "objective": 7.5163750017804185,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 32,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T14:19:32.945440+00:00",
+      "family_distance": 8.288185268326236,
+      "criticality": 1.543620533091635
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "R",
+        "depth": 2.6254852802747193
+      },
+      {
+        "enabled": true,
+        "path": "RLLLLLRL",
+        "depth": 3.832
+      },
+      {
+        "enabled": true,
+        "path": "RRLLRR",
+        "depth": 1.946000534410031
+      },
+      {
+        "enabled": true,
+        "path": "RRLRLL",
+        "depth": 1.6453932075608326
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

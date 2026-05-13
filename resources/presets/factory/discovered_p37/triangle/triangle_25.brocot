@@ -1,0 +1,91 @@
+{
+  "name": "Triangle\u00b725  (obj=8.6690)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Triangle family discovery via Phase-3 ARS search (objective 8.6690, seed 1339).",
+    "category": "Triangle",
+    "search": {
+      "family": "triangle",
+      "seed": 1339,
+      "objective": 8.669029838466349,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 32,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T14:11:59.996110+00:00",
+      "family_distance": 8.6708139318803,
+      "criticality": 0.003568186827903097
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 1.655201461202481
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 4.072892140385344
+      },
+      {
+        "enabled": true,
+        "path": "LR",
+        "depth": 1.9162125523453637
+      },
+      {
+        "enabled": true,
+        "path": "RLL",
+        "depth": 1.8084704196685972
+      },
+      {
+        "enabled": true,
+        "path": "RLLLRL",
+        "depth": 4.14882311574385
+      },
+      {
+        "enabled": true,
+        "path": "RLR",
+        "depth": 0.38111895048760075
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

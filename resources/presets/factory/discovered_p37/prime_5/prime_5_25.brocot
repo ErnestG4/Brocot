@@ -1,0 +1,91 @@
+{
+  "name": "Prime 5\u00b725  (obj=12.7603)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Prime 5 family discovery via Phase-3 ARS search (objective 12.7603, seed 1345).",
+    "category": "Prime 5",
+    "search": {
+      "family": "prime_5",
+      "seed": 1345,
+      "objective": 12.760288686238441,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 32,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T14:19:11.666198+00:00",
+      "family_distance": 12.763019497564098,
+      "criticality": 0.005461622651314078
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 1.6488944690528318
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 0.5832926802980551
+      },
+      {
+        "enabled": true,
+        "path": "LLLL",
+        "depth": 6.310728196228282
+      },
+      {
+        "enabled": true,
+        "path": "LLLRR",
+        "depth": 2.8412620333751466
+      },
+      {
+        "enabled": true,
+        "path": "LLRRLL",
+        "depth": 0.8266616863508194
+      },
+      {
+        "enabled": true,
+        "path": "LR",
+        "depth": 1.7015450975328676
+      },
+      {
+        "enabled": true,
+        "path": "LR",
+        "depth": 4.358110419479787
+      },
+      {
+        "enabled": true,
+        "path": "R",
+        "depth": 1.49244582873918
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

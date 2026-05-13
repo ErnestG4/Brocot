@@ -1,0 +1,91 @@
+{
+  "name": "Organ 1/3/5\u00b730  (obj=10.2008)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Organ 1/3/5 family discovery via Phase-3 ARS search (objective 10.2008, seed 1341).",
+    "category": "Organ 1/3/5",
+    "search": {
+      "family": "organ_1_3_5",
+      "seed": 1341,
+      "objective": 10.200827893524412,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 32,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T14:03:26.571610+00:00",
+      "family_distance": 10.201634088198045,
+      "criticality": 0.0016123893472651555
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 4.230267609363252
+      },
+      {
+        "enabled": true,
+        "path": "LL",
+        "depth": 2.453073847786726
+      },
+      {
+        "enabled": true,
+        "path": "LLLLRR",
+        "depth": 2.422098678715457
+      },
+      {
+        "enabled": true,
+        "path": "LLLRRL",
+        "depth": 3.966417605623742
+      },
+      {
+        "enabled": true,
+        "path": "LRLR",
+        "depth": 5.961663285847195
+      },
+      {
+        "enabled": true,
+        "path": "LRLRLL",
+        "depth": 2.1448983584236427
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}
