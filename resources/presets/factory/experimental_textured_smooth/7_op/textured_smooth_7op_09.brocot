@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b77op\u00b709  (H=4.06, n=192)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 7 ops, objective 14.6451 (H=4.062, peak/mean=18.70, n_partials=192, crit=0.0097).",
+    "category": "Textured-Smooth \u00b7 7 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 7,
+      "seed": 2708,
+      "objective": 14.645093976524155,
+      "entropy": 4.0624079648363365,
+      "peak_mean": 18.699024260778646,
+      "n_partials": 192,
+      "criticality": 0.009694930424113188,
+      "timestamp": "2026-05-13T19:04:22.777415+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.24454454557223243
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.5652160768948903
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.5837560222790218
+      },
+      {
+        "enabled": true,
+        "path": "LLLLR",
+        "depth": 0.6314425407945473
+      },
+      {
+        "enabled": true,
+        "path": "LLLRRLLRRL",
+        "depth": 0.2389426942430395
+      },
+      {
+        "enabled": true,
+        "path": "LLRRLRRRR",
+        "depth": 0.21280169122692438
+      },
+      {
+        "enabled": true,
+        "path": "LRRLLRLLL",
+        "depth": 0.1683183814903654
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

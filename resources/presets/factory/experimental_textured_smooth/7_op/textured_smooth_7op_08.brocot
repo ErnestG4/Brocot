@@ -1,0 +1,88 @@
+{
+  "name": "Textured\u00b77op\u00b708  (H=3.88, n=174)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "spectral-search",
+    "author": "ARS Phase 3 (experimental)",
+    "description": "Textured-smooth experimental discovery: 7 ops, objective 14.0918 (H=3.879, peak/mean=17.96, n_partials=174, crit=0.0102).",
+    "category": "Textured-Smooth \u00b7 7 ops",
+    "search": {
+      "mode": "spectral-search/textured-smooth",
+      "op_count": 7,
+      "seed": 2708,
+      "objective": 14.091783143988266,
+      "entropy": 3.8791117620974447,
+      "peak_mean": 17.961444353930133,
+      "n_partials": 174,
+      "criticality": 0.01021850358992434,
+      "timestamp": "2026-05-13T19:04:22.777291+00:00"
+    }
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.6842151412476277
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 0.6970698276341716
+      },
+      {
+        "enabled": true,
+        "path": "LLLRRLLLRRLR",
+        "depth": 0.6991043892287653
+      },
+      {
+        "enabled": true,
+        "path": "LRLRLLRRRL",
+        "depth": 0.041595900736211285
+      },
+      {
+        "enabled": true,
+        "path": "RLRLRRRRLRRL",
+        "depth": 0.06285073678028288
+      },
+      {
+        "enabled": true,
+        "path": "RR",
+        "depth": 0.08940928604715997
+      },
+      {
+        "enabled": true,
+        "path": "RRLRR",
+        "depth": 0.3219156388364645
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}
