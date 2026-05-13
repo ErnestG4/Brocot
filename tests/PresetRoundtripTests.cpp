@@ -107,8 +107,11 @@ TEST_CASE ("All factory .brocot files are v2 with provenance", "[Preset]")
                            + "/resources/presets/factory");
     REQUIRE (factoryDir.isDirectory());
 
-    auto files = factoryDir.findChildFiles (juce::File::findFiles, false, "*.brocot");
-    REQUIRE (files.size() == 32);
+    // Recursive scan: hand-authored 32 live at top level, ARS-generated
+    // discoveries live under factory/discovered/<family>/ — every .brocot
+    // anywhere under factory/ must satisfy v2.
+    auto files = factoryDir.findChildFiles (juce::File::findFiles, true, "*.brocot");
+    REQUIRE (files.size() >= 32);
 
     for (const auto& f : files)
     {

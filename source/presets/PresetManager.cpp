@@ -60,13 +60,16 @@ void PresetManager::rescan()
         entries.push_back (std::move (e));
     };
 
+    // Recursive scan so we can group factory presets into subdirectories —
+    // e.g. factory/discovered/<family>/ for ARS-generated content while
+    // the hand-authored 32 stay at the top level.
     if (auto fac = getFactoryDirectory(); fac.isDirectory())
-        for (const auto& f : fac.findChildFiles (juce::File::findFiles, false, "*.brocot"))
+        for (const auto& f : fac.findChildFiles (juce::File::findFiles, true, "*.brocot"))
             add (f, "factory", true);
 
     auto user = getUserDirectory();
     if (user.isDirectory())
-        for (const auto& f : user.findChildFiles (juce::File::findFiles, false, "*.brocot"))
+        for (const auto& f : user.findChildFiles (juce::File::findFiles, true, "*.brocot"))
             add (f, "user", false);
 
     std::sort (entries.begin(), entries.end(),
