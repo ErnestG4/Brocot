@@ -129,17 +129,21 @@ def family_bell_stretched(beta: float, max_n: int = 30, sigma: float = 0.3) -> F
         raise ValueError(f"bell-stretched β must be > 1 (got {beta})")
 
     def target(q_max: int) -> np.ndarray:
-        a = np.zeros(q_max, dtype=np.float64)
+        # Vectorised — the nested Python-loop version was ~4× slower than
+        # other families' targets and dominated bell-stretched's per-eval
+        # cost (target() is called for every search-distance evaluation).
+        n = np.arange(1, max_n + 1, dtype=np.float64)
+        pos = n ** beta
+        mask = pos <= q_max + sigma * 5.0
+        n_keep = n[mask]
+        pos_keep = pos[mask]
+        if n_keep.size == 0:
+            return np.zeros(q_max, dtype=np.float64)
+        weights = 1.0 / n_keep
         two_sigma_sq = 2.0 * sigma * sigma
-        for n in range(1, max_n + 1):
-            pos = float(n) ** beta
-            if pos > q_max + sigma * 5.0:
-                break
-            weight = 1.0 / n
-            for k in range(1, q_max + 1):
-                dx = k - pos
-                a[k - 1] += weight * np.exp(-(dx * dx) / two_sigma_sq)
-        return a
+        k = np.arange(1, q_max + 1, dtype=np.float64)[:, None]
+        dx = k - pos_keep[None, :]
+        return (weights[None, :] * np.exp(-(dx * dx) / two_sigma_sq)).sum(axis=1)
 
     return Family(f"bell_beta_{beta:.2f}".replace(".", "_"),
                   target, characteristic_q=None,

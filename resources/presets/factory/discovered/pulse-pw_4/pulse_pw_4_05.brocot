@@ -1,0 +1,89 @@
+{
+  "name": "Pulse-PW 4\u00b75  (obj=0.1327)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Pulse-PW 4 family discovery via Phase-3 ARS search (objective 0.1327, seed 317).",
+    "category": "Pulse-PW 4",
+    "search": {
+      "family": "pulse_pw_4",
+      "seed": 317,
+      "objective": 0.1327408294882197,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 8,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T07:37:01.832562+00:00"
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": true,
+        "path": "LLRRL",
+        "depth": 1.5205556903238422
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": true,
+        "path": "LLLL",
+        "depth": 3.3445023187596674
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

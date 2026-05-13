@@ -1,0 +1,89 @@
+{
+  "name": "Sawtooth\u00b78  (obj=0.6928)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Sawtooth family discovery via Phase-3 ARS search (objective 0.6928, seed 314).",
+    "category": "Sawtooth",
+    "search": {
+      "family": "sawtooth",
+      "seed": 314,
+      "objective": 0.6928446530830614,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 8,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T07:35:45.718161+00:00"
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "RRLL",
+        "depth": 1.8726492127495997
+      },
+      {
+        "enabled": true,
+        "path": "RLLRR",
+        "depth": 6.3967012294710175
+      },
+      {
+        "enabled": true,
+        "path": "LRRRLR",
+        "depth": 3.812695407115009
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 6.334355164899547
+      },
+      {
+        "enabled": true,
+        "path": "RLL",
+        "depth": 3.158914388449882
+      },
+      {
+        "enabled": true,
+        "path": "LLRRRL",
+        "depth": 5.424181981451867
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}

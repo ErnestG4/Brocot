@@ -1,0 +1,89 @@
+{
+  "name": "Bell (stretched)\u00b74  (obj=0.3569)",
+  "version": "2.0",
+  "provenance": {
+    "kind": "family-search",
+    "author": "ARS Phase 3",
+    "description": "Bell (stretched) family discovery via Phase-3 ARS search (objective 0.3569, seed 319).",
+    "category": "Bell (stretched)",
+    "search": {
+      "family": "bell_beta_1_05",
+      "seed": 319,
+      "objective": 0.35691200982703003,
+      "params": {
+        "n_phase1": 1000,
+        "k_top": 8,
+        "q_max": 16
+      },
+      "timestamp": "2026-05-13T07:38:22.869189+00:00"
+    },
+    "ars_version": "327839afdb80"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      {
+        "enabled": true,
+        "path": "LRRL",
+        "depth": 5.2770403966641
+      },
+      {
+        "enabled": true,
+        "path": "R",
+        "depth": 1.8578311390335271
+      },
+      {
+        "enabled": true,
+        "path": "L",
+        "depth": 3.030401464526829
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": true,
+        "path": "LLRL",
+        "depth": 7.068815576317765
+      },
+      {
+        "enabled": false,
+        "path": "",
+        "depth": 0.0
+      },
+      {
+        "enabled": true,
+        "path": "RLLRLR",
+        "depth": 5.452750990366662
+      },
+      {
+        "enabled": true,
+        "path": "LLRR",
+        "depth": 3.084810147642923
+      }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.85,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.01,
+    "decay": 0.15,
+    "sustain": 0.8,
+    "release": 0.4
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.5
+  }
+}
