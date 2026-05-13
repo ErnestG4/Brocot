@@ -184,6 +184,18 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 else
                     proc.setOpPath (i, op->getProperty ("path").toString());
             }
+            // Reset ops beyond what the preset specifies — important now that
+            // kNumOperators is 16 but factory presets still ship with 8
+            // entries. Without this, loading an 8-op preset after manually
+            // enabling op 15 leaves op 15 still on.
+            for (int i = n; i < params::kNumOperators; ++i)
+            {
+                setParam (apvts, params::opId (i, "enabled"),  0.0f, false);
+                setParam (apvts, params::opId (i, "depth"),    0.0f, false);
+                setParam (apvts, params::opId (i, "position"), 0.0f, false);
+                if (! sharedMode)
+                    proc.setOpPath (i, "");
+            }
         }
     }
 

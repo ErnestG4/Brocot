@@ -17,7 +17,12 @@ namespace brocot
 */
 namespace params
 {
-    inline constexpr int kNumOperators = 8;
+    // Must match BrocotVoice::N_OPS — bumping one without the other will
+    // mismatch the APVTS layout against the voice's operator array.
+    // v1.x candidates: 32 / 64 as a "Brocot High Density" build variant
+    // gated by a CMake option; the audio thread budget can comfortably
+    // accommodate either with sin() per op.
+    inline constexpr int kNumOperators = 16;
 
     inline juce::String opId (int idx, const char* suffix)
     {
