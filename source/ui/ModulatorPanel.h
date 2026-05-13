@@ -47,8 +47,11 @@ private:
     juce::ComboBox targetKindCombo;
     juce::Slider   targetIndexSlider;
 
+    juce::ToggleButton keySyncToggle;
+
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboAttach  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<SliderAttach> rateAttach;
     std::unique_ptr<ComboAttach>  lockKindAttach;
     std::unique_ptr<SliderAttach> lockIdxAttach;
@@ -57,6 +60,7 @@ private:
     std::unique_ptr<SliderAttach> depthAttach;
     std::unique_ptr<ComboAttach>  targetKindAttach;
     std::unique_ptr<SliderAttach> targetIdxAttach;
+    std::unique_ptr<ButtonAttach> keySyncAttach;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ModulatorPanel)
 };

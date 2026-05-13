@@ -86,6 +86,11 @@ ModulatorPanel::ModulatorPanel (BrocotAudioProcessor& processor, int modIndexIn)
     targetIdxAttach = std::make_unique<SliderAttach> (
         apvts, params::modId (modIndex, "targetIndex"), targetIndexSlider);
 
+    addAndMakeVisible (keySyncToggle);
+    keySyncToggle.setButtonText ("key-sync");
+    keySyncAttach = std::make_unique<ButtonAttach> (
+        apvts, params::modId (modIndex, "keySync"), keySyncToggle);
+
     // Reflect lockKind / targetKind in widget visibility immediately + on
     // every 10Hz refresh.
     lockKindCombo.onChange = [this] { updateVisibility(); };
@@ -171,6 +176,10 @@ void ModulatorPanel::resized()
     auto tgtRow = r.removeFromTop (18);
     targetKindCombo.setBounds (tgtRow.removeFromLeft (tgtRow.getWidth() * 5 / 8).reduced (1));
     targetIndexSlider.setBounds (tgtRow.reduced (1));
+
+    // Key-sync toggle on its own short row.
+    r.removeFromTop (2);
+    keySyncToggle.setBounds (r.removeFromTop (16).reduced (1, 0));
 }
 
 } // namespace brocot

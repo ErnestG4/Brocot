@@ -56,6 +56,33 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     setPos (1, 3);
     setPos (2, 5);
 
+    // V2.8: seed mod 0 as a default key-synced amp envelope so the synth
+    // out-of-the-box has note-on-driven amplitude shaping (replacing what
+    // the legacy ADSR used to provide). User can re-route mod 0 freely;
+    // presets will override these defaults via setStateInformation.
+    auto setChoice = [this] (juce::StringRef id, int choiceIdx)
+    {
+        if (auto* p = apvts.getParameter (id))
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                rp->setValueNotifyingHost (
+                    rp->convertTo0to1 ((float) choiceIdx));
+    };
+    auto setFloat = [this] (juce::StringRef id, float v)
+    {
+        if (auto* p = apvts.getParameter (id))
+            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
+                rp->setValueNotifyingHost (rp->convertTo0to1 (v));
+    };
+
+    setChoice (params::modId (0, "shape"),
+               (int) envelope::Shape::ExpDecay);
+    setFloat  (params::modId (0, "kappa"), 6.0f);
+    setFloat  (params::modId (0, "depth"), 1.0f);
+    setChoice (params::modId (0, "targetKind"),
+               (int) params::TargetKind::CarrierAm);
+    setFloat  (params::modId (0, "rate"), 2.0f);  // 2 Hz = ~500ms cycle
+    setBool (params::modId (0, "keySync"), true);
+
     // Register parameter listeners so that path-mode / position changes
     // trigger an off-audio-thread ratio recompute via AsyncUpdater. This
     // keeps the audio thread free of the lock-+-string-allocation cost
@@ -136,11 +163,12 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
     // clip; a more sophisticated voice mixer can come later.
     const float perVoiceLevel = isDuoMode() ? masterLevel * 0.5f : masterLevel;
 
-    AmpEnvelope::Parameters env;
-    if (auto* p = apvts.getRawParameterValue (params::ids::envAttack))  env.attack  = p->load();
-    if (auto* p = apvts.getRawParameterValue (params::ids::envDecay))   env.decay   = p->load();
-    if (auto* p = apvts.getRawParameterValue (params::ids::envSustain)) env.sustain = p->load();
-    if (auto* p = apvts.getRawParameterValue (params::ids::envRelease)) env.release = p->load();
+    // V2.8: the legacy ADSR is now a fixed gate-only envelope — fast attack,
+    // immediate sustain, short release. User-tunable amp shaping happens via
+    // mod-bank entries targeting CarrierAm with key-sync. The env.*
+    // APVTS params stay alive for state compatibility but no longer drive
+    // anything; existing presets load cleanly.
+    const AmpEnvelope::Parameters env { 0.005f, 0.0f, 1.0f, 0.05f };
 
     for (auto& v : voices)
     {
