@@ -127,6 +127,14 @@ private:
     std::array<std::atomic<float>, params::kNumOperators> opRatios {};
     juce::CriticalSection pathsLock;
 
+    // Per-op LUT mapping position 0..32 → ratio. Built on the message
+    // thread whenever sharedPath, an op path, or path mode changes; read
+    // atomically from the audio thread by the OpPosition routing handler.
+    // Trunk source: sharedPath in shared mode, op's own path in free mode.
+    static constexpr int kMaxPosition = 33;
+    std::array<std::array<std::atomic<float>, kMaxPosition>, params::kNumOperators> opPositionRatios {};
+    void rebuildOpPositionLUTs();
+
     // V2 modulator bank. Each mod owns a path string (for lock-target SB
     // ratio) just like ops do; the audio thread reads only the atomic ratio.
     std::array<UniversalModulator, params::kNumModulators> modulators {};

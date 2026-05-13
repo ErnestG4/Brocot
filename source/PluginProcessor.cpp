@@ -84,6 +84,7 @@ void BrocotAudioProcessor::handleAsyncUpdate()
 {
     if (isSharedMode())
         refreshSharedRatios();
+    rebuildOpPositionLUTs();
 }
 
 void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
@@ -96,6 +97,13 @@ void BrocotAudioProcessor::prepareToPlay (double sampleRate, int)
         m.prepare (sampleRate);
     applyParametersToAllVoices();
     applyModulatorParameters();
+
+    // Snap each operator's smoothed ratio to its current target so the
+    // first audio block doesn't ramp from the default 1/1 to the seeded
+    // value (5ms chirp at startup is audible during the first note).
+    for (auto& v : voices)
+        for (int i = 0; i < params::kNumOperators; ++i)
+            v.op (i).snapRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
 }
 
 void BrocotAudioProcessor::releaseResources() {}
@@ -338,8 +346,21 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                     break;
                 }
                 case params::TargetKind::OpPosition:
-                    // Deferred to V2.6 — needs phase-coherent ratio crossfade.
+                {
+                    const int safe = juce::jlimit (0, params::kNumOperators - 1, idx);
+                    int basePos = 0;
+                    if (auto* p = apvts.getRawParameterValue (params::opId (safe, "position")))
+                        basePos = (int) std::round (p->load());
+                    // Full LFO swing = ±8 SB steps. Smoothing inside the
+                    // op's ratio (V2.6 SmoothedValue) hides the per-step jumps.
+                    const int offset = (int) std::round (v * 8.0f);
+                    const int effPos = juce::jlimit (0, kMaxPosition - 1, basePos + offset);
+                    const float newRatio = opPositionRatios[(size_t) safe][(size_t) effPos]
+                                              .load (std::memory_order_acquire);
+                    for (auto& vox : voices)
+                        vox.op (safe).setRatio (newRatio);
                     break;
+                }
                 case params::TargetKind::ModRate:
                 case params::TargetKind::ModDepth:
                     // Cascade — rate cascade already in the resolver; depth
@@ -465,6 +486,7 @@ void BrocotAudioProcessor::setOpPath (int idx, const juce::String& pathString)
         opPaths[(size_t) idx] = pathString;
     }
     opRatios[(size_t) idx].store ((float) p.ratio(), std::memory_order_release);
+    rebuildOpPositionLUTs();
 }
 
 bool BrocotAudioProcessor::isDuoMode() const noexcept
@@ -651,6 +673,43 @@ void BrocotAudioProcessor::refreshSharedRatios()
         }
         opRatios[(size_t) i].store ((float) derived.ratio(),
                                     std::memory_order_release);
+    }
+
+    rebuildOpPositionLUTs();
+}
+
+void BrocotAudioProcessor::rebuildOpPositionLUTs()
+{
+    const bool sharedModeNow = isSharedMode();
+    juce::String sharedSnap;
+    {
+        const juce::ScopedLock lock (pathsLock);
+        sharedSnap = sharedPath;
+    }
+
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        // Trunk = sharedPath (shared mode) or this op's own path (free mode).
+        juce::String trunkStr;
+        if (sharedModeNow)
+        {
+            trunkStr = sharedSnap;
+        }
+        else
+        {
+            const juce::ScopedLock lock (pathsLock);
+            trunkStr = opPaths[(size_t) i];
+        }
+
+        const Path trunk (trunkStr);
+        const int len = trunk.depth();
+        for (int pos = 0; pos < kMaxPosition; ++pos)
+        {
+            const int clamped = juce::jlimit (0, len, pos);
+            const Path derived = trunk.prefix (clamped);
+            opPositionRatios[(size_t) i][(size_t) pos].store (
+                (float) derived.ratio(), std::memory_order_release);
+        }
     }
 }
 

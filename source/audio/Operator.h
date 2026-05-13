@@ -27,12 +27,19 @@ public:
         // slow enough to kill the zipper noise on per-block depth updates.
         smoothedDepth.reset (sampleRate, 0.03);
         smoothedDepth.setCurrentAndTargetValue (0.0f);
+        // Ratio gets faster smoothing — ~5ms — so an LFO sweeping through
+        // SB positions feels stepped but the per-step transition is a quick
+        // chirp rather than a click. Initial value at 1/1.
+        smoothedRatio.reset (sampleRate, 0.005);
+        smoothedRatio.setCurrentAndTargetValue (1.0f);
     }
 
     void reset() noexcept { phase = 0.0f; }
 
-    void setPath (const Path& p) { ratio = (float) p.ratio(); }
-    void setRatio (float r) noexcept { ratio = r; }
+    void setPath (const Path& p) { setRatio ((float) p.ratio()); }
+    void setRatio (float r) noexcept { smoothedRatio.setTargetValue (r); }
+    /** Snap the ratio (skip the smoothing ramp). Used at preset load / init. */
+    void snapRatio (float r) noexcept { smoothedRatio.setCurrentAndTargetValue (r); }
     void setDepth (float depthI) noexcept
     {
         targetDepth = depthI;
@@ -48,7 +55,7 @@ public:
     }
 
     bool  isEnabled() const noexcept { return enabled; }
-    float getRatio()  const noexcept { return ratio; }
+    float getRatio()  const noexcept { return smoothedRatio.getTargetValue(); }
     float getDepth()  const noexcept { return targetDepth; }
 
     /** Returns this operator's contribution to the carrier's instantaneous
@@ -62,10 +69,11 @@ public:
     {
         const float currentDepth =
             std::max (0.0f, smoothedDepth.getNextValue() + depthOffset);
+        const float currentRatio = smoothedRatio.getNextValue();
         if (currentDepth <= 1.0e-5f)
             return 0.0f;
 
-        const float fMod = carrierHz * ratio;
+        const float fMod = carrierHz * currentRatio;
         const float twoPi = 6.2831853071795864769f;
         const float delta = currentDepth * fMod * std::sin (twoPi * phase);
 
@@ -76,11 +84,11 @@ public:
     }
 
 private:
-    float ratio       { 1.0f };  // f_mod / f_carrier
     float phase       { 0.0f };  // normalized [0,1)
     float targetDepth { 0.0f };  // the depth requested by the user / preset
     bool  enabled     { false };
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedDepth;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedRatio;
 };
 
 } // namespace brocot
