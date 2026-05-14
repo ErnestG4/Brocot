@@ -44,17 +44,43 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
     textureLabel.setJustificationType (juce::Justification::centredLeft);
     textureOpLabel.setJustificationType (juce::Justification::centredRight);
 
-    textureOpCount.setRange (4.0, 16.0, 1.0);
+    // P3.12 added op-counts 24/32/48/64 to the textured-smooth bank;
+    // the spinner range was 4..16 before and silently ignored the
+    // new buckets — pressing + on the texture row at op-count > 16
+    // would have looked up a non-existent category and done nothing.
+    textureOpCount.setRange (4.0, 64.0, 1.0);
     textureOpCount.setValue (8.0);
     textureOpCount.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
     textureOpCount.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 28, 22);
-    textureOpCount.setTooltip ("Op count for the Textured-Smooth target (4..16).");
+    textureOpCount.setTooltip ("Op count for the Textured-Smooth target. "
+                                "If the chosen count has no exemplar, the "
+                                "nearest available op-count wins.");
 
     textureMinusBtn.onClick = [this] { onMinus(); };
     texturePlusBtn .onClick = [this]
     {
-        const int n = (int) textureOpCount.getValue();
-        onPlus (juce::String ("Textured-Smooth · ") + juce::String (n) + " ops");
+        const int requested = (int) textureOpCount.getValue();
+
+        // Find the nearest existing Textured-Smooth · N ops category.
+        // The bank doesn't have a preset at every integer (e.g., 17..23
+        // and 25..31 are sparse), so we walk outward from `requested`.
+        const auto& idx = proc.getPullIndex();
+        for (int radius = 0; radius <= 64; ++radius)
+        {
+            for (int sign : { 0, +1, -1 })
+            {
+                if (radius == 0 && sign != 0) continue;
+                const int candidate = requested + sign * radius;
+                if (candidate < 1) continue;
+                const auto name = juce::String ("Textured-Smooth · ")
+                                + juce::String (candidate) + " ops";
+                if (idx.getCategory (name) != nullptr)
+                {
+                    onPlus (name);
+                    return;
+                }
+            }
+        }
     };
     textureMinusBtn.setTooltip ("Pull back toward home.");
     texturePlusBtn .setTooltip ("Nudge toward the Textured-Smooth · N ops shape.");

@@ -93,8 +93,14 @@ def _config_from_preset(doc: dict) -> Config:
 
 
 def _amplitude_vector(cfg: Config, q_max: int) -> np.ndarray:
-    """Predict spectrum, project onto q_max-bin integer grid, L1-normalise."""
-    sp = cfg.predict(threshold_db=-50.0, eps=1e-3)
+    """Predict spectrum, project onto q_max-bin integer grid, L1-normalise.
+
+    Predict params are intentionally tight: with kNumOperators at 64
+    (P3.12), the full -50 dB / 1e-3 / no-cap default takes seconds per
+    64-op-deep preset, and the runtime only needs amplitude *shape*
+    for L1 comparisons. -30 dB / 5e-3 / 500-partial cap gets us to
+    ~20 ms/eval at 64 ops with the same relative ranking."""
+    sp = cfg.predict(threshold_db=-30.0, eps=5e-3, max_partials=500)
     amps = quantize_to_integer_grid(sp, cfg.f_carrier, q_max)
     s = float(amps.sum())
     if s > 0:

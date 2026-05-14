@@ -96,6 +96,20 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     // notice via PullIndex::isEmpty() and hide its controls.
     if (auto idxFile = PullIndex::findIndexFile(); idxFile.existsAsFile())
         pullIndex.load (idxFile);
+
+    // P3.12: default initial patch is the absolute-best 64-op
+    // textured-smooth carpet — obj 0.334, H≈7.81, ~4370 partials —
+    // discovered by the overnight P3.12 search. Loading here makes
+    // it the synth's startup state; the host's setStateInformation
+    // call (if any) overrides it afterwards as usual, so saved DAW
+    // sessions are unaffected.
+    {
+        auto factoryDir = presetManager.getFactoryDirectory();
+        auto defaultPreset = factoryDir.getChildFile (
+            "curated/textured_smooth_64op_top1.brocot");
+        if (defaultPreset.existsAsFile())
+            presetManager.load (defaultPreset);
+    }
 }
 
 BrocotAudioProcessor::~BrocotAudioProcessor()
