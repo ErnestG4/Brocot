@@ -134,7 +134,10 @@ TEST_CASE ("All factory .brocot files are v2 with provenance", "[Preset]")
         REQUIRE (engine != nullptr);
         REQUIRE (engine->getProperty ("operators").isArray());
         const auto* ops = engine->getProperty ("operators").getArray();
-        REQUIRE (ops->size() == 8);
+        // Hand-authored / P3.6 / P3.7 ship 8 ops; P3.8+ ship 16. The
+        // loader pads either form to kNumOperators (16) — both shapes
+        // are valid on disk.
+        REQUIRE ((ops->size() == 8 || ops->size() == 16));
     }
 }
 

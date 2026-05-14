@@ -72,6 +72,7 @@ target_sources(Brocot PRIVATE
     source/ui/AboutDialog.cpp
     source/presets/PresetManager.cpp
     source/presets/PresetSchema.cpp
+    source/pull/PullIndex.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -145,6 +146,7 @@ if(BROCOT_BUILD_TESTS)
         tests/BesselTests.cpp
         tests/DepthRatioTests.cpp
         tests/PresetRoundtripTests.cpp
+        tests/PullIndexTests.cpp
         tests/UniversalModulatorTests.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp
