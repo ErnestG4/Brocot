@@ -20,10 +20,14 @@ FilterPanel::FilterPanel (BrocotAudioProcessor& p)
     for (auto* s : { &cutoff, &resonance })
     {
         addAndMakeVisible (*s);
-        s->setColour (juce::Slider::trackColourId, colors::accent);
-        s->setColour (juce::Slider::backgroundColourId,
-                      colors::primaryText.withAlpha (0.10f));
-        s->setSliderSnapsToMousePosition (false);
+        s->setColour (juce::Slider::rotarySliderFillColourId,    colors::accent);
+        s->setColour (juce::Slider::rotarySliderOutlineColourId,
+                      colors::primaryText.withAlpha (0.20f));
+        s->setColour (juce::Slider::thumbColourId,               colors::accent);
+        s->setColour (juce::Slider::textBoxTextColourId,         colors::primaryText);
+        s->setColour (juce::Slider::textBoxOutlineColourId,      juce::Colours::transparentBlack);
+        s->setNumDecimalPlacesToDisplay (2);
+        s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 14);
     }
     cutoff   .setTooltip ("Cutoff frequency (0 = 20 Hz, 1 = ~Nyquist).");
     resonance.setTooltip ("Resonance / Q (0..1).");
@@ -61,9 +65,8 @@ void FilterPanel::resized()
     typeCombo.setBounds (bounds.removeFromTop (28));
     bounds.removeFromTop (8);
 
-    // Bottom: two vertical sliders + their labels
-    auto labelRow = bounds.removeFromBottom (18);
-    bounds.removeFromBottom (4);
+    auto labelRow = bounds.removeFromTop (16);
+    bounds.removeFromTop (2);
 
     juce::Slider* sliders[] { &cutoff, &resonance };
     juce::Label*  labels[]  { &cutoffLabel, &resonanceLabel };
@@ -74,14 +77,11 @@ void FilterPanel::resized()
     int x = bounds.getX();
     for (int i = 0; i < n; ++i)
     {
-        sliders[i]->setBounds (x, bounds.getY(), w, bounds.getHeight());
         labels[i] ->setBounds (x, labelRow.getY(), w, labelRow.getHeight());
+        sliders[i]->setBounds (x, bounds.getY(), w, bounds.getHeight());
         x += w + gap;
     }
 
-    // Move the type-row label to a separate row above the combo
-    // (drawing it here would require re-jiggering the layout). Keep
-    // it lined up with the slider row.
     typeLabel.setBounds (0, 0, 0, 0);   // unused; combo's own text suffices
 }
 

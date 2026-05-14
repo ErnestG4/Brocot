@@ -13,16 +13,20 @@ EnvelopePanel::EnvelopePanel (BrocotAudioProcessor& p)
     for (auto* s : { &attack, &decay, &sustain, &release })
     {
         addAndMakeVisible (*s);
-        s->setColour (juce::Slider::trackColourId, colors::accent);
-        s->setColour (juce::Slider::backgroundColourId,
-                      colors::primaryText.withAlpha (0.10f));
-        s->setSliderSnapsToMousePosition (false);
+        s->setColour (juce::Slider::rotarySliderFillColourId,    colors::accent);
+        s->setColour (juce::Slider::rotarySliderOutlineColourId,
+                      colors::primaryText.withAlpha (0.20f));
+        s->setColour (juce::Slider::thumbColourId,               colors::accent);
+        s->setColour (juce::Slider::textBoxTextColourId,         colors::primaryText);
+        s->setColour (juce::Slider::textBoxOutlineColourId,      juce::Colours::transparentBlack);
+        s->setNumDecimalPlacesToDisplay (2);
+        s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 14);
     }
 
-    attack .setTooltip ("Attack time");
-    decay  .setTooltip ("Decay time");
+    attack .setTooltip ("Attack time (s)");
+    decay  .setTooltip ("Decay time (s)");
     sustain.setTooltip ("Sustain level (0-1)");
-    release.setTooltip ("Release time");
+    release.setTooltip ("Release time (s)");
 
     for (auto* l : { &aLabel, &dLabel, &sLabel, &rLabel })
     {
@@ -54,8 +58,8 @@ void EnvelopePanel::resized()
     auto bounds = getLocalBounds().reduced (10, 6);
     bounds.removeFromTop (24);   // header
 
-    auto labelRow = bounds.removeFromBottom (18);
-    bounds.removeFromBottom (4);
+    auto labelRow = bounds.removeFromTop (16);
+    bounds.removeFromTop (2);
 
     juce::Slider* sliders[] { &attack, &decay, &sustain, &release };
     juce::Label*  labels[]  { &aLabel, &dLabel, &sLabel, &rLabel };
@@ -66,8 +70,8 @@ void EnvelopePanel::resized()
     int x = bounds.getX();
     for (int i = 0; i < n; ++i)
     {
+        labels[i]->setBounds (x, labelRow.getY(), w, labelRow.getHeight());
         sliders[i]->setBounds (x, bounds.getY(), w, bounds.getHeight());
-        labels[i] ->setBounds (x, labelRow.getY(), w, labelRow.getHeight());
         x += w + gap;
     }
 }

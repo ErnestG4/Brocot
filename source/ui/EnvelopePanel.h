@@ -26,10 +26,10 @@ private:
 
     BrocotAudioProcessor& proc;
 
-    juce::Slider attack    { juce::Slider::LinearBarVertical, juce::Slider::NoTextBox };
-    juce::Slider decay     { juce::Slider::LinearBarVertical, juce::Slider::NoTextBox };
-    juce::Slider sustain   { juce::Slider::LinearBarVertical, juce::Slider::NoTextBox };
-    juce::Slider release   { juce::Slider::LinearBarVertical, juce::Slider::NoTextBox };
+    juce::Slider attack    { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    juce::Slider decay     { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    juce::Slider sustain   { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    juce::Slider release   { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
 
     juce::Label aLabel { {}, "A" };
     juce::Label dLabel { {}, "D" };

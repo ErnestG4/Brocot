@@ -34,6 +34,18 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     resetButton.onClick = [this] { onReset(); };
 
+    // Re-anchor whenever the user picks a different shape target: the
+    // slider's α=0 should mean "where I was when I picked this
+    // category", α=1 should mean "the category's best exemplar". If
+    // we didn't re-anchor here, switching categories would morph from
+    // the *previous* category's morph result.
+    categoryCombo.onChange = [this]
+    {
+        captured = proc.getCurrentOps();
+        capturedValid = ! captured.empty();
+        alphaSlider.setValue (0.0, juce::dontSendNotification);
+    };
+
     rebuildCategoryList();
 }
 
@@ -70,8 +82,18 @@ void SteerTab::rebuildCategoryList()
 
 void SteerTab::onSliderStart()
 {
-    captured = proc.getCurrentOps();
-    capturedValid = ! captured.empty();
+    // First-touch fallback: if we never captured (e.g., user dragged
+    // the slider before changing categories), snapshot the current
+    // state now. After the first capture, we leave it alone — the
+    // category combo's onChange is the canonical re-anchor point so
+    // dragging the slider back to α=0 restores the exact pre-shape
+    // state for *this* category, no matter how many times the user
+    // drags within the session.
+    if (! capturedValid)
+    {
+        captured = proc.getCurrentOps();
+        capturedValid = ! captured.empty();
+    }
 }
 
 void SteerTab::onSliderChange()
@@ -82,10 +104,11 @@ void SteerTab::onSliderChange()
 
 void SteerTab::onSliderEnd()
 {
-    // Slider released — lock the current morphed state in. The *next*
-    // grab will capture this state as the new starting point. We don't
-    // need to do anything explicit here; the state already lives in
-    // APVTS via applyOps().
+    // Intentionally a no-op. We don't update the captured state on
+    // release — it stays anchored at "what was loaded / what the
+    // category-change just snapshotted". Dragging the slider back to
+    // 0 should always undo the shape cleanly. Picking a new category
+    // is the explicit re-anchor moment.
 }
 
 void SteerTab::onReset()
@@ -93,6 +116,8 @@ void SteerTab::onReset()
     if (! capturedValid) return;
     proc.applyOps (captured);
     alphaSlider.setValue (0.0, juce::dontSendNotification);
+    // Reset is also a re-anchor: from now on α=0 means *this* state.
+    captured = proc.getCurrentOps();
 }
 
 void SteerTab::applyMorph (float alpha)
