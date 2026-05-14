@@ -76,11 +76,19 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
                                 + juce::String (candidate) + " ops";
                 if (idx.getCategory (name) != nullptr)
                 {
+                    hintLabel.setText (juce::String ("→ ") + name,
+                                       juce::dontSendNotification);
                     onPlus (name);
                     return;
                 }
             }
         }
+        // No category matched (the lookup walked the entire 1..64 range
+        // without finding any Textured-Smooth target). Surface that —
+        // silent failure is the bug we're chasing.
+        hintLabel.setText ("Textured-Smooth: no category found near "
+                            + juce::String (requested) + " ops",
+                            juce::dontSendNotification);
     };
     textureMinusBtn.setTooltip ("Pull back toward home.");
     texturePlusBtn .setTooltip ("Nudge toward the Textured-Smooth · N ops shape.");
@@ -144,11 +152,19 @@ void SteerTab::anchorHome()
 void SteerTab::onPlus (const juce::String& category)
 {
     const auto* targetOps = proc.getPullIndex().getBestOps (category);
-    if (targetOps == nullptr) return;
+    if (targetOps == nullptr)
+    {
+        hintLabel.setText ("no best-ops for '" + category + "'",
+                           juce::dontSendNotification);
+        return;
+    }
 
     auto cur = proc.getCurrentOps();
     auto nudged = PullIndex::morph (cur, *targetOps, kNudgeStep);
     proc.applyOps (nudged);
+    hintLabel.setText ("→ " + category + "  (target slots: "
+                        + juce::String ((int) targetOps->size()) + ")",
+                        juce::dontSendNotification);
 }
 
 void SteerTab::onMinus()
@@ -159,6 +175,7 @@ void SteerTab::onMinus()
     auto cur = proc.getCurrentOps();
     auto nudged = PullIndex::morph (cur, captured, kNudgeStep);
     proc.applyOps (nudged);
+    hintLabel.setText ("← back toward home", juce::dontSendNotification);
 }
 
 void SteerTab::onReset()

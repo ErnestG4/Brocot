@@ -364,6 +364,36 @@ TEST_CASE ("PullIndex::morph: output length is max(current, target) — pads sho
     REQUIRE (! out[4].enabled);
 }
 
+TEST_CASE ("PullIndex::morph: 64-current → 8-target audibly thins the carpet")
+{
+    // The bug Will hit on the steer tab's Textured-Smooth row: the
+    // default 64-op carpet pulled toward a Textured-Smooth · 8 ops
+    // target only morphed the first 8 slots — slots 8..63 stayed loud
+    // at their original depths because morph iterated min(cur, tgt).
+    // After P3.12(c) the iteration is max(cur, tgt) with implicit-off
+    // padding. This test enforces that *most* of the 64 slots see a
+    // depth drop after a single click, not just the first 8.
+    using OpState = brocot::PullIndex::OpState;
+
+    std::vector<OpState> cur;
+    for (int i = 0; i < 64; ++i)
+        cur.push_back ({ "R", 0.35f, true });   // every slot enabled at depth 0.35
+
+    std::vector<OpState> tgt;
+    for (int i = 0; i < 8; ++i)
+        tgt.push_back ({ "L", 0.35f, true });
+
+    auto nudged = brocot::PullIndex::morph (cur, tgt, 0.15f);
+    REQUIRE (nudged.size() == 64);
+
+    // Slots 8..63 should have lower depth than cur (target says off
+    // → depth lerps toward 0).
+    int dropped = 0;
+    for (size_t i = 8; i < nudged.size(); ++i)
+        if (nudged[i].depth < 0.35f - 1e-4f) ++dropped;
+    REQUIRE (dropped >= 50);   // most of the 56 trailing slots fade
+}
+
 TEST_CASE ("PullIndex::morph: extra target slots beyond current fade IN from silence")
 {
     using OpState = brocot::PullIndex::OpState;
