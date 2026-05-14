@@ -55,7 +55,7 @@ from phase3.family_distance import composite_objective, family_distance
 
 def sample_random_config(
     rng: np.random.Generator,
-    n_mods: int = 16,
+    n_mods: int = 64,
     min_enabled: int = 4,
     max_enabled: int | None = 8,
     max_path_depth: int = 16,

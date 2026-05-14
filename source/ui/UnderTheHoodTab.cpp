@@ -20,19 +20,18 @@ UnderTheHoodTab::UnderTheHoodTab (BrocotAudioProcessor& p)
 
 void UnderTheHoodTab::resized()
 {
-    // Split the tab area in half — operator bank on top, modulator
-    // bank on the bottom. Both use the same 8×2 grid + 4-px gap so the
-    // two strips align vertically and feel like one continuous surface.
+    // P3.12: ops are 64 now → 16×4 grid. LFO bank stays 8×2. Op area
+    // gets 2/3 of the tab to keep panel cells from getting too short.
     auto bounds = getLocalBounds().reduced (16, 8);
 
-    // Reserve the bottom half for the LFO bank.
-    auto opArea  = bounds.removeFromTop (bounds.getHeight() / 2);
+    auto opArea  = bounds.removeFromTop ((bounds.getHeight() * 2) / 3);
     bounds.removeFromTop (8);   // separator
     auto lfoArea = bounds;
 
-    auto layoutGrid = [] (juce::Rectangle<int> area, int n, auto& panels)
+    auto layoutGrid = [] (juce::Rectangle<int> area, int n,
+                          int cols, int rows, auto& panels)
     {
-        const int cols = 8, rows = 2, gap = 4;
+        const int gap = 4;
         const int cellW = (area.getWidth()  - gap * (cols - 1)) / cols;
         const int cellH = (area.getHeight() - gap * (rows - 1)) / rows;
         for (int i = 0; i < n; ++i)
@@ -46,8 +45,8 @@ void UnderTheHoodTab::resized()
         }
     };
 
-    layoutGrid (opArea,  params::kNumOperators,  operatorPanels);
-    layoutGrid (lfoArea, params::kNumModulators, modulatorPanels);
+    layoutGrid (opArea,  params::kNumOperators,  /*cols*/ 16, /*rows*/ 4, operatorPanels);
+    layoutGrid (lfoArea, params::kNumModulators, /*cols*/  8, /*rows*/ 2, modulatorPanels);
 }
 
 } // namespace brocot

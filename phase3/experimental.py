@@ -107,11 +107,18 @@ def textured_smooth_objective(
     lambda_crit: float = 0.2,
     threshold_db: float = -50.0,
     eps: float = 1e-3,
+    max_partials: int | None = None,
 ) -> TexturedSmoothBreakdown:
     """Lower is better. The criticality term is on by default at a
     modest weight — we want texture *and* a little life, not a dead
-    smooth carpet."""
-    sp = cfg.predict(threshold_db=threshold_db, eps=eps)
+    smooth carpet.
+
+    `max_partials` caps the recursive expansion in `predict_partials`
+    — important at high op counts (P3.12: 64-op + low-depth searches
+    benefit from cap=200 + threshold_db=-30 + eps=5e-3 to keep
+    per-eval time bounded at ~20 ms instead of seconds)."""
+    sp = cfg.predict(threshold_db=threshold_db, eps=eps,
+                     max_partials=max_partials)
     amps = sp.amps if hasattr(sp, "amps") else np.array([])
 
     H = spectral_entropy(amps)
@@ -184,7 +191,7 @@ def sample_exact_op_count(
     rng: np.random.Generator,
     n_enabled: int,
     *,
-    n_mods: int = 16,
+    n_mods: int = 64,
     max_path_depth: int = 6,
     landmark_bias: float = 0.0,        # landmarks at depth ~2-7; not in [0.04, 0.7]
     depth_range: tuple[float, float] = (MIN_DEPTH, 0.7),
@@ -309,6 +316,9 @@ def search_exact_op_count(
     lambda_sparsity: float = 2.0,
     lambda_crit: float = 0.2,
     f_carrier: float = 220.0,
+    predict_threshold_db: float = -50.0,
+    predict_eps: float = 1e-3,
+    predict_max_partials: int | None = None,
 ) -> list[ExperimentalResult]:
     """Two-phase search at a strict op-count. Returns deduped top-K
     refined results sorted by objective (lowest first)."""
@@ -320,6 +330,9 @@ def search_exact_op_count(
             lambda_peak=lambda_peak,
             lambda_sparsity=lambda_sparsity,
             lambda_crit=lambda_crit,
+            threshold_db=predict_threshold_db,
+            eps=predict_eps,
+            max_partials=predict_max_partials,
         )
 
     def obj_scalar(cfg: Config) -> float:
@@ -333,6 +346,9 @@ def search_exact_op_count(
             lambda_peak=lambda_peak,
             lambda_sparsity=lambda_sparsity,
             lambda_crit=0.0,  # skip criticality in Phase 1
+            threshold_db=predict_threshold_db,
+            eps=predict_eps,
+            max_partials=predict_max_partials,
         ).obj
 
     phase1: list[tuple[Config, float]] = []
@@ -442,14 +458,20 @@ def write_results(
     results: list[ExperimentalResult],
     output_dir: Path,
     op_count: int,
+    max_depth: float | None = None,
 ) -> list[Path]:
+    """Write results into `<output_dir>/<N>_op/`. The optional `max_depth`
+    suffix on the file stem disambiguates parallel runs at the same op
+    count but different depth caps (P3.12: 64-op × {0.3, 0.5} both land
+    here without filename collisions)."""
     sub = output_dir / f"{op_count}_op"
     sub.mkdir(parents=True, exist_ok=True)
+    depth_tag = "" if max_depth is None else f"_d{int(round(max_depth * 100)):03d}"
     paths: list[Path] = []
     for i, r in enumerate(results):
         name = (f"Textured·{op_count}op·{i+1:02d}  "
                 f"(H={r.breakdown.entropy:.2f}, n={r.breakdown.n_partials})")
-        stem = f"textured_smooth_{op_count}op_{i+1:02d}"
+        stem = f"textured_smooth_{op_count}op{depth_tag}_{i+1:02d}"
         path = sub / f"{stem}.brocot"
         doc = _result_to_brocot(r, name)
         path.write_text(json.dumps(doc, indent=2) + "\n")
@@ -474,6 +496,9 @@ def _run_one_op_count(
     lambda_peak: float,
     lambda_sparsity: float,
     lambda_crit: float,
+    predict_threshold_db: float = -50.0,
+    predict_eps: float = 1e-3,
+    predict_max_partials: int | None = None,
 ) -> tuple[int, int, float]:
     t0 = time.time()
     results = search_exact_op_count(
@@ -487,9 +512,12 @@ def _run_one_op_count(
         lambda_peak=lambda_peak,
         lambda_sparsity=lambda_sparsity,
         lambda_crit=lambda_crit,
+        predict_threshold_db=predict_threshold_db,
+        predict_eps=predict_eps,
+        predict_max_partials=predict_max_partials,
     )
     results = results[:presets_per_count]
-    paths = write_results(results, output_dir, op_count)
+    paths = write_results(results, output_dir, op_count, max_depth=max_depth)
     elapsed = time.time() - t0
     objs = [r.objective for r in results]
     print(f"  [{op_count}-op] {len(paths)} presets in {elapsed:.1f}s "
@@ -514,6 +542,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--lambda-peak", type=float, default=1.0)
     parser.add_argument("--lambda-sparsity", type=float, default=2.0)
     parser.add_argument("--lambda-crit", type=float, default=0.2)
+    parser.add_argument("--predict-threshold-db", type=float, default=-50.0,
+                        help="dB floor for partial-prediction (looser at high op counts; "
+                             "P3.12 uses -30 for 64-op).")
+    parser.add_argument("--predict-eps", type=float, default=1e-3,
+                        help="Per-modulator order-bound tolerance (looser at high op "
+                             "counts; P3.12 uses 5e-3 for 64-op).")
+    parser.add_argument("--predict-max-partials", type=int, default=0,
+                        help="Cap on the recursive expansion's emitted partials. "
+                             "0 = no cap (default for ≤16 ops); P3.12 uses 200 for 64-op.")
     parser.add_argument("--jobs", type=int, default=1,
                         help="Run this many op-counts in parallel.")
     args = parser.parse_args(argv)
@@ -521,10 +558,14 @@ def main(argv: list[str] | None = None) -> int:
     op_counts = [int(x) for x in args.op_counts.split(",") if x.strip()]
     args.output.mkdir(parents=True, exist_ok=True)
 
+    predict_cap = args.predict_max_partials if args.predict_max_partials > 0 else None
+
     print(f"Experimental textured-smooth search.")
     print(f"  op-counts={op_counts}  presets-per-count={args.presets_per_count}")
     print(f"  max_depth={args.max_depth}  λ_peak={args.lambda_peak}  "
           f"λ_sparsity={args.lambda_sparsity}  λ_crit={args.lambda_crit}")
+    print(f"  predict: threshold_db={args.predict_threshold_db}  "
+          f"eps={args.predict_eps}  max_partials={predict_cap}")
     print(f"  output: {args.output.resolve()}\n")
 
     t0 = time.time()
@@ -542,6 +583,9 @@ def main(argv: list[str] | None = None) -> int:
                 lambda_peak=args.lambda_peak,
                 lambda_sparsity=args.lambda_sparsity,
                 lambda_crit=args.lambda_crit,
+                predict_threshold_db=args.predict_threshold_db,
+                predict_eps=args.predict_eps,
+                predict_max_partials=predict_cap,
             )
     else:
         ctx = mp.get_context("fork")

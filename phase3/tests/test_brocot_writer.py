@@ -5,7 +5,7 @@ Verifies the output matches what PresetSchema.cpp expects to find:
   the top level
 - provenance.kind = "family-search" with a search lineage sub-object
 - engine.operators is a length-N array of {enabled, path, depth}
-  (N = kNumOperators = 16 after P3.9)
+  (N = kNumOperators = 64 after P3.12)
 - pathMode is "free"
 """
 
@@ -32,13 +32,13 @@ from phase3.search import SearchResult
 
 def _make_result(family: str = "sawtooth", seed: int = 42,
                  objective: float = 0.123) -> SearchResult:
-    # 16 mod slots (P3.9 bumped kNumOperators from 8 to 16); 3 enabled,
-    # 13 disabled — exercises the writer's pad-disabled-tail behaviour.
+    # 64 mod slots (P3.12 bumped kNumOperators from 16 to 64); 3 enabled,
+    # 61 disabled — exercises the writer's pad-disabled-tail behaviour.
     mods = [
         ModConfig(path="R",     depth=1.841, enabled=True),
         ModConfig(path="RLL",   depth=0.86,  enabled=True),
         ModConfig(path="RLLLR", depth=0.90,  enabled=True),
-    ] + [ModConfig(path="", depth=0.0, enabled=False) for _ in range(13)]
+    ] + [ModConfig(path="", depth=0.0, enabled=False) for _ in range(61)]
     cfg = Config(mods=mods, f_carrier=220.0)
     return SearchResult(
         config=cfg, objective=objective, family=family,
@@ -100,7 +100,7 @@ def test_provenance_block_shape():
     assert "timestamp" in s
 
 
-def test_engine_block_is_free_mode_with_16_operators():
+def test_engine_block_is_free_mode_with_n_operators():
     result = _make_result()
     doc = result_to_brocot_json(result)
 
@@ -111,7 +111,7 @@ def test_engine_block_is_free_mode_with_16_operators():
 
     ops = eng["operators"]
     assert isinstance(ops, list)
-    assert len(ops) == 16
+    assert len(ops) == 64
 
     # First three from the make_result fixture should match.
     assert ops[0] == {"enabled": True, "path": "R",     "depth": 1.841}
@@ -215,4 +215,4 @@ def test_matches_v2_factory_preset_shape(tmp_path: Path):
     # Provenance always carries `kind` (loader's discriminator).
     assert "kind" in parsed["provenance"]
     # Engine always has 8 operators.
-    assert len(parsed["engine"]["operators"]) == 16
+    assert len(parsed["engine"]["operators"]) == 64

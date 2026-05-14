@@ -26,7 +26,7 @@ namespace brocot
 class BrocotVoice
 {
 public:
-    static constexpr int N_OPS = 16;  // must match params::kNumOperators
+    static constexpr int N_OPS = 64;  // must match params::kNumOperators (P3.12)
     static constexpr int kNoActiveNote = -1;
 
     void prepare (double sampleRate);

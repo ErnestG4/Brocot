@@ -20,11 +20,16 @@ namespace params
     // Must match BrocotVoice::N_OPS — bumping one without the other will
     // mismatch the APVTS layout against the voice's operator array.
     // V2.1 reduced this from v1's 16 to free panel space for the LFO bank;
-    // P3.9 bumped it back to 16 after the textured-smooth experiments
-    // showed the J₀-dominant carpets benefit from more parallel ops (each
-    // adds ~30-50 partials at depth ≤ 0.7). Total surface is now 16 ops
-    // + 16 LFOs = 32 panels; both rendered as 8×2 grids stacked vertically.
-    inline constexpr int kNumOperators = 16;
+    // P3.9 bumped it back to 16; P3.12 pushed it to 64 for Will's
+    // high-density carpet experiment ("64 oscillators bound at .5 or
+    // lower — impossible to traverse without our tooling, with our
+    // tooling it's the push of a button"). At depth ≤ 0.5 every op
+    // sits in the J₀-dominant regime; 64 such clusters at distinct SB
+    // ratios overlap into a maximally smooth additive-like carpet.
+    // Under-the-hood layout: ops grid expands to 16×4 (LFO bank stays
+    // 8×2). Audio cost scales linearly with enabled op count and stays
+    // comfortable on the 5900x.
+    inline constexpr int kNumOperators = 64;
 
     inline juce::String opId (int idx, const char* suffix)
     {
