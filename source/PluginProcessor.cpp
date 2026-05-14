@@ -169,12 +169,17 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
     // clip; a more sophisticated voice mixer can come later.
     const float perVoiceLevel = isDuoMode() ? masterLevel * 0.5f : masterLevel;
 
-    // V2.8: the legacy ADSR is now a fixed gate-only envelope — fast attack,
-    // immediate sustain, short release. User-tunable amp shaping happens via
-    // mod-bank entries targeting CarrierAm with key-sync. The env.*
-    // APVTS params stay alive for state compatibility but no longer drive
-    // anything; existing presets load cleanly.
-    const AmpEnvelope::Parameters env { 0.005f, 0.0f, 1.0f, 0.05f };
+    // P3.10e re-wired the global ADSR: env.* APVTS params drive the
+    // voice's amp envelope again. The steer-tab EnvelopePanel binds to
+    // these. (V2.8 had pinned this to a fixed gate; per-preset
+    // expressive shaping moves back to ADSR while mod-bank CarrierAm
+    // remains available for more exotic per-note envelopes.)
+    const AmpEnvelope::Parameters env {
+        apvts.getRawParameterValue (params::ids::envAttack) ->load(),
+        apvts.getRawParameterValue (params::ids::envDecay)  ->load(),
+        apvts.getRawParameterValue (params::ids::envSustain)->load(),
+        apvts.getRawParameterValue (params::ids::envRelease)->load(),
+    };
 
     for (auto& v : voices)
     {

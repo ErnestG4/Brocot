@@ -3,6 +3,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../PluginProcessor.h"
+#include "EnvelopePanel.h"
+#include "FilterPanel.h"
+#include "ModulatorPanel.h"
 
 namespace brocot
 {
@@ -44,6 +47,15 @@ private:
 
     juce::TextButton resetButton { "Reset" };
     juce::Label hintLabel;
+
+    // Sub-panels surfaced on the steer page: global envelope, filter,
+    // and two promoted modulators. Will's "a synth you can steer"
+    // surface — the most common shape controls live here; the full
+    // bank stays under-the-hood.
+    EnvelopePanel envelopePanel { proc };
+    FilterPanel   filterPanel   { proc };
+    ModulatorPanel mod0Panel    { proc, 0 };
+    ModulatorPanel mod1Panel    { proc, 1 };
 
     // The patch state captured the moment the user grabs the alpha
     // slider — morph() interpolates between this and the target.

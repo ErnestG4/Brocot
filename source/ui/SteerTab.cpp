@@ -15,6 +15,10 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
     addAndMakeVisible (alphaSlider);
     addAndMakeVisible (resetButton);
     addAndMakeVisible (hintLabel);
+    addAndMakeVisible (envelopePanel);
+    addAndMakeVisible (filterPanel);
+    addAndMakeVisible (mod0Panel);
+    addAndMakeVisible (mod1Panel);
 
     categoryLabel.setJustificationType (juce::Justification::centredLeft);
     alphaLabel   .setJustificationType (juce::Justification::centredLeft);
@@ -124,25 +128,34 @@ void SteerTab::resized()
     bounds.removeFromTop (54);   // header
     bounds.removeFromTop (12);
 
-    // Row 1: category combo
-    auto catRow = bounds.removeFromTop (40);
-    categoryLabel.setBounds (catRow.removeFromLeft (130));
-    catRow.removeFromLeft (8);
-    categoryCombo.setBounds (catRow.removeFromLeft (320).reduced (0, 6));
+    // Row 1: category combo + alpha slider on the same line — saves
+    // vertical real estate so the four panels below have room.
+    auto controlRow = bounds.removeFromTop (40);
+    categoryLabel.setBounds (controlRow.removeFromLeft (130));
+    controlRow.removeFromLeft (8);
+    categoryCombo.setBounds (controlRow.removeFromLeft (240).reduced (0, 6));
+    controlRow.removeFromLeft (16);
 
-    bounds.removeFromTop (12);
+    resetButton.setBounds (controlRow.removeFromRight (80).reduced (0, 6));
+    controlRow.removeFromRight (8);
+    alphaLabel.setBounds (controlRow.removeFromLeft (70));
+    alphaSlider.setBounds (controlRow.reduced (0, 6));
 
-    // Row 2: alpha slider + reset
-    auto sliderRow = bounds.removeFromTop (44);
-    alphaLabel.setBounds (sliderRow.removeFromLeft (130));
-    sliderRow.removeFromLeft (8);
-    resetButton.setBounds (sliderRow.removeFromRight (80).reduced (0, 6));
-    sliderRow.removeFromRight (8);
-    alphaSlider.setBounds (sliderRow.reduced (0, 6));
+    bounds.removeFromTop (8);
+    hintLabel.setBounds (bounds.removeFromTop (32));
+    bounds.removeFromTop (8);
 
-    bounds.removeFromTop (16);
-
-    hintLabel.setBounds (bounds.removeFromTop (60));
+    // Four-panel row: envelope | filter | mod 0 | mod 1
+    auto panelRow = bounds;
+    const int cols = 4, gap = 8;
+    const int w    = (panelRow.getWidth() - gap * (cols - 1)) / cols;
+    int x = panelRow.getX();
+    juce::Component* panels[] { &envelopePanel, &filterPanel, &mod0Panel, &mod1Panel };
+    for (auto* p : panels)
+    {
+        p->setBounds (x, panelRow.getY(), w, panelRow.getHeight());
+        x += w + gap;
+    }
 }
 
 } // namespace brocot
