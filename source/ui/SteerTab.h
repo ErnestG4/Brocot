@@ -11,21 +11,31 @@ namespace brocot
 {
 
 /**
-    The "Steer" tab of the v2 editor — Will's "a synth you can steer"
-    surface. Picks a category from the precomputed pull index, captures
-    the operator state when the user grabs the morph slider, and
-    continuously interpolates the live state toward the category's
-    lowest-objective exemplar as α goes 0 → 1.
+    The "Steer" tab — left column is the shape-target button list
+    (13 rows: 12 families + 1 Textured-Smooth with op-count spinner);
+    right column is the live patch surface (env + filter + the first
+    two modulators stacked).
 
-    α is a one-shot ramp from "where I was when I grabbed the slider"
-    to "the target". Releasing the slider locks the morphed state in;
-    the next slider grab captures THAT as the new starting point. A
-    Reset button restores the most-recent capture so users can undo a
-    half-finished morph cleanly.
+    Each row has a − and a + button.
 
-    Hidden completely if `processor.getPullIndex().isEmpty()` — the
-    runtime is then missing the table the buttons would call into. The
-    onscreen message tells the user how to (re)generate it.
+    +  nudges the current patch toward the row's category by one
+       NUDGE_STEP (0.15). Press repeatedly to traverse further.
+    −  nudges the current patch back toward the captured "home"
+       state by one NUDGE_STEP. All − buttons share this semantic —
+       Will's mental model is "+ = more of this; − = less of what
+       I just did", not a per-category anti-target.
+
+    The Textured-Smooth row's op-count spinner (4..16) picks which
+    Textured-Smooth · N ops category + maps to, so the dense-carpet
+    dimension stays one collapsible slot in the list.
+
+    Reset:  applies captured (back to home), then re-anchors home
+            to that state so the next ± round starts fresh.
+
+    Captured ("home") is set on tab construction (or on preset load
+    via parameterChanged in the future). The user's morph trajectory
+    is therefore predictable: − always undoes back to a known good
+    state.
 */
 class SteerTab : public juce::Component
 {
@@ -38,36 +48,44 @@ public:
 private:
     BrocotAudioProcessor& proc;
 
-    juce::Label   categoryLabel { {}, "Shape toward" };
-    juce::ComboBox categoryCombo;
+    // Right column panels.
+    EnvelopePanel  envelopePanel { proc };
+    FilterPanel    filterPanel   { proc };
+    ModulatorPanel mod0Panel     { proc, 0 };
+    ModulatorPanel mod1Panel     { proc, 1 };
 
-    juce::Label  alphaLabel { {}, "amount" };
-    juce::Slider alphaSlider { juce::Slider::LinearHorizontal,
-                                juce::Slider::TextBoxRight };
-
+    // Header.
     juce::TextButton resetButton { "Reset" };
-    juce::Label hintLabel;
+    juce::Label      hintLabel;
 
-    // Sub-panels surfaced on the steer page: global envelope, filter,
-    // and two promoted modulators. Will's "a synth you can steer"
-    // surface — the most common shape controls live here; the full
-    // bank stays under-the-hood.
-    EnvelopePanel envelopePanel { proc };
-    FilterPanel   filterPanel   { proc };
-    ModulatorPanel mod0Panel    { proc, 0 };
-    ModulatorPanel mod1Panel    { proc, 1 };
+    // Shape-target rows. One per family; the texture row is a
+    // dedicated set of widgets so it can host the op-count spinner.
+    struct FamilyRow
+    {
+        juce::String     category;
+        juce::TextButton minusBtn { juce::String::charToString (0x2212) };  // − (true minus, not hyphen)
+        juce::TextButton plusBtn  { "+" };
+        juce::Label      label;
+    };
+    std::vector<std::unique_ptr<FamilyRow>> familyRows;
 
-    // The patch state captured the moment the user grabs the alpha
-    // slider — morph() interpolates between this and the target.
+    juce::TextButton textureMinusBtn { juce::String::charToString (0x2212) };
+    juce::TextButton texturePlusBtn  { "+" };
+    juce::Label      textureLabel    { {}, "Textured-Smooth" };
+    juce::Label      textureOpLabel  { {}, "op" };
+    juce::Slider     textureOpCount  { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
+
+    // The patch state the − buttons walk back toward.
     std::vector<PullIndex::OpState> captured;
     bool capturedValid { false };
 
-    void onSliderStart();
-    void onSliderChange();
-    void onSliderEnd();
+    static constexpr float kNudgeStep = 0.15f;
+
+    void buildRows();
+    void onPlus  (const juce::String& category);
+    void onMinus();
     void onReset();
-    void rebuildCategoryList();
-    void applyMorph (float alpha);
+    void anchorHome();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SteerTab)
 };

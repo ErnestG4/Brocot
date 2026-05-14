@@ -6,180 +6,228 @@
 namespace brocot
 {
 
+// The shape categories that get a − / name / + row in the left column.
+// Texture is handled separately because its row carries an op-count
+// spinner; the rest are 1:1 with the pull-index's category names.
+static const std::vector<juce::String> kShapeCategories = {
+    "Sawtooth", "Square",   "Triangle",
+    "Pulse-PW 4", "Organ 1/3/5", "Bell (stretched)",
+    "Prime 2", "Prime 3", "Prime 5", "Prime 7", "Prime 11", "Prime 13",
+};
+
 SteerTab::SteerTab (BrocotAudioProcessor& p)
     : proc (p)
 {
-    addAndMakeVisible (categoryLabel);
-    addAndMakeVisible (categoryCombo);
-    addAndMakeVisible (alphaLabel);
-    addAndMakeVisible (alphaSlider);
-    addAndMakeVisible (resetButton);
-    addAndMakeVisible (hintLabel);
     addAndMakeVisible (envelopePanel);
     addAndMakeVisible (filterPanel);
     addAndMakeVisible (mod0Panel);
     addAndMakeVisible (mod1Panel);
 
-    categoryLabel.setJustificationType (juce::Justification::centredLeft);
-    alphaLabel   .setJustificationType (juce::Justification::centredLeft);
-    hintLabel    .setJustificationType (juce::Justification::centred);
-
-    alphaSlider.setRange (0.0, 1.0, 0.001);
-    alphaSlider.setValue (0.0);
-    alphaSlider.setNumDecimalPlacesToDisplay (2);
-
-    alphaSlider.onDragStart  = [this] { onSliderStart(); };
-    alphaSlider.onValueChange = [this] { onSliderChange(); };
-    alphaSlider.onDragEnd    = [this] { onSliderEnd(); };
-
+    addAndMakeVisible (resetButton);
     resetButton.onClick = [this] { onReset(); };
+    resetButton.setTooltip ("Restore the captured state and re-anchor home to it.");
 
-    // Re-anchor whenever the user picks a different shape target: the
-    // slider's α=0 should mean "where I was when I picked this
-    // category", α=1 should mean "the category's best exemplar". If
-    // we didn't re-anchor here, switching categories would morph from
-    // the *previous* category's morph result.
-    categoryCombo.onChange = [this]
+    addAndMakeVisible (hintLabel);
+    hintLabel.setJustificationType (juce::Justification::centredLeft);
+    hintLabel.setText ("+ pushes the patch toward a shape  ·  − pulls it back toward home",
+                       juce::dontSendNotification);
+
+    buildRows();
+
+    // Texture row controls.
+    addAndMakeVisible (textureMinusBtn);
+    addAndMakeVisible (texturePlusBtn);
+    addAndMakeVisible (textureLabel);
+    addAndMakeVisible (textureOpLabel);
+    addAndMakeVisible (textureOpCount);
+
+    textureLabel.setJustificationType (juce::Justification::centredLeft);
+    textureOpLabel.setJustificationType (juce::Justification::centredRight);
+
+    textureOpCount.setRange (4.0, 16.0, 1.0);
+    textureOpCount.setValue (8.0);
+    textureOpCount.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
+    textureOpCount.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 28, 22);
+    textureOpCount.setTooltip ("Op count for the Textured-Smooth target (4..16).");
+
+    textureMinusBtn.onClick = [this] { onMinus(); };
+    texturePlusBtn .onClick = [this]
     {
-        captured = proc.getCurrentOps();
-        capturedValid = ! captured.empty();
-        alphaSlider.setValue (0.0, juce::dontSendNotification);
+        const int n = (int) textureOpCount.getValue();
+        onPlus (juce::String ("Textured-Smooth · ") + juce::String (n) + " ops");
     };
+    textureMinusBtn.setTooltip ("Pull back toward home.");
+    texturePlusBtn .setTooltip ("Nudge toward the Textured-Smooth · N ops shape.");
 
-    rebuildCategoryList();
-}
+    anchorHome();
 
-void SteerTab::rebuildCategoryList()
-{
-    const auto& idx = proc.getPullIndex();
-    categoryCombo.clear (juce::dontSendNotification);
-
-    if (idx.isEmpty())
+    // If the pull index isn't loaded, the whole tab gets disabled.
+    // Buttons still render so the layout doesn't shift, but they're
+    // inert and the hint tells the user how to fix it.
+    if (proc.getPullIndex().isEmpty())
     {
-        // Hide the steering controls when the table isn't loaded — the
-        // hint label takes over so the user knows what to do.
-        categoryCombo.setEnabled (false);
-        alphaSlider.setEnabled (false);
+        hintLabel.setText ("Pull index not loaded — run "
+                            "`python -m phase3.build_pull_index`",
+                            juce::dontSendNotification);
         resetButton.setEnabled (false);
-        hintLabel.setText (
-            "Pull index not loaded.  Run:\n"
-            "    python -m phase3.build_pull_index\n"
-            "from the project root.",
-            juce::dontSendNotification);
-        return;
+        textureMinusBtn.setEnabled (false);
+        texturePlusBtn .setEnabled (false);
+        for (auto& r : familyRows)
+        {
+            r->minusBtn.setEnabled (false);
+            r->plusBtn .setEnabled (false);
+        }
     }
-
-    int id = 1;
-    for (const auto& name : idx.getCategoryNames())
-        categoryCombo.addItem (name, id++);
-    categoryCombo.setSelectedId (1, juce::dontSendNotification);
-
-    hintLabel.setText (
-        "Pick a category, then drag the slider.  "
-        "α = 0 → your patch.  α = 1 → the category's best exemplar.",
-        juce::dontSendNotification);
 }
 
-void SteerTab::onSliderStart()
+void SteerTab::buildRows()
 {
-    // First-touch fallback: if we never captured (e.g., user dragged
-    // the slider before changing categories), snapshot the current
-    // state now. After the first capture, we leave it alone — the
-    // category combo's onChange is the canonical re-anchor point so
-    // dragging the slider back to α=0 restores the exact pre-shape
-    // state for *this* category, no matter how many times the user
-    // drags within the session.
-    if (! capturedValid)
+    familyRows.clear();
+    for (const auto& cat : kShapeCategories)
     {
-        captured = proc.getCurrentOps();
-        capturedValid = ! captured.empty();
+        auto row = std::make_unique<FamilyRow>();
+        row->category = cat;
+
+        addAndMakeVisible (row->minusBtn);
+        addAndMakeVisible (row->plusBtn);
+        addAndMakeVisible (row->label);
+
+        row->label.setText (cat, juce::dontSendNotification);
+        row->label.setJustificationType (juce::Justification::centredLeft);
+
+        // Bind each plus lambda to its own category string by value
+        // (shadowing the member's `captured` ops vector — rename to
+        // avoid the warning).
+        const auto catName = cat;
+        row->plusBtn.onClick  = [this, catName] { onPlus (catName); };
+        row->minusBtn.onClick = [this] { onMinus(); };
+
+        row->plusBtn .setTooltip ("Nudge toward " + cat + ".");
+        row->minusBtn.setTooltip ("Pull back toward home.");
+
+        familyRows.push_back (std::move (row));
     }
 }
 
-void SteerTab::onSliderChange()
+void SteerTab::anchorHome()
 {
-    if (! capturedValid) return;
-    applyMorph ((float) alphaSlider.getValue());
+    captured = proc.getCurrentOps();
+    capturedValid = ! captured.empty();
 }
 
-void SteerTab::onSliderEnd()
+void SteerTab::onPlus (const juce::String& category)
 {
-    // Intentionally a no-op. We don't update the captured state on
-    // release — it stays anchored at "what was loaded / what the
-    // category-change just snapshotted". Dragging the slider back to
-    // 0 should always undo the shape cleanly. Picking a new category
-    // is the explicit re-anchor moment.
+    const auto* targetOps = proc.getPullIndex().getBestOps (category);
+    if (targetOps == nullptr) return;
+
+    auto cur = proc.getCurrentOps();
+    auto nudged = PullIndex::morph (cur, *targetOps, kNudgeStep);
+    proc.applyOps (nudged);
+}
+
+void SteerTab::onMinus()
+{
+    if (! capturedValid) anchorHome();
+    if (! capturedValid) return;
+
+    auto cur = proc.getCurrentOps();
+    auto nudged = PullIndex::morph (cur, captured, kNudgeStep);
+    proc.applyOps (nudged);
 }
 
 void SteerTab::onReset()
 {
+    if (! capturedValid) anchorHome();
     if (! capturedValid) return;
+
     proc.applyOps (captured);
-    alphaSlider.setValue (0.0, juce::dontSendNotification);
-    // Reset is also a re-anchor: from now on α=0 means *this* state.
-    captured = proc.getCurrentOps();
-}
-
-void SteerTab::applyMorph (float alpha)
-{
-    const auto& idx = proc.getPullIndex();
-    const auto categoryName = categoryCombo.getText();
-    const auto* targetOps   = idx.getBestOps (categoryName);
-    if (targetOps == nullptr) return;
-
-    auto morphed = PullIndex::morph (captured, *targetOps, alpha);
-    proc.applyOps (morphed);
+    // Re-anchor — Reset is also "from now on this state is home".
+    anchorHome();
 }
 
 void SteerTab::paint (juce::Graphics& g)
 {
     g.fillAll (colors::background);
 
-    // Header text — pulled into a paint pass to use the lookAndFeel's
-    // serif italic, same vibe as the main editor title.
     g.setColour (colors::primaryText);
-    g.setFont (fonts::serifItalic (28.0f));
+    g.setFont (fonts::serifItalic (24.0f));
     g.drawText ("steer",
-                getLocalBounds().reduced (24, 16).removeFromTop (40),
+                getLocalBounds().reduced (24, 14).removeFromTop (36),
                 juce::Justification::topLeft);
 
     g.setColour (colors::accent.withAlpha (0.15f));
-    g.drawHorizontalLine (62, 24.0f, (float) getWidth() - 24.0f);
+    g.drawHorizontalLine (54, 24.0f, (float) getWidth() - 24.0f);
 }
 
 void SteerTab::resized()
 {
-    auto bounds = getLocalBounds().reduced (24);
-    bounds.removeFromTop (54);   // header
-    bounds.removeFromTop (12);
+    auto bounds = getLocalBounds().reduced (16);
+    bounds.removeFromTop (48);   // header band
 
-    // Row 1: category combo + alpha slider on the same line — saves
-    // vertical real estate so the four panels below have room.
-    auto controlRow = bounds.removeFromTop (40);
-    categoryLabel.setBounds (controlRow.removeFromLeft (130));
-    controlRow.removeFromLeft (8);
-    categoryCombo.setBounds (controlRow.removeFromLeft (240).reduced (0, 6));
-    controlRow.removeFromLeft (16);
-
-    resetButton.setBounds (controlRow.removeFromRight (80).reduced (0, 6));
-    controlRow.removeFromRight (8);
-    alphaLabel.setBounds (controlRow.removeFromLeft (70));
-    alphaSlider.setBounds (controlRow.reduced (0, 6));
-
-    bounds.removeFromTop (8);
-    hintLabel.setBounds (bounds.removeFromTop (32));
+    // Header row: hint label left + Reset right.
+    auto headerRow = bounds.removeFromTop (32);
+    resetButton.setBounds (headerRow.removeFromRight (80).reduced (0, 4));
+    headerRow.removeFromRight (8);
+    hintLabel.setBounds (headerRow);
     bounds.removeFromTop (8);
 
-    // Four-panel row: envelope | filter | mod 0 | mod 1
-    auto panelRow = bounds;
-    const int cols = 4, gap = 8;
-    const int w    = (panelRow.getWidth() - gap * (cols - 1)) / cols;
-    int x = panelRow.getX();
-    juce::Component* panels[] { &envelopePanel, &filterPanel, &mod0Panel, &mod1Panel };
+    // Two columns: shape buttons left, panels right.
+    const int rightW = juce::jlimit (380, 540, bounds.getWidth() * 4 / 10);
+    auto leftCol  = bounds.removeFromLeft (bounds.getWidth() - rightW - 12);
+    bounds.removeFromLeft (12);
+    auto rightCol = bounds;
+
+    // Left column: 13 rows (12 families + 1 texture), evenly stacked.
+    const int totalRows = (int) familyRows.size() + 1;
+    const int rowGap = 2;
+    const int rowH = juce::jlimit (24, 36,
+                                   (leftCol.getHeight() - rowGap * (totalRows - 1)) / totalRows);
+
+    auto layoutRow = [] (juce::Rectangle<int> r,
+                         juce::TextButton& minus, juce::Label& label,
+                         juce::TextButton& plus,
+                         juce::Component* extraInline = nullptr,
+                         juce::Label* extraLabel = nullptr)
+    {
+        const int btnW = 30;
+        minus.setBounds (r.removeFromLeft (btnW).reduced (0, 2));
+        r.removeFromLeft (6);
+        plus .setBounds (r.removeFromRight (btnW).reduced (0, 2));
+        r.removeFromRight (6);
+
+        if (extraInline != nullptr)
+        {
+            const int sliderW = 80;
+            extraInline->setBounds (r.removeFromRight (sliderW).reduced (0, 2));
+            r.removeFromRight (4);
+            if (extraLabel != nullptr)
+                extraLabel->setBounds (r.removeFromRight (24));
+        }
+        label.setBounds (r);
+    };
+
+    int y = leftCol.getY();
+    for (auto& row : familyRows)
+    {
+        layoutRow ({ leftCol.getX(), y, leftCol.getWidth(), rowH },
+                   row->minusBtn, row->label, row->plusBtn);
+        y += rowH + rowGap;
+    }
+    // Texture row at the bottom.
+    layoutRow ({ leftCol.getX(), y, leftCol.getWidth(), rowH },
+               textureMinusBtn, textureLabel, texturePlusBtn,
+               &textureOpCount, &textureOpLabel);
+
+    // Right column: 4 stacked panels.
+    const int pGap = 8;
+    const int pH   = (rightCol.getHeight() - pGap * 3) / 4;
+    int py = rightCol.getY();
+    juce::Component* panels[] { &envelopePanel, &filterPanel,
+                                 &mod0Panel,     &mod1Panel };
     for (auto* p : panels)
     {
-        p->setBounds (x, panelRow.getY(), w, panelRow.getHeight());
-        x += w + gap;
+        p->setBounds (rightCol.getX(), py, rightCol.getWidth(), pH);
+        py += pH + pGap;
     }
 }
 
