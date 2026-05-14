@@ -41,22 +41,13 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     addAndMakeVisible (oscilloscope);
     addAndMakeVisible (ratioReadout);
 
-    // Tooltips on the panel containers themselves require SettableTooltipClient
-    // inheritance, which my custom Components don't have. Individual controls
-    // inside each panel (sliders, combos, toggles) get tooltips through their
-    // own setTooltip() calls in v1.x; the combos above are tooltip-equipped.
-
-    for (int i = 0; i < params::kNumOperators; ++i)
-    {
-        operatorPanels[(size_t) i] = std::make_unique<OperatorPanel> (processorRef, i);
-        addAndMakeVisible (*operatorPanels[(size_t) i]);
-    }
-
-    for (int i = 0; i < params::kNumModulators; ++i)
-    {
-        modulatorPanels[(size_t) i] = std::make_unique<ModulatorPanel> (processorRef, i);
-        addAndMakeVisible (*modulatorPanels[(size_t) i]);
-    }
+    // P3.10c: TabbedComponent for the steer / under-the-hood split.
+    // Tab content lives in the dedicated SteerTab and UnderTheHoodTab
+    // classes; this editor just hosts the chrome.
+    addAndMakeVisible (tabs);
+    tabs.setTabBarDepth (28);
+    tabs.addTab ("steer",          colors::background, &steerTab,        false);
+    tabs.addTab ("under the hood", colors::background, &underTheHoodTab, false);
 
     // Bumped default height to 940 to fit the V2 LFO bank (16 panels in an
     // 8×2 grid) below the operator strip. Width unchanged.
@@ -117,46 +108,8 @@ void BrocotAudioProcessorEditor::resized()
     keyboard.setBounds (bounds.removeFromBottom (64));
     bounds.removeFromBottom (8);
 
-    // Section header band for the LFO bank.
-    auto lfoBankArea = bounds.removeFromBottom (320);
-    bounds.removeFromBottom (8);
-
-    // 8-wide × 2-tall grid of operator panels (16 ops total, matches the
-    // LFO bank grid below so the two strips are visually symmetric).
-    {
-        const int cols = 8, rows = 2;
-        const int gap = 4;
-        const int cellW = (bounds.getWidth() - gap * (cols - 1)) / cols;
-        const int cellH = (bounds.getHeight() - gap * (rows - 1)) / rows;
-
-        for (int i = 0; i < params::kNumOperators; ++i)
-        {
-            const int col = i % cols;
-            const int row = i / cols;
-            const int x = bounds.getX() + col * (cellW + gap);
-            const int y = bounds.getY() + row * (cellH + gap);
-            if (auto& panel = operatorPanels[(size_t) i])
-                panel->setBounds (x, y, cellW, cellH);
-        }
-    }
-
-    // 8-wide × 2-tall grid of modulator panels (the V2 LFO bank).
-    {
-        const int cols = 8, rows = 2;
-        const int gap = 4;
-        const int cellW = (lfoBankArea.getWidth() - gap * (cols - 1)) / cols;
-        const int cellH = (lfoBankArea.getHeight() - gap * (rows - 1)) / rows;
-
-        for (int i = 0; i < params::kNumModulators; ++i)
-        {
-            const int col = i % cols;
-            const int row = i / cols;
-            const int x = lfoBankArea.getX() + col * (cellW + gap);
-            const int y = lfoBankArea.getY() + row * (cellH + gap);
-            if (auto& panel = modulatorPanels[(size_t) i])
-                panel->setBounds (x, y, cellW, cellH);
-        }
-    }
+    // Everything left over goes to the tab bar + its current tab content.
+    tabs.setBounds (bounds);
 }
 
 } // namespace brocot

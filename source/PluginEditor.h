@@ -5,13 +5,13 @@
 
 #include "PluginProcessor.h"
 #include "ui/BrocotLookAndFeel.h"
-#include "ui/OperatorPanel.h"
 #include "ui/PathNavigator.h"
 #include "ui/RatioReadout.h"
 #include "ui/Oscilloscope.h"
 #include "ui/PresetBar.h"
 #include "ui/AboutDialog.h"
-#include "ui/ModulatorPanel.h"
+#include "ui/SteerTab.h"
+#include "ui/UnderTheHoodTab.h"
 
 namespace brocot
 {
@@ -47,8 +47,13 @@ private:
     PathNavigator  pathNavigator { processorRef };
     Oscilloscope   oscilloscope  { processorRef };
     RatioReadout   ratioReadout  { processorRef };
-    std::array<std::unique_ptr<OperatorPanel>, params::kNumOperators> operatorPanels;
-    std::array<std::unique_ptr<ModulatorPanel>, params::kNumModulators> modulatorPanels;
+
+    // P3.10c: tabs. Persistent header (title row, path mode, oscilloscope,
+    // ratio readout) sits above; tabs occupy the middle; keyboard stays
+    // pinned to the bottom. Tab content swaps in the tabbed area.
+    juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
+    SteerTab        steerTab        { processorRef };
+    UnderTheHoodTab underTheHoodTab { processorRef };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessorEditor)
 };

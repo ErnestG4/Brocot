@@ -13,6 +13,7 @@
 #include "params/sources/EnvSource.h"
 #include "params/ModTarget.h"
 #include "presets/PresetManager.h"
+#include "pull/PullIndex.h"
 
 namespace brocot
 {
@@ -59,6 +60,22 @@ public:
     bool snapshotRecentAudio (std::vector<float>& dest) const noexcept;
 
     PresetManager& getPresetManager() noexcept { return presetManager; }
+
+    /** Runtime pull-to-nearest table. Loaded once at construction;
+        returns an empty index if `resources/pull_index.json` wasn't
+        found (the steer-tab UI shows a "rebuild the index" hint in
+        that case). */
+    const PullIndex& getPullIndex() const noexcept { return pullIndex; }
+
+    /** Snapshot the current operator bank as `OpState`s the PullIndex
+        morph helper can consume. Length is always `kNumOperators`. */
+    std::vector<PullIndex::OpState> getCurrentOps() const;
+
+    /** Inverse of `getCurrentOps` — push a vector of OpStates back into
+        the APVTS + opPaths. Length is clipped to `kNumOperators` if
+        the caller hands in fewer (or more); shorter inputs leave the
+        tail untouched. Use to apply a morph result. */
+    void applyOps (const std::vector<PullIndex::OpState>& states);
 
     /** Exposed for the editor's on-screen MidiKeyboardComponent. Notes
         played on the on-screen keyboard inject events into this state;
@@ -163,6 +180,11 @@ private:
     void writeScopeSamples (const float* samples, int n) noexcept;
 
     PresetManager presetManager { *this };
+
+    // Runtime pull-to-nearest index. Loaded once at construction from
+    // resources/pull_index.json; stays empty (and the steer-tab UI
+    // hides itself) if the file isn't on disk.
+    PullIndex pullIndex;
 
     juce::MidiKeyboardState keyboardState;
 

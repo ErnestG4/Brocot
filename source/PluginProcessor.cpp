@@ -90,6 +90,12 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     apvts.addParameterListener (params::ids::pathMode, this);
     for (int i = 0; i < params::kNumOperators; ++i)
         apvts.addParameterListener (params::opId (i, "position"), this);
+
+    // Pull-to-nearest index — best-effort load. If the file isn't on
+    // disk (fresh checkout, no Python step yet), the steer tab will
+    // notice via PullIndex::isEmpty() and hide its controls.
+    if (auto idxFile = PullIndex::findIndexFile(); idxFile.existsAsFile())
+        pullIndex.load (idxFile);
 }
 
 BrocotAudioProcessor::~BrocotAudioProcessor()
@@ -544,6 +550,36 @@ void BrocotAudioProcessor::setOpPath (int idx, const juce::String& pathString)
     }
     opRatios[(size_t) idx].store ((float) p.ratio(), std::memory_order_release);
     rebuildOpPositionLUTs();
+}
+
+std::vector<PullIndex::OpState> BrocotAudioProcessor::getCurrentOps() const
+{
+    std::vector<PullIndex::OpState> out;
+    out.reserve ((size_t) params::kNumOperators);
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        PullIndex::OpState s;
+        s.path    = getOpPath (i);
+        if (auto* v = apvts.getRawParameterValue (params::opId (i, "depth")))
+            s.depth = v->load();
+        if (auto* v = apvts.getRawParameterValue (params::opId (i, "enabled")))
+            s.enabled = v->load() > 0.5f;
+        out.push_back (std::move (s));
+    }
+    return out;
+}
+
+void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& states)
+{
+    const int n = juce::jmin ((int) states.size(), params::kNumOperators);
+    for (int i = 0; i < n; ++i)
+    {
+        if (auto* p = apvts.getParameter (params::opId (i, "enabled")))
+            p->setValueNotifyingHost (states[(size_t) i].enabled ? 1.0f : 0.0f);
+        if (auto* p = apvts.getParameter (params::opId (i, "depth")))
+            p->setValueNotifyingHost (p->convertTo0to1 (states[(size_t) i].depth));
+        setOpPath (i, states[(size_t) i].path);
+    }
 }
 
 bool BrocotAudioProcessor::isDuoMode() const noexcept
