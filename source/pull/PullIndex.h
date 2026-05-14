@@ -75,20 +75,37 @@ public:
 
     /** Linear interpolation between two configurations.
 
-        For each slot:
-          - `depth` is `lerp(current.depth, target.depth, α)`.
-          - `enabled` flips to target's value at α ≥ 0.5.
-          - `path` flips to target's value at α ≥ 0.5.
-        α is clamped to [0, 1]. Both inputs must be the same length;
-        the output is that length too.
+        Per-slot semantics:
+          - **Depth** lerps from the slot's *effective* current depth
+            to its *effective* target depth, where a disabled slot is
+            treated as depth=0. This means transitions through the
+            enable boundary are *continuous* — a newly-enabling slot
+            ramps up from 0 instead of popping on at half-target,
+            and a fading-out slot decays to silence cleanly.
+          - **Enabled** is true throughout any transition where either
+            side was on. We only force enabled=false at α=1 exactly
+            (so a target-off slot ends fully off). At α=0 exactly the
+            current's enabled flag wins.
+          - **Path** walks the Stern-Brocot tree: from current.path
+            up to the LCA (longest common prefix of current.path and
+            target.path), then down to target.path. Total walk has
+            `(|cur|-|LCA|) + (|tgt|-|LCA|)` discrete steps; α is
+            divided into that many segments. Each step is a one-char
+            L/R add or parent-trim — a small ratio nudge the
+            audio-thread smoothing absorbs.
 
-        The hop at α=0.5 is intentionally simple — audio-thread param
-        smoothing absorbs the depth jump, and the path change happens
-        once. Smoother path-morphing (intermediate SB mediants) is a
-        future P3.10x improvement. */
+        α is clamped to [0, 1]. Output length is min(current, target). */
     static std::vector<OpState> morph (const std::vector<OpState>& current,
                                         const std::vector<OpState>& target,
                                         float alpha);
+
+    /** Walk the SB tree from `from` to `to` parametrised by α∈[0,1].
+        α=0 returns `from`; α=1 returns `to`; intermediate α lands on
+        one of the intermediate paths between them. Public so tests
+        (and any future morph variant) can exercise it directly. */
+    static juce::String pathWalk (const juce::String& from,
+                                   const juce::String& to,
+                                   float alpha);
 
 private:
     int qMax { 32 };

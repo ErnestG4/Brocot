@@ -226,19 +226,114 @@ TEST_CASE ("PullIndex::morph: depth lerps continuously")
     REQUIRE_THAT (out[0].depth, Catch::Matchers::WithinAbs (3.0f, 1e-6f));
 }
 
-TEST_CASE ("PullIndex::morph: path/enabled snap at α=0.5")
+TEST_CASE ("PullIndex::morph: enabled stays on through transitions, off only at α=1")
 {
     using OpState = brocot::PullIndex::OpState;
     std::vector<OpState> cur { { "R", 1.0f, true  } };
     std::vector<OpState> tgt { { "L", 1.0f, false } };
 
-    auto out = brocot::PullIndex::morph (cur, tgt, 0.49f);
-    REQUIRE (out[0].path    == "R");
+    // Mid-transition the slot is still on so depth can fade.
+    auto out = brocot::PullIndex::morph (cur, tgt, 0.5f);
     REQUIRE (out[0].enabled == true);
 
-    out = brocot::PullIndex::morph (cur, tgt, 0.50f);
-    REQUIRE (out[0].path    == "L");
+    // Only at α=1 do we honour target's off-flag.
+    out = brocot::PullIndex::morph (cur, tgt, 1.0f);
     REQUIRE (out[0].enabled == false);
+}
+
+TEST_CASE ("PullIndex::morph: depth ramps from 0 when transitioning off→on")
+{
+    // The pre-P3.10d morph would pop the slot on at α=0.5 with
+    // half-target-depth. Now it should stay enabled throughout and
+    // depth should lerp from 0 to target.depth smoothly.
+    using OpState = brocot::PullIndex::OpState;
+    std::vector<OpState> cur { { "",  0.0f, false } };
+    std::vector<OpState> tgt { { "R", 4.0f, true  } };
+
+    auto out = brocot::PullIndex::morph (cur, tgt, 0.0f);
+    REQUIRE_THAT (out[0].depth, Catch::Matchers::WithinAbs (0.0f, 1e-6f));
+
+    out = brocot::PullIndex::morph (cur, tgt, 0.5f);
+    REQUIRE_THAT (out[0].depth, Catch::Matchers::WithinAbs (2.0f, 1e-6f));
+    REQUIRE (out[0].enabled);   // pre-emptively on so audio thread can ramp
+
+    out = brocot::PullIndex::morph (cur, tgt, 1.0f);
+    REQUIRE_THAT (out[0].depth, Catch::Matchers::WithinAbs (4.0f, 1e-6f));
+    REQUIRE (out[0].enabled);
+}
+
+TEST_CASE ("PullIndex::morph: depth fades to 0 when transitioning on→off")
+{
+    using OpState = brocot::PullIndex::OpState;
+    std::vector<OpState> cur { { "R", 4.0f, true  } };
+    std::vector<OpState> tgt { { "",  0.0f, false } };
+
+    auto out = brocot::PullIndex::morph (cur, tgt, 0.25f);
+    REQUIRE_THAT (out[0].depth, Catch::Matchers::WithinAbs (3.0f, 1e-6f));
+    REQUIRE (out[0].enabled);
+
+    out = brocot::PullIndex::morph (cur, tgt, 1.0f);
+    REQUIRE_THAT (out[0].depth, Catch::Matchers::WithinAbs (0.0f, 1e-6f));
+    REQUIRE (! out[0].enabled);
+}
+
+// ---------------------------------------------------------------------------
+// SB-tree path walk
+// ---------------------------------------------------------------------------
+
+TEST_CASE ("PullIndex::pathWalk: identity at endpoints")
+{
+    REQUIRE (brocot::PullIndex::pathWalk ("R",  "L",  0.0f) == "R");
+    REQUIRE (brocot::PullIndex::pathWalk ("R",  "L",  1.0f) == "L");
+    REQUIRE (brocot::PullIndex::pathWalk ("RR", "RR", 0.5f) == "RR");
+}
+
+TEST_CASE ("PullIndex::pathWalk: walks via LCA when paths diverge")
+{
+    // from = "RR", to = "LL". LCA = "" (no common prefix).
+    // Walk: RR → R → "" → L → LL.  4 steps total.
+    // α values are picked safely inside each segment so half-step
+    // rounding doesn't bite at the boundaries.
+    using PI = brocot::PullIndex;
+    REQUIRE (PI::pathWalk ("RR", "LL", 0.0f) == "RR");
+    REQUIRE (PI::pathWalk ("RR", "LL", 0.2f) == "R");
+    REQUIRE (PI::pathWalk ("RR", "LL", 0.5f) == "");   // at LCA
+    REQUIRE (PI::pathWalk ("RR", "LL", 0.8f) == "L");
+    REQUIRE (PI::pathWalk ("RR", "LL", 1.0f) == "LL");
+}
+
+TEST_CASE ("PullIndex::pathWalk: shared prefix means shorter walk")
+{
+    // from = "RRL", to = "RRR". LCA = "RR". Walk: RRL → RR → RRR. 2 steps.
+    using PI = brocot::PullIndex;
+    REQUIRE (PI::pathWalk ("RRL", "RRR", 0.0f) == "RRL");
+    REQUIRE (PI::pathWalk ("RRL", "RRR", 0.5f) == "RR");
+    REQUIRE (PI::pathWalk ("RRL", "RRR", 1.0f) == "RRR");
+}
+
+TEST_CASE ("PullIndex::pathWalk: from-empty path grows toward target")
+{
+    // from = "", to = "RL". Walk: "" → R → RL. 2 steps.
+    using PI = brocot::PullIndex;
+    REQUIRE (PI::pathWalk ("", "RL", 0.0f) == "");
+    REQUIRE (PI::pathWalk ("", "RL", 0.5f) == "R");
+    REQUIRE (PI::pathWalk ("", "RL", 1.0f) == "RL");
+}
+
+TEST_CASE ("PullIndex::pathWalk: long walks step granularly")
+{
+    // from = "RRRR", to = "LLLL". LCA = "". 8 steps total.
+    using PI = brocot::PullIndex;
+    REQUIRE (PI::pathWalk ("RRRR", "LLLL", 0.0f).length() == 4);
+    REQUIRE (PI::pathWalk ("RRRR", "LLLL", 0.5f) == "");
+    REQUIRE (PI::pathWalk ("RRRR", "LLLL", 1.0f).length() == 4);
+
+    // Strictly monotonic: as α grows the path moves toward `to`.
+    // No path repeats unless the round-to-nearest segments hit the
+    // same step bucket — which only happens within a single segment.
+    auto a = PI::pathWalk ("RRRR", "LLLL", 0.1f);
+    auto b = PI::pathWalk ("RRRR", "LLLL", 0.3f);
+    REQUIRE (a != b);   // different α, far enough apart, different paths
 }
 
 TEST_CASE ("PullIndex::morph: α is clamped to [0, 1]")

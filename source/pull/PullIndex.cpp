@@ -158,6 +158,40 @@ PullIndex::getBestOps (const juce::String& category) const
     return nullptr;
 }
 
+juce::String PullIndex::pathWalk (const juce::String& from,
+                                   const juce::String& to,
+                                   float alpha)
+{
+    alpha = juce::jlimit (0.0f, 1.0f, alpha);
+    if (from == to)               return from;
+    if (alpha <= 0.0f)            return from;
+    if (alpha >= 1.0f)            return to;
+
+    // Longest common prefix = position of the SB LCA along the walk.
+    const int lenF = from.length();
+    const int lenT = to.length();
+    int lca = 0;
+    while (lca < lenF && lca < to.length() && from[lca] == to[lca])
+        ++lca;
+
+    const int upSteps   = lenF - lca;  // parent-trim steps from `from`
+    const int downSteps = lenT - lca;  // L/R-append steps to reach `to`
+    const int totalSteps = upSteps + downSteps;
+    if (totalSteps == 0) return from;  // identical paths, already handled
+
+    // Round-to-nearest gives equal-width segments centred on transition
+    // points (better than truncation which leaves a 1.0-only segment
+    // when totalSteps is small).
+    const int step = juce::jlimit (0, totalSteps,
+                                   juce::roundToInt (alpha * (float) totalSteps));
+
+    if (step <= upSteps)
+        return from.substring (0, lenF - step);
+
+    // We've passed the LCA; descend toward `to`.
+    return to.substring (0, lca + (step - upSteps));
+}
+
 std::vector<PullIndex::OpState>
 PullIndex::morph (const std::vector<OpState>& current,
                   const std::vector<OpState>& target,
@@ -168,14 +202,36 @@ PullIndex::morph (const std::vector<OpState>& current,
     std::vector<OpState> out;
     out.reserve (n);
 
-    const bool snap = alpha >= 0.5f;
-
     for (size_t i = 0; i < n; ++i)
     {
+        const auto& cur = current[i];
+        const auto& tgt = target[i];
         OpState o;
-        o.depth   = juce::jmap (alpha, current[i].depth, target[i].depth);
-        o.enabled = snap ? target[i].enabled : current[i].enabled;
-        o.path    = snap ? target[i].path    : current[i].path;
+
+        // Effective depths: a disabled slot contributes 0 to the lerp
+        // regardless of its stored depth value. This is what makes
+        // enable transitions click-free — a slot that's transitioning
+        // false→true ramps from 0 to tgt.depth as α grows.
+        const float curEffective = cur.enabled ? cur.depth : 0.0f;
+        const float tgtEffective = tgt.enabled ? tgt.depth : 0.0f;
+        o.depth = juce::jmap (alpha, curEffective, tgtEffective);
+
+        // Enabled: only force off at α=1 against an off target; at the
+        // far endpoints we exactly match cur / tgt. Intermediate values
+        // keep the slot on whenever EITHER side wants it on, so depth
+        // can ramp through silence to the final state without the
+        // engine muting the slot mid-fade.
+        if (alpha <= 0.0f)
+            o.enabled = cur.enabled;
+        else if (alpha >= 1.0f)
+            o.enabled = tgt.enabled;
+        else
+            o.enabled = cur.enabled || tgt.enabled;
+
+        // Path: stepped SB-tree walk; small ratio nudges that the
+        // audio-thread smoother absorbs.
+        o.path = pathWalk (cur.path, tgt.path, alpha);
+
         out.push_back (std::move (o));
     }
     return out;
