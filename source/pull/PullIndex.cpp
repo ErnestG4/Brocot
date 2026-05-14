@@ -198,14 +198,23 @@ PullIndex::morph (const std::vector<OpState>& current,
                   float alpha)
 {
     alpha = juce::jlimit (0.0f, 1.0f, alpha);
-    const size_t n = juce::jmin (current.size(), target.size());
+
+    // Pad the shorter input with implicit-disabled slots so a
+    // shorter target fades the extra current slots OUT to silence,
+    // and a shorter current fades the extra target slots IN from
+    // silence. Otherwise morphing a 64-op current toward a 16-slot
+    // exemplar only walks the first 16 slots — the rest stay loud
+    // and the morph is inaudible. Symptom Will hit on the
+    // Textured-Smooth row before this fix.
+    const size_t n = juce::jmax (current.size(), target.size());
+    static const OpState kImplicitOff {};   // disabled, depth=0, empty path
     std::vector<OpState> out;
     out.reserve (n);
 
     for (size_t i = 0; i < n; ++i)
     {
-        const auto& cur = current[i];
-        const auto& tgt = target[i];
+        const auto& cur = (i < current.size() ? current[i] : kImplicitOff);
+        const auto& tgt = (i < target.size()  ? target[i]  : kImplicitOff);
         OpState o;
 
         // Effective depths: a disabled slot contributes 0 to the lerp

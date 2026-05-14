@@ -347,13 +347,34 @@ TEST_CASE ("PullIndex::morph: α is clamped to [0, 1]")
     REQUIRE_THAT (big[0].depth, Catch::Matchers::WithinAbs (4.0f, 1e-6f));
 }
 
-TEST_CASE ("PullIndex::morph: output length is min(current, target)")
+TEST_CASE ("PullIndex::morph: output length is max(current, target) — pads shorter side")
 {
     using OpState = brocot::PullIndex::OpState;
-    std::vector<OpState> cur (5, { "R", 0.0f, true });
+    std::vector<OpState> cur (5, { "R", 4.0f, true });
     std::vector<OpState> tgt (3, { "L", 1.0f, true });
     auto out = brocot::PullIndex::morph (cur, tgt, 1.0f);
-    REQUIRE (out.size() == 3);
+    // Output covers every slot in cur so the engine can fade out the
+    // trailing slots that target leaves unspecified.
+    REQUIRE (out.size() == 5);
+
+    // The trailing-current slots (no matching target) fade to disabled
+    // at α=1 — implicit "target is off here".
+    REQUIRE (! out[3].enabled);
+    REQUIRE_THAT (out[3].depth, Catch::Matchers::WithinAbs (0.0f, 1e-6f));
+    REQUIRE (! out[4].enabled);
+}
+
+TEST_CASE ("PullIndex::morph: extra target slots beyond current fade IN from silence")
+{
+    using OpState = brocot::PullIndex::OpState;
+    std::vector<OpState> cur (2, { "R", 1.0f, true });
+    std::vector<OpState> tgt (5, { "L", 3.0f, true });
+
+    // At α=0.5 the extra target slots should be half-faded-in.
+    auto out = brocot::PullIndex::morph (cur, tgt, 0.5f);
+    REQUIRE (out.size() == 5);
+    REQUIRE (out[3].enabled);   // kept on through the transition
+    REQUIRE_THAT (out[3].depth, Catch::Matchers::WithinAbs (1.5f, 1e-6f));
 }
 
 // ---------------------------------------------------------------------------
