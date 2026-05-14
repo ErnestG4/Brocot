@@ -60,12 +60,23 @@ void PresetManager::rescan()
         entries.push_back (std::move (e));
     };
 
-    // Recursive scan so we can group factory presets into subdirectories —
-    // e.g. factory/discovered/<family>/ for ARS-generated content while
-    // the hand-authored 32 stay at the top level.
+    // P3.11: scan the top-level factory dir (32 hand-authored anchors)
+    // plus the `curated/` subdir (search-derived best-of-category
+    // anchors copied in by `phase3/curate_factory.py`). The deeper
+    // `discovered/`, `discovered_p37/`, and `experimental_*` trees
+    // hold the full search bulk — they feed the runtime PullIndex but
+    // stay invisible to the preset menu so the user sees a tidy ~48
+    // canonical list rather than 2200+ variants. Shaping is the sound
+    // selection; presets are the anchor points.
     if (auto fac = getFactoryDirectory(); fac.isDirectory())
-        for (const auto& f : fac.findChildFiles (juce::File::findFiles, true, "*.brocot"))
+    {
+        for (const auto& f : fac.findChildFiles (juce::File::findFiles, false, "*.brocot"))
             add (f, "factory", true);
+
+        if (auto curated = fac.getChildFile ("curated"); curated.isDirectory())
+            for (const auto& f : curated.findChildFiles (juce::File::findFiles, false, "*.brocot"))
+                add (f, "factory", true);
+    }
 
     auto user = getUserDirectory();
     if (user.isDirectory())
