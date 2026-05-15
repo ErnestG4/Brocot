@@ -27,6 +27,18 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
     resetButton.onClick = [this] { onReset(); };
     resetButton.setTooltip ("Restore the captured state and re-anchor home to it.");
 
+    addAndMakeVisible (depthMinusButton);
+    depthMinusButton.onClick = [this] { onGlobalDepth (-0.1f); };
+    depthMinusButton.setTooltip ("Lower every enabled operator's depth by 0.1 (clamped at 0.04).");
+
+    addAndMakeVisible (depthPlusButton);
+    depthPlusButton.onClick = [this] { onGlobalDepth (+0.1f); };
+    depthPlusButton.setTooltip ("Raise every enabled operator's depth by 0.1 (clamped at 8.0).");
+
+    addAndMakeVisible (randomizeButton);
+    randomizeButton.onClick = [this] { onRandomize(); };
+    randomizeButton.setTooltip ("Replace the patch with a fresh low-depth random carpet (32 ops on, depth 0.04..0.6).");
+
     addAndMakeVisible (hintLabel);
     hintLabel.setJustificationType (juce::Justification::centredLeft);
     hintLabel.setText ("+ pushes the patch toward a shape  ·  − pulls it back toward home",
@@ -186,6 +198,64 @@ void SteerTab::onReset()
     proc.applyOps (captured);
     // Re-anchor — Reset is also "from now on this state is home".
     anchorHome();
+    hintLabel.setText ("reset to home", juce::dontSendNotification);
+}
+
+void SteerTab::onGlobalDepth (float deltaPerSlot)
+{
+    auto ops = proc.getCurrentOps();
+    int touched = 0;
+    for (auto& s : ops)
+    {
+        if (! s.enabled) continue;
+        const float oldDepth = s.depth;
+        s.depth = juce::jlimit (0.04f, 8.0f, s.depth + deltaPerSlot);
+        if (std::abs (s.depth - oldDepth) > 1e-6f) ++touched;
+    }
+    proc.applyOps (ops);
+    hintLabel.setText (juce::String ("depth ") + (deltaPerSlot >= 0 ? "+" : "")
+                       + juce::String (deltaPerSlot, 2)
+                       + "  (touched " + juce::String (touched) + " ops)",
+                       juce::dontSendNotification);
+}
+
+void SteerTab::onRandomize()
+{
+    // Freeform low-depth random carpet — same depth band as the
+    // experimental textured-smooth bank (≤ 0.6), random L/R paths
+    // 1..8 chars deep, ~half the slots enabled. Drops you somewhere
+    // unfamiliar in the parameter space; the − button + Reset are
+    // the way back out (Reset now treats the random as home).
+    juce::Random& rng = juce::Random::getSystemRandom();
+    std::vector<PullIndex::OpState> ops;
+    ops.reserve (64);
+    for (int i = 0; i < 64; ++i)
+    {
+        PullIndex::OpState s;
+        s.enabled = rng.nextFloat() < 0.5f;   // ~32 enabled on average
+        if (s.enabled)
+        {
+            const int pathLen = 1 + rng.nextInt (8);
+            juce::String path;
+            for (int j = 0; j < pathLen; ++j)
+                path += (rng.nextBool() ? "L" : "R");
+            s.path = path;
+            s.depth = 0.04f + rng.nextFloat() * 0.56f;   // [0.04, 0.60]
+        }
+        else
+        {
+            s.path = {};
+            s.depth = 0.0f;
+        }
+        ops.push_back (s);
+    }
+    proc.applyOps (ops);
+    anchorHome();    // fresh random becomes the new home
+    const int enabledCount = (int) std::count_if (ops.begin(), ops.end(),
+        [] (const PullIndex::OpState& s) { return s.enabled; });
+    hintLabel.setText ("randomized — " + juce::String (enabledCount)
+                       + " ops enabled, depths 0.04..0.6",
+                       juce::dontSendNotification);
 }
 
 void SteerTab::paint (juce::Graphics& g)
@@ -207,10 +277,17 @@ void SteerTab::resized()
     auto bounds = getLocalBounds().reduced (16);
     bounds.removeFromTop (48);   // header band
 
-    // Header row: hint label left + Reset right.
+    // Header row: hint label left + global controls right.
+    // Layout right-to-left: [Reset][rand][+0.1][−0.1] [hint .... ]
     auto headerRow = bounds.removeFromTop (32);
-    resetButton.setBounds (headerRow.removeFromRight (80).reduced (0, 4));
-    headerRow.removeFromRight (8);
+    resetButton    .setBounds (headerRow.removeFromRight (60).reduced (0, 4));
+    headerRow.removeFromRight (4);
+    randomizeButton.setBounds (headerRow.removeFromRight (60).reduced (0, 4));
+    headerRow.removeFromRight (4);
+    depthPlusButton .setBounds (headerRow.removeFromRight (54).reduced (0, 4));
+    headerRow.removeFromRight (4);
+    depthMinusButton.setBounds (headerRow.removeFromRight (54).reduced (0, 4));
+    headerRow.removeFromRight (12);
     hintLabel.setBounds (headerRow);
     bounds.removeFromTop (8);
 

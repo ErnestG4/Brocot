@@ -257,7 +257,15 @@ def main(argv: list[str] | None = None) -> int:
     elapsed = time.time() - t0
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(index) + "\n")
+    # `ensure_ascii=False` keeps non-ASCII characters (e.g., the
+    # middle-dot in "Textured-Smooth · 8 ops") as raw UTF-8 bytes
+    # rather than · escapes. JUCE's JSON parser doesn't round-trip
+    # the escape back to the same byte sequence the C++ literal uses,
+    # so the lookup `getCategory("Textured-Smooth · N ops")` was silently
+    # returning nullptr for every N. With raw UTF-8 in the file, the
+    # bytes match the literal and the lookup succeeds.
+    args.output.write_text(
+        json.dumps(index, ensure_ascii=False) + "\n")
     size_kb = args.output.stat().st_size / 1024.0
 
     if verbose:

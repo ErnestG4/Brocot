@@ -54,8 +54,14 @@ private:
     ModulatorPanel mod0Panel     { proc, 0 };
     ModulatorPanel mod1Panel     { proc, 1 };
 
-    // Header.
-    juce::TextButton resetButton { "Reset" };
+    // Header buttons. Reset re-anchors home; the depth ± step the global
+    // depth of all enabled ops by 0.1 (clamped to MIN_DEPTH..8); randomize
+    // overwrites the patch with a fresh low-depth carpet.
+    juce::TextButton resetButton     { "Reset" };
+    juce::TextButton randomizeButton { "rand" };
+    juce::TextButton depthMinusButton { juce::String::charToString (0x2212)
+                                        + juce::String ("0.1") };
+    juce::TextButton depthPlusButton  { "+0.1" };
     juce::Label      hintLabel;
 
     // Shape-target rows. One per family; the texture row is a
@@ -86,6 +92,8 @@ private:
     void onMinus();
     void onReset();
     void anchorHome();
+    void onGlobalDepth (float deltaPerSlot);
+    void onRandomize();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SteerTab)
 };
