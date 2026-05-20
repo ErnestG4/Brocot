@@ -121,11 +121,13 @@ private:
     // Timer: 30 Hz polling of slider deflections.
     static constexpr int kTimerHz = 30;
 
-    // How fast a fully-deflected slider sweeps progress. 1.5 α/sec
-    // means a full morph at full deflection takes ~0.66 sec, and a
-    // 6-step SB path advances ~once every 4 timer ticks (~130 ms).
-    // Slower at lower deflections — proportional.
-    static constexpr float kRatePerSecAtFull = 1.5f;
+    // How fast a fully-deflected slider sweeps progress. 0.05 α/sec
+    // = a full morph at full deflection takes ~20 sec (Will's call:
+    // "cut the slider impact down by a factor of 30"). The scrub is
+    // for *fine* shaping; depth interpolates continuously through it,
+    // and SB paths advance after enough ticks accumulate past the
+    // round-to-nearest step threshold.
+    static constexpr float kRatePerSecAtFull = 0.05f;
 
     void buildRows();
     void wireSlider (ScrubRow& row);
