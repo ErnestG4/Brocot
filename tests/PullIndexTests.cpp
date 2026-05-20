@@ -436,3 +436,56 @@ TEST_CASE ("PullIndex: shipped resources/pull_index.json loads cleanly")
     REQUIRE (saw->exemplars.front().amps.size() == (size_t) idx.getQMax());
     REQUIRE (! saw->exemplars.front().ops.empty());
 }
+
+TEST_CASE ("PullIndex: getCategoryNamesStartingWith finds Textured-Smooth keys")
+{
+    // P3.13 regression: the SteerTab used to construct the category
+    // name from a `· ` literal, but `juce::String(const char*)`
+    // treats source bytes as Latin-1 (U+00B7 `·` ⇒ U+00C2 U+00B7 `Â·`).
+    // The fix is to never write that literal — scan loaded names by
+    // pure-ASCII prefix instead. This test guards both halves:
+    //   (a) at least one Textured-Smooth category loads from the
+    //       shipped JSON, and the new prefix-scan API returns it
+    //   (b) the *bad* literal lookup still fails — keeping that as a
+    //       documented gotcha so we don't accidentally bring it back.
+    const auto file = brocot::PullIndex::findIndexFile();
+    if (! file.existsAsFile())
+        SKIP ("pull_index.json not on disk");
+
+    brocot::PullIndex idx;
+    REQUIRE (idx.load (file));
+
+    // (a) prefix scan finds the categories
+    const auto textureNames =
+        idx.getCategoryNamesStartingWith ("Textured-Smooth");
+    INFO ("shipped Textured-Smooth categories: "
+          << textureNames.joinIntoString (", ").toRawUTF8());
+    REQUIRE (textureNames.size() >= 1);
+
+    for (const auto& n : textureNames)
+    {
+        // Each name must round-trip through exact-name lookup
+        // (we're just asking PullIndex to find what it just gave us).
+        REQUIRE (idx.getCategory (n) != nullptr);
+
+        // Each name ends with " N ops".
+        REQUIRE (n.endsWith (" ops"));
+        const auto head = n.dropLastCharacters (4);
+        int digitsEnd = head.length();
+        int digitsStart = digitsEnd;
+        while (digitsStart > 0
+               && head[digitsStart - 1] >= '0'
+               && head[digitsStart - 1] <= '9')
+            --digitsStart;
+        REQUIRE (digitsStart < digitsEnd);
+        const int parsedN = head.substring (digitsStart, digitsEnd).getIntValue();
+        REQUIRE (parsedN > 0);
+    }
+
+    // (b) the broken literal still does NOT match — proves the Latin-1
+    // mangle still happens at the language level, and the prefix-scan
+    // fix is the right shape.
+    const auto bad = juce::String ("Textured-Smooth · 8 ops");
+    INFO ("bad literal bytes: " << bad.toRawUTF8());
+    REQUIRE (idx.getCategory (bad) == nullptr);
+}

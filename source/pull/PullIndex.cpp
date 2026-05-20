@@ -142,6 +142,15 @@ juce::StringArray PullIndex::getCategoryNames() const
     return out;
 }
 
+juce::StringArray PullIndex::getCategoryNamesStartingWith (juce::StringRef prefix) const
+{
+    juce::StringArray out;
+    for (const auto& c : categories)
+        if (c.name.startsWith (prefix))
+            out.add (c.name);
+    return out;
+}
+
 const PullIndex::Category* PullIndex::getCategory (const juce::String& name) const
 {
     for (const auto& c : categories)

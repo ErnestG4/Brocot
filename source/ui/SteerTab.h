@@ -11,31 +11,34 @@ namespace brocot
 {
 
 /**
-    The "Steer" tab — left column is the shape-target button list
-    (13 rows: 12 families + 1 Textured-Smooth with op-count spinner);
-    right column is the live patch surface (env + filter + the first
-    two modulators stacked).
+    The "Steer" tab — left column is the shape-target list (12 family
+    rows + 1 Textured-Smooth row with an op-count display); right column
+    is the live patch surface (env + filter + the first two modulators
+    stacked).
 
-    Each row has a − and a + button.
+    Each row has a **spring-back slider** centred at 0.
 
-    +  nudges the current patch toward the row's category by one
-       NUDGE_STEP (0.15). Press repeatedly to traverse further.
-    −  nudges the current patch back toward the captured "home"
-       state by one NUDGE_STEP. All − buttons share this semantic —
-       Will's mental model is "+ = more of this; − = less of what
-       I just did", not a per-category anti-target.
+    - Drag right (positive)  → nudge the patch toward this row's
+                                category target, in steps proportional
+                                to how far the slider moves.
+    - Drag left  (negative)  → nudge back toward the captured "home"
+                                state, again proportional to slider
+                                travel.
+    - Release the slider     → it snaps to 0; the patch stays where
+                                you let go. The slider is a *scrub
+                                controller*, not a position.
 
-    The Textured-Smooth row's op-count spinner (4..16) picks which
-    Textured-Smooth · N ops category + maps to, so the dense-carpet
-    dimension stays one collapsible slot in the list.
+    The Textured-Smooth row carries an op-count spinner (4..64) that
+    picks which `Textured-Smooth · N ops` category the row morphs
+    toward. The lookup parses N from category names loaded from the
+    pull index, so we never compare against a `·` literal in the
+    source (the JUCE `String(const char*)` constructor treats source
+    bytes as Latin-1, mangling `·` to `Â·` — see P3.13).
 
-    Reset:  applies captured (back to home), then re-anchors home
-            to that state so the next ± round starts fresh.
-
-    Captured ("home") is set on tab construction (or on preset load
-    via parameterChanged in the future). The user's morph trajectory
-    is therefore predictable: − always undoes back to a known good
-    state.
+    Reset re-anchors home to the current state.
+    The header also exposes global controls: −0.1 / +0.1 step every
+    enabled op's depth by 0.1; `rand` overwrites the patch with a
+    fresh low-depth random carpet.
 */
 class SteerTab : public juce::Component
 {
@@ -54,42 +57,54 @@ private:
     ModulatorPanel mod0Panel     { proc, 0 };
     ModulatorPanel mod1Panel     { proc, 1 };
 
-    // Header buttons. Reset re-anchors home; the depth ± step the global
-    // depth of all enabled ops by 0.1 (clamped to MIN_DEPTH..8); randomize
-    // overwrites the patch with a fresh low-depth carpet.
-    juce::TextButton resetButton     { "Reset" };
-    juce::TextButton randomizeButton { "rand" };
+    // Header buttons.
+    juce::TextButton resetButton      { "Reset" };
+    juce::TextButton randomizeButton  { "rand" };
     juce::TextButton depthMinusButton { juce::String::charToString (0x2212)
-                                        + juce::String ("0.1") };
+                                         + juce::String ("0.1") };
     juce::TextButton depthPlusButton  { "+0.1" };
     juce::Label      hintLabel;
 
-    // Shape-target rows. One per family; the texture row is a
-    // dedicated set of widgets so it can host the op-count spinner.
-    struct FamilyRow
+    // One scrub row per shape category. Sliders are LinearHorizontal,
+    // range -1..+1, default 0, no text box. We track `lastValue` so
+    // each `onValueChange` callback can convert the change to a
+    // delta-driven morph step and `dragging` so the snap-back at
+    // release doesn't trigger another morph in the opposite direction.
+    struct ScrubRow
     {
-        juce::String     category;
-        juce::TextButton minusBtn { juce::String::charToString (0x2212) };  // − (true minus, not hyphen)
-        juce::TextButton plusBtn  { "+" };
-        juce::Label      label;
+        juce::String  category;         // empty for the texture row;
+                                        // resolved dynamically from
+                                        // `textureOpCount`.
+        bool          isTextureRow { false };
+        juce::Label   label;
+        juce::Slider  slider { juce::Slider::LinearHorizontal,
+                                juce::Slider::NoTextBox };
+        double        lastValue { 0.0 };
+        bool          dragging  { false };
     };
-    std::vector<std::unique_ptr<FamilyRow>> familyRows;
+    std::vector<std::unique_ptr<ScrubRow>> rows;
 
-    juce::TextButton textureMinusBtn { juce::String::charToString (0x2212) };
-    juce::TextButton texturePlusBtn  { "+" };
-    juce::Label      textureLabel    { {}, "Textured-Smooth" };
-    juce::Label      textureOpLabel  { {}, "op" };
-    juce::Slider     textureOpCount  { juce::Slider::IncDecButtons, juce::Slider::TextBoxLeft };
+    // Texture row extras.
+    juce::Label   textureOpLabel { {}, "op" };
+    juce::Slider  textureOpCount { juce::Slider::IncDecButtons,
+                                    juce::Slider::TextBoxLeft };
+    juce::SortedSet<int> textureAvailableOps;  // op-counts present in pull index
 
-    // The patch state the − buttons walk back toward.
+    // The patch state the negative-direction slider walks toward.
     std::vector<PullIndex::OpState> captured;
     bool capturedValid { false };
 
-    static constexpr float kNudgeStep = 0.15f;
+    // How much morph one full slider sweep (0 → ±1) is worth.
+    // Pre-P3.13 the buttons used 0.15 per click; one full drag should
+    // feel like a few clicks' worth of motion. Tunable.
+    static constexpr float kSliderCoefficient = 0.35f;
 
     void buildRows();
-    void onPlus  (const juce::String& category);
-    void onMinus();
+    void wireSlider (ScrubRow& row);
+    void onScrubDelta (ScrubRow& row, float delta);
+    void applyMorphToward (const juce::String& category, float step);
+    void applyMorphToHome (float step);
+    juce::String resolveTextureCategory();    // ← parsed, no `·` literal
     void onReset();
     void anchorHome();
     void onGlobalDepth (float deltaPerSlot);

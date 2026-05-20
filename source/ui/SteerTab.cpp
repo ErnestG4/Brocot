@@ -6,9 +6,9 @@
 namespace brocot
 {
 
-// The shape categories that get a − / name / + row in the left column.
-// Texture is handled separately because its row carries an op-count
-// spinner; the rest are 1:1 with the pull-index's category names.
+// The shape categories that get a scrub-slider row in the left column.
+// Texture is handled separately because its target is parameterised by
+// an op-count spinner. The other 12 are 1:1 with the pull-index keys.
 static const std::vector<juce::String> kShapeCategories = {
     "Sawtooth", "Square",   "Triangle",
     "Pulse-PW 4", "Organ 1/3/5", "Bell (stretched)",
@@ -25,7 +25,8 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     addAndMakeVisible (resetButton);
     resetButton.onClick = [this] { onReset(); };
-    resetButton.setTooltip ("Restore the captured state and re-anchor home to it.");
+    resetButton.setTooltip ("Re-anchor home to the current state — the next "
+                            "leftward drag will pull back here.");
 
     addAndMakeVisible (depthMinusButton);
     depthMinusButton.onClick = [this] { onGlobalDepth (-0.1f); };
@@ -41,127 +42,167 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     addAndMakeVisible (hintLabel);
     hintLabel.setJustificationType (juce::Justification::centredLeft);
-    hintLabel.setText ("+ pushes the patch toward a shape  ·  − pulls it back toward home",
+    hintLabel.setText ("Drag a row right to push toward that shape  ·  drag left to pull home",
                        juce::dontSendNotification);
+
+    // Inventory which N-op Textured-Smooth categories are actually
+    // present. P3.13 fix: never construct the category name from a `·`
+    // literal — parse loaded names by ASCII prefix instead.
+    {
+        const auto& idx = proc.getPullIndex();
+        for (const auto& n : idx.getCategoryNamesStartingWith ("Textured-Smooth"))
+        {
+            // Expect "Textured-Smooth <something> N ops". Pull the
+            // trailing integer before " ops".
+            if (! n.endsWith (" ops")) continue;
+            const auto head = n.dropLastCharacters (4);   // strip " ops"
+            int digitsEnd = head.length();
+            int digitsStart = digitsEnd;
+            while (digitsStart > 0
+                   && head[digitsStart - 1] >= '0'
+                   && head[digitsStart - 1] <= '9')
+                --digitsStart;
+            if (digitsStart == digitsEnd) continue;
+            const int n_ops = head.substring (digitsStart, digitsEnd).getIntValue();
+            if (n_ops > 0) textureAvailableOps.add (n_ops);
+        }
+    }
 
     buildRows();
 
-    // Texture row controls.
-    addAndMakeVisible (textureMinusBtn);
-    addAndMakeVisible (texturePlusBtn);
-    addAndMakeVisible (textureLabel);
+    // Texture-row extras (the op-count spinner). The slider lives on
+    // the row itself like every other category.
     addAndMakeVisible (textureOpLabel);
     addAndMakeVisible (textureOpCount);
-
-    textureLabel.setJustificationType (juce::Justification::centredLeft);
     textureOpLabel.setJustificationType (juce::Justification::centredRight);
-
-    // P3.12 added op-counts 24/32/48/64 to the textured-smooth bank;
-    // the spinner range was 4..16 before and silently ignored the
-    // new buckets — pressing + on the texture row at op-count > 16
-    // would have looked up a non-existent category and done nothing.
     textureOpCount.setRange (4.0, 64.0, 1.0);
-    textureOpCount.setValue (8.0);
+    textureOpCount.setValue (textureAvailableOps.isEmpty() ? 8 : textureAvailableOps[0]);
     textureOpCount.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
     textureOpCount.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 28, 22);
     textureOpCount.setTooltip ("Op count for the Textured-Smooth target. "
                                 "If the chosen count has no exemplar, the "
                                 "nearest available op-count wins.");
 
-    textureMinusBtn.onClick = [this] { onMinus(); };
-    texturePlusBtn .onClick = [this]
-    {
-        const int requested = (int) textureOpCount.getValue();
-
-        // Find the nearest existing Textured-Smooth · N ops category.
-        // The bank doesn't have a preset at every integer (e.g., 17..23
-        // and 25..31 are sparse), so we walk outward from `requested`.
-        const auto& idx = proc.getPullIndex();
-        for (int radius = 0; radius <= 64; ++radius)
-        {
-            for (int sign : { 0, +1, -1 })
-            {
-                if (radius == 0 && sign != 0) continue;
-                const int candidate = requested + sign * radius;
-                if (candidate < 1) continue;
-                const auto name = juce::String ("Textured-Smooth · ")
-                                + juce::String (candidate) + " ops";
-                if (idx.getCategory (name) != nullptr)
-                {
-                    hintLabel.setText (juce::String ("→ ") + name,
-                                       juce::dontSendNotification);
-                    onPlus (name);
-                    return;
-                }
-            }
-        }
-        // No category matched (the lookup walked the entire 1..64 range
-        // without finding any Textured-Smooth target). Surface that —
-        // silent failure is the bug we're chasing.
-        hintLabel.setText ("Textured-Smooth: no category found near "
-                            + juce::String (requested) + " ops",
-                            juce::dontSendNotification);
-    };
-    textureMinusBtn.setTooltip ("Pull back toward home.");
-    texturePlusBtn .setTooltip ("Nudge toward the Textured-Smooth · N ops shape.");
-
     anchorHome();
 
-    // If the pull index isn't loaded, the whole tab gets disabled.
-    // Buttons still render so the layout doesn't shift, but they're
-    // inert and the hint tells the user how to fix it.
     if (proc.getPullIndex().isEmpty())
     {
         hintLabel.setText ("Pull index not loaded — run "
                             "`python -m phase3.build_pull_index`",
                             juce::dontSendNotification);
         resetButton.setEnabled (false);
-        textureMinusBtn.setEnabled (false);
-        texturePlusBtn .setEnabled (false);
-        for (auto& r : familyRows)
-        {
-            r->minusBtn.setEnabled (false);
-            r->plusBtn .setEnabled (false);
-        }
+        for (auto& r : rows)
+            r->slider.setEnabled (false);
     }
 }
 
 void SteerTab::buildRows()
 {
-    familyRows.clear();
-    for (const auto& cat : kShapeCategories)
+    rows.clear();
+
+    auto addRow = [this] (const juce::String& cat, bool isTexture, const juce::String& display)
     {
-        auto row = std::make_unique<FamilyRow>();
-        row->category = cat;
+        auto r = std::make_unique<ScrubRow>();
+        r->category     = cat;
+        r->isTextureRow = isTexture;
 
-        addAndMakeVisible (row->minusBtn);
-        addAndMakeVisible (row->plusBtn);
-        addAndMakeVisible (row->label);
+        addAndMakeVisible (r->label);
+        r->label.setText (display, juce::dontSendNotification);
+        r->label.setJustificationType (juce::Justification::centredLeft);
 
-        row->label.setText (cat, juce::dontSendNotification);
-        row->label.setJustificationType (juce::Justification::centredLeft);
+        addAndMakeVisible (r->slider);
+        r->slider.setRange (-1.0, 1.0, 0.0);
+        r->slider.setDoubleClickReturnValue (true, 0.0);
+        r->slider.setValue (0.0, juce::dontSendNotification);
+        r->slider.setTooltip (isTexture
+            ? "Drag right to push toward Textured-Smooth · N ops; left to pull home. "
+              "Releases back to neutral; the patch stays where you let go."
+            : "Drag right to push toward " + cat + "; left to pull home. "
+              "Releases back to neutral; the patch stays where you let go.");
 
-        // Bind each plus lambda to its own category string by value
-        // (shadowing the member's `captured` ops vector — rename to
-        // avoid the warning).
-        const auto catName = cat;
-        row->plusBtn.onClick  = [this, catName] { onPlus (catName); };
-        row->minusBtn.onClick = [this] { onMinus(); };
+        rows.push_back (std::move (r));
+        wireSlider (*rows.back());
+    };
 
-        row->plusBtn .setTooltip ("Nudge toward " + cat + ".");
-        row->minusBtn.setTooltip ("Pull back toward home.");
+    for (const auto& cat : kShapeCategories)
+        addRow (cat, false, cat);
+    addRow ({}, true, "Textured-Smooth");
+}
 
-        familyRows.push_back (std::move (row));
+void SteerTab::wireSlider (ScrubRow& row)
+{
+    auto* rowPtr = &row;
+    row.slider.onDragStart = [this, rowPtr]
+    {
+        rowPtr->dragging  = true;
+        rowPtr->lastValue = rowPtr->slider.getValue();
+    };
+    row.slider.onValueChange = [this, rowPtr]
+    {
+        const double v = rowPtr->slider.getValue();
+        const double delta = v - rowPtr->lastValue;
+        rowPtr->lastValue = v;
+        if (! rowPtr->dragging) return;       // ignore programmatic spring-back
+        if (std::abs (delta) < 1e-6) return;
+        onScrubDelta (*rowPtr, (float) delta);
+    };
+    row.slider.onDragEnd = [this, rowPtr]
+    {
+        rowPtr->dragging = false;
+        // Snap visual back to neutral. dontSendNotification avoids
+        // an inverse morph on release.
+        rowPtr->slider.setValue (0.0, juce::dontSendNotification);
+        rowPtr->lastValue = 0.0;
+    };
+}
+
+void SteerTab::onScrubDelta (ScrubRow& row, float delta)
+{
+    const float step = std::abs (delta) * kSliderCoefficient;
+    if (delta > 0.0f)
+    {
+        const auto category = row.isTextureRow ? resolveTextureCategory()
+                                                : row.category;
+        if (category.isEmpty())
+        {
+            hintLabel.setText ("Textured-Smooth: no exemplars loaded",
+                               juce::dontSendNotification);
+            return;
+        }
+        applyMorphToward (category, step);
+    }
+    else
+    {
+        applyMorphToHome (step);
     }
 }
 
-void SteerTab::anchorHome()
+juce::String SteerTab::resolveTextureCategory()
 {
-    captured = proc.getCurrentOps();
-    capturedValid = ! captured.empty();
+    if (textureAvailableOps.isEmpty()) return {};
+
+    const int requested = (int) textureOpCount.getValue();
+
+    // Find the nearest available op-count by absolute distance.
+    int bestN     = textureAvailableOps[0];
+    int bestDist  = std::abs (bestN - requested);
+    for (int i = 1; i < textureAvailableOps.size(); ++i)
+    {
+        const int n = textureAvailableOps[i];
+        const int d = std::abs (n - requested);
+        if (d < bestDist) { bestN = n; bestDist = d; }
+    }
+
+    // Look the category up by ASCII prefix + parse, never by literal `·`.
+    const auto& idx = proc.getPullIndex();
+    const auto suffix = juce::String (" ") + juce::String (bestN) + " ops";
+    for (const auto& n : idx.getCategoryNamesStartingWith ("Textured-Smooth"))
+        if (n.endsWith (suffix))
+            return n;
+    return {};
 }
 
-void SteerTab::onPlus (const juce::String& category)
+void SteerTab::applyMorphToward (const juce::String& category, float step)
 {
     const auto* targetOps = proc.getPullIndex().getBestOps (category);
     if (targetOps == nullptr)
@@ -170,35 +211,33 @@ void SteerTab::onPlus (const juce::String& category)
                            juce::dontSendNotification);
         return;
     }
-
     auto cur = proc.getCurrentOps();
-    auto nudged = PullIndex::morph (cur, *targetOps, kNudgeStep);
+    auto nudged = PullIndex::morph (cur, *targetOps, step);
     proc.applyOps (nudged);
-    hintLabel.setText ("→ " + category + "  (target slots: "
-                        + juce::String ((int) targetOps->size()) + ")",
-                        juce::dontSendNotification);
+    hintLabel.setText (juce::String ("→ ") + category, juce::dontSendNotification);
 }
 
-void SteerTab::onMinus()
+void SteerTab::applyMorphToHome (float step)
 {
     if (! capturedValid) anchorHome();
     if (! capturedValid) return;
-
     auto cur = proc.getCurrentOps();
-    auto nudged = PullIndex::morph (cur, captured, kNudgeStep);
+    auto nudged = PullIndex::morph (cur, captured, step);
     proc.applyOps (nudged);
     hintLabel.setText ("← back toward home", juce::dontSendNotification);
 }
 
+void SteerTab::anchorHome()
+{
+    captured = proc.getCurrentOps();
+    capturedValid = ! captured.empty();
+}
+
 void SteerTab::onReset()
 {
-    if (! capturedValid) anchorHome();
-    if (! capturedValid) return;
-
-    proc.applyOps (captured);
-    // Re-anchor — Reset is also "from now on this state is home".
     anchorHome();
-    hintLabel.setText ("reset to home", juce::dontSendNotification);
+    hintLabel.setText ("home re-anchored to current state",
+                       juce::dontSendNotification);
 }
 
 void SteerTab::onGlobalDepth (float deltaPerSlot)
@@ -221,18 +260,13 @@ void SteerTab::onGlobalDepth (float deltaPerSlot)
 
 void SteerTab::onRandomize()
 {
-    // Freeform low-depth random carpet — same depth band as the
-    // experimental textured-smooth bank (≤ 0.6), random L/R paths
-    // 1..8 chars deep, ~half the slots enabled. Drops you somewhere
-    // unfamiliar in the parameter space; the − button + Reset are
-    // the way back out (Reset now treats the random as home).
     juce::Random& rng = juce::Random::getSystemRandom();
     std::vector<PullIndex::OpState> ops;
     ops.reserve (64);
     for (int i = 0; i < 64; ++i)
     {
         PullIndex::OpState s;
-        s.enabled = rng.nextFloat() < 0.5f;   // ~32 enabled on average
+        s.enabled = rng.nextFloat() < 0.5f;
         if (s.enabled)
         {
             const int pathLen = 1 + rng.nextInt (8);
@@ -240,7 +274,7 @@ void SteerTab::onRandomize()
             for (int j = 0; j < pathLen; ++j)
                 path += (rng.nextBool() ? "L" : "R");
             s.path = path;
-            s.depth = 0.04f + rng.nextFloat() * 0.56f;   // [0.04, 0.60]
+            s.depth = 0.04f + rng.nextFloat() * 0.56f;
         }
         else
         {
@@ -250,7 +284,7 @@ void SteerTab::onRandomize()
         ops.push_back (s);
     }
     proc.applyOps (ops);
-    anchorHome();    // fresh random becomes the new home
+    anchorHome();
     const int enabledCount = (int) std::count_if (ops.begin(), ops.end(),
         [] (const PullIndex::OpState& s) { return s.enabled; });
     hintLabel.setText ("randomized — " + juce::String (enabledCount)
@@ -275,10 +309,8 @@ void SteerTab::paint (juce::Graphics& g)
 void SteerTab::resized()
 {
     auto bounds = getLocalBounds().reduced (16);
-    bounds.removeFromTop (48);   // header band
+    bounds.removeFromTop (48);
 
-    // Header row: hint label left + global controls right.
-    // Layout right-to-left: [Reset][rand][+0.1][−0.1] [hint .... ]
     auto headerRow = bounds.removeFromTop (32);
     resetButton    .setBounds (headerRow.removeFromRight (60).reduced (0, 4));
     headerRow.removeFromRight (4);
@@ -291,54 +323,38 @@ void SteerTab::resized()
     hintLabel.setBounds (headerRow);
     bounds.removeFromTop (8);
 
-    // Two columns: shape buttons left, panels right.
     const int rightW = juce::jlimit (380, 540, bounds.getWidth() * 4 / 10);
     auto leftCol  = bounds.removeFromLeft (bounds.getWidth() - rightW - 12);
     bounds.removeFromLeft (12);
     auto rightCol = bounds;
 
-    // Left column: 13 rows (12 families + 1 texture), evenly stacked.
-    const int totalRows = (int) familyRows.size() + 1;
+    const int totalRows = (int) rows.size();
     const int rowGap = 2;
     const int rowH = juce::jlimit (24, 36,
-                                   (leftCol.getHeight() - rowGap * (totalRows - 1)) / totalRows);
+                                   (leftCol.getHeight() - rowGap * (totalRows - 1)) / juce::jmax (1, totalRows));
 
-    auto layoutRow = [] (juce::Rectangle<int> r,
-                         juce::TextButton& minus, juce::Label& label,
-                         juce::TextButton& plus,
-                         juce::Component* extraInline = nullptr,
-                         juce::Label* extraLabel = nullptr)
-    {
-        const int btnW = 30;
-        minus.setBounds (r.removeFromLeft (btnW).reduced (0, 2));
-        r.removeFromLeft (6);
-        plus .setBounds (r.removeFromRight (btnW).reduced (0, 2));
-        r.removeFromRight (6);
-
-        if (extraInline != nullptr)
-        {
-            const int sliderW = 80;
-            extraInline->setBounds (r.removeFromRight (sliderW).reduced (0, 2));
-            r.removeFromRight (4);
-            if (extraLabel != nullptr)
-                extraLabel->setBounds (r.removeFromRight (24));
-        }
-        label.setBounds (r);
-    };
+    // Label width: roughly half the row so the slider has room.
+    const int labelW = juce::jlimit (110, 180, leftCol.getWidth() * 4 / 10);
 
     int y = leftCol.getY();
-    for (auto& row : familyRows)
+    for (auto& row : rows)
     {
-        layoutRow ({ leftCol.getX(), y, leftCol.getWidth(), rowH },
-                   row->minusBtn, row->label, row->plusBtn);
+        juce::Rectangle<int> r { leftCol.getX(), y, leftCol.getWidth(), rowH };
+        row->label.setBounds (r.removeFromLeft (labelW));
+        r.removeFromLeft (6);
+        if (row->isTextureRow)
+        {
+            // op-count spinner + small "op" label between label and slider.
+            const int spinnerW = 84;
+            textureOpCount.setBounds (r.removeFromLeft (spinnerW).reduced (0, 2));
+            r.removeFromLeft (4);
+            textureOpLabel.setBounds (r.removeFromLeft (22));
+            r.removeFromLeft (4);
+        }
+        row->slider.setBounds (r.reduced (0, 4));
         y += rowH + rowGap;
     }
-    // Texture row at the bottom.
-    layoutRow ({ leftCol.getX(), y, leftCol.getWidth(), rowH },
-               textureMinusBtn, textureLabel, texturePlusBtn,
-               &textureOpCount, &textureOpLabel);
 
-    // Right column: 4 stacked panels.
     const int pGap = 8;
     const int pH   = (rightCol.getHeight() - pGap * 3) / 4;
     int py = rightCol.getY();

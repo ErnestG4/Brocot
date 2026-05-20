@@ -69,6 +69,15 @@ public:
     juce::StringArray getCategoryNames() const;
     const Category* getCategory (const juce::String& name) const;
 
+    /** Return loaded category names whose UTF-8 byte sequence starts
+        with `prefix`. Useful when the category names contain non-ASCII
+        characters (e.g., the `·` in "Textured-Smooth · 8 ops"); a
+        C++ source literal `"Textured-Smooth · "` is silently
+        Latin-1-decoded by `juce::String(const char*)` and won't compare
+        equal to the JSON-loaded UTF-8 key. A pure-ASCII prefix is safe
+        because Latin-1 and UTF-8 agree byte-for-byte in 0x20..0x7e. */
+    juce::StringArray getCategoryNamesStartingWith (juce::StringRef prefix) const;
+
     /** Convenience: the lowest-objective exemplar's ops for a category,
         or nullptr if the category is unknown / empty. */
     const std::vector<OpState>* getBestOps (const juce::String& category) const;
