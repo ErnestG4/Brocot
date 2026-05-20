@@ -16,34 +16,50 @@ namespace brocot
     is the live patch surface (env + filter + the first two modulators
     stacked).
 
-    Each row has a **spring-back slider** centred at 0.
+    Each row carries a **rate-of-change scrub slider** centred at 0.
 
-    - Drag right (positive)  → nudge the patch toward this row's
-                                category target, in steps proportional
-                                to how far the slider moves.
-    - Drag left  (negative)  → nudge back toward the captured "home"
-                                state, again proportional to slider
-                                travel.
-    - Release the slider     → it snaps to 0; the patch stays where
-                                you let go. The slider is a *scrub
-                                controller*, not a position.
+    - Drag right (positive) → set a positive *rate* of morph toward
+                              this row's category target. Holding at
+                              +0.5 morphs at half speed for as long as
+                              you hold; holding at +1.0 morphs at full
+                              speed.
+    - Drag left  (negative) → set a negative rate; the patch morphs
+                              back toward the captured "home" state at
+                              that speed.
+    - Release the slider    → it snaps to 0, the morph stops, the patch
+                              stays where you left it.
 
-    The Textured-Smooth row carries an op-count spinner (4..64) that
-    picks which `Textured-Smooth · N ops` category the row morphs
-    toward. The lookup parses N from category names loaded from the
-    pull index, so we never compare against a `·` literal in the
-    source (the JUCE `String(const char*)` constructor treats source
-    bytes as Latin-1, mangling `·` to `Â·` — see P3.13).
+    Slider position is rate (`α / second`), not a one-shot step. A
+    30 Hz timer accumulates progress per row; each row's morph runs
+    from its session-start snapshot toward either its category target
+    (positive progress) or home (negative progress). New `mouseDown`
+    captures the current patch as a new session-start so a fresh drag
+    starts a fresh morph from wherever you currently are.
+
+    Slow scrubs (small slider deflection) still advance Stern-Brocot
+    paths because progress is *accumulated* across timer ticks before
+    being passed to `morph()` — each tick's tiny α adds to a stored
+    fraction, and `morph()` walks the path whenever the fraction
+    crosses a per-step boundary.
+
+    The Textured-Smooth row's category is resolved dynamically from
+    the op-count spinner: nearest available `Textured-Smooth · N ops`
+    in the pull index. The lookup parses N from loaded names by
+    ASCII prefix; never construct a `·` literal in C++ (the JUCE
+    `String(const char*)` ctor treats source bytes as Latin-1, see
+    P3.13 worked example).
 
     Reset re-anchors home to the current state.
-    The header also exposes global controls: −0.1 / +0.1 step every
-    enabled op's depth by 0.1; `rand` overwrites the patch with a
-    fresh low-depth random carpet.
+    Header globals: `−0.1` / `+0.1` step every enabled op's depth by
+    0.1; `rand` overwrites the patch with a fresh low-depth random
+    carpet.
 */
-class SteerTab : public juce::Component
+class SteerTab : public juce::Component,
+                 private juce::Timer
 {
 public:
     explicit SteerTab (BrocotAudioProcessor&);
+    ~SteerTab() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -66,10 +82,12 @@ private:
     juce::Label      hintLabel;
 
     // One scrub row per shape category. Sliders are LinearHorizontal,
-    // range -1..+1, default 0, no text box. We track `lastValue` so
-    // each `onValueChange` callback can convert the change to a
-    // delta-driven morph step and `dragging` so the snap-back at
-    // release doesn't trigger another morph in the opposite direction.
+    // range -1..+1, default 0, no text box.
+    //
+    // Per-row state lives here so the timer can accumulate fractional
+    // morph progress across ticks (needed for the path walk — single
+    // ticks of tiny α would otherwise round to zero path-steps and
+    // the path would never advance no matter how long the user held).
     struct ScrubRow
     {
         juce::String  category;         // empty for the texture row;
@@ -79,8 +97,14 @@ private:
         juce::Label   label;
         juce::Slider  slider { juce::Slider::LinearHorizontal,
                                 juce::Slider::NoTextBox };
-        double        lastValue { 0.0 };
-        bool          dragging  { false };
+        bool          dragging { false };
+
+        // Snapshot of the patch the moment the user grabbed the
+        // slider — `morph()` always runs from here, with a signed
+        // progress driving it toward either `category` (>0) or
+        // `home` (<0).
+        std::vector<PullIndex::OpState> sessionStart;
+        float sessionProgress { 0.0f };   // in [-1, +1]
     };
     std::vector<std::unique_ptr<ScrubRow>> rows;
 
@@ -94,17 +118,20 @@ private:
     std::vector<PullIndex::OpState> captured;
     bool capturedValid { false };
 
-    // How much morph one full slider sweep (0 → ±1) is worth.
-    // Pre-P3.13 the buttons used 0.15 per click; one full drag should
-    // feel like a few clicks' worth of motion. Tunable.
-    static constexpr float kSliderCoefficient = 0.35f;
+    // Timer: 30 Hz polling of slider deflections.
+    static constexpr int kTimerHz = 30;
+
+    // How fast a fully-deflected slider sweeps progress. 1.5 α/sec
+    // means a full morph at full deflection takes ~0.66 sec, and a
+    // 6-step SB path advances ~once every 4 timer ticks (~130 ms).
+    // Slower at lower deflections — proportional.
+    static constexpr float kRatePerSecAtFull = 1.5f;
 
     void buildRows();
     void wireSlider (ScrubRow& row);
-    void onScrubDelta (ScrubRow& row, float delta);
-    void applyMorphToward (const juce::String& category, float step);
-    void applyMorphToHome (float step);
-    juce::String resolveTextureCategory();    // ← parsed, no `·` literal
+    void timerCallback() override;
+    void applyRowMorph (ScrubRow& row);
+    juce::String resolveTextureCategory();
     void onReset();
     void anchorHome();
     void onGlobalDepth (float deltaPerSlot);

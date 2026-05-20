@@ -27,10 +27,13 @@ public:
         // slow enough to kill the zipper noise on per-block depth updates.
         smoothedDepth.reset (sampleRate, 0.03);
         smoothedDepth.setCurrentAndTargetValue (0.0f);
-        // Ratio gets faster smoothing — ~5ms — so an LFO sweeping through
-        // SB positions feels stepped but the per-step transition is a quick
-        // chirp rather than a click. Initial value at 1/1.
-        smoothedRatio.reset (sampleRate, 0.005);
+        // Ratio smoothing — 20ms. Long enough that a single SB-tree
+        // step jump (e.g., ratio 3/1 → 2/1 mid-morph) glides cleanly
+        // instead of clicking; short enough that LFO-driven sweeps and
+        // live path edits still feel responsive. (P3.13(b) bump from
+        // 5ms — the original was tuned for solitary path edits, not
+        // the rapid sequence of steps a slider-driven morph produces.)
+        smoothedRatio.reset (sampleRate, 0.020);
         smoothedRatio.setCurrentAndTargetValue (1.0f);
     }
 

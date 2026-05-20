@@ -6,9 +6,6 @@
 namespace brocot
 {
 
-// The shape categories that get a scrub-slider row in the left column.
-// Texture is handled separately because its target is parameterised by
-// an op-count spinner. The other 12 are 1:1 with the pull-index keys.
 static const std::vector<juce::String> kShapeCategories = {
     "Sawtooth", "Square",   "Triangle",
     "Pulse-PW 4", "Organ 1/3/5", "Bell (stretched)",
@@ -42,20 +39,18 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     addAndMakeVisible (hintLabel);
     hintLabel.setJustificationType (juce::Justification::centredLeft);
-    hintLabel.setText ("Drag a row right to push toward that shape  ·  drag left to pull home",
+    hintLabel.setText ("Hold a row right to push toward that shape  ·  hold left to pull home",
                        juce::dontSendNotification);
 
-    // Inventory which N-op Textured-Smooth categories are actually
-    // present. P3.13 fix: never construct the category name from a `·`
-    // literal — parse loaded names by ASCII prefix instead.
+    // Inventory available Textured-Smooth op-counts by ASCII prefix
+    // scan + integer parse — never construct the `·`-containing
+    // literal in C++ source.
     {
         const auto& idx = proc.getPullIndex();
         for (const auto& n : idx.getCategoryNamesStartingWith ("Textured-Smooth"))
         {
-            // Expect "Textured-Smooth <something> N ops". Pull the
-            // trailing integer before " ops".
             if (! n.endsWith (" ops")) continue;
-            const auto head = n.dropLastCharacters (4);   // strip " ops"
+            const auto head = n.dropLastCharacters (4);
             int digitsEnd = head.length();
             int digitsStart = digitsEnd;
             while (digitsStart > 0
@@ -70,8 +65,6 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     buildRows();
 
-    // Texture-row extras (the op-count spinner). The slider lives on
-    // the row itself like every other category.
     addAndMakeVisible (textureOpLabel);
     addAndMakeVisible (textureOpCount);
     textureOpLabel.setJustificationType (juce::Justification::centredRight);
@@ -94,7 +87,13 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
         for (auto& r : rows)
             r->slider.setEnabled (false);
     }
+    else
+    {
+        startTimerHz (kTimerHz);
+    }
 }
+
+SteerTab::~SteerTab() { stopTimer(); }
 
 void SteerTab::buildRows()
 {
@@ -115,10 +114,10 @@ void SteerTab::buildRows()
         r->slider.setDoubleClickReturnValue (true, 0.0);
         r->slider.setValue (0.0, juce::dontSendNotification);
         r->slider.setTooltip (isTexture
-            ? "Drag right to push toward Textured-Smooth · N ops; left to pull home. "
-              "Releases back to neutral; the patch stays where you let go."
-            : "Drag right to push toward " + cat + "; left to pull home. "
-              "Releases back to neutral; the patch stays where you let go.");
+            ? "Hold right to morph toward Textured-Smooth · N ops; left to pull home. "
+              "Slider position is rate — further from neutral = faster. Releases to 0."
+            : "Hold right to morph toward " + cat + "; left to pull home. "
+              "Slider position is rate — further from neutral = faster. Releases to 0.");
 
         rows.push_back (std::move (r));
         wireSlider (*rows.back());
@@ -134,32 +133,46 @@ void SteerTab::wireSlider (ScrubRow& row)
     auto* rowPtr = &row;
     row.slider.onDragStart = [this, rowPtr]
     {
-        rowPtr->dragging  = true;
-        rowPtr->lastValue = rowPtr->slider.getValue();
+        rowPtr->dragging        = true;
+        rowPtr->sessionStart    = proc.getCurrentOps();
+        rowPtr->sessionProgress = 0.0f;
     };
-    row.slider.onValueChange = [this, rowPtr]
-    {
-        const double v = rowPtr->slider.getValue();
-        const double delta = v - rowPtr->lastValue;
-        rowPtr->lastValue = v;
-        if (! rowPtr->dragging) return;       // ignore programmatic spring-back
-        if (std::abs (delta) < 1e-6) return;
-        onScrubDelta (*rowPtr, (float) delta);
-    };
-    row.slider.onDragEnd = [this, rowPtr]
+    // No onValueChange morph — slider position is a *rate*, processed
+    // by the timer. The user can wiggle the slider freely without
+    // each wiggle inducing a morph step.
+    row.slider.onDragEnd = [rowPtr]
     {
         rowPtr->dragging = false;
-        // Snap visual back to neutral. dontSendNotification avoids
-        // an inverse morph on release.
+        // Spring-back. The session's accumulated `sessionProgress`
+        // stays where it is — the patch reflects whatever progress
+        // the user reached at release. Next drag starts fresh.
         rowPtr->slider.setValue (0.0, juce::dontSendNotification);
-        rowPtr->lastValue = 0.0;
     };
 }
 
-void SteerTab::onScrubDelta (ScrubRow& row, float delta)
+void SteerTab::timerCallback()
 {
-    const float step = std::abs (delta) * kSliderCoefficient;
-    if (delta > 0.0f)
+    constexpr float dt = 1.0f / (float) kTimerHz;
+
+    for (auto& row : rows)
+    {
+        if (! row->dragging) continue;
+        const float v = (float) row->slider.getValue();
+        if (std::abs (v) < 1e-3f) continue;
+
+        row->sessionProgress = juce::jlimit (-1.0f, 1.0f,
+            row->sessionProgress + v * kRatePerSecAtFull * dt);
+
+        applyRowMorph (*row);
+    }
+}
+
+void SteerTab::applyRowMorph (ScrubRow& row)
+{
+    const float p = row.sessionProgress;
+    if (std::abs (p) < 1e-4f) return;
+
+    if (p > 0.0f)
     {
         const auto category = row.isTextureRow ? resolveTextureCategory()
                                                 : row.category;
@@ -169,11 +182,27 @@ void SteerTab::onScrubDelta (ScrubRow& row, float delta)
                                juce::dontSendNotification);
             return;
         }
-        applyMorphToward (category, step);
+        const auto* targetOps = proc.getPullIndex().getBestOps (category);
+        if (targetOps == nullptr)
+        {
+            hintLabel.setText ("no best-ops for '" + category + "'",
+                               juce::dontSendNotification);
+            return;
+        }
+        auto morphed = PullIndex::morph (row.sessionStart, *targetOps, p);
+        proc.applyOps (morphed);
+        hintLabel.setText (juce::String ("→ ") + category
+                           + "  (" + juce::String ((int) (p * 100.0f)) + "%)",
+                           juce::dontSendNotification);
     }
     else
     {
-        applyMorphToHome (step);
+        if (! capturedValid) anchorHome();
+        if (! capturedValid) return;
+        auto morphed = PullIndex::morph (row.sessionStart, captured, -p);
+        proc.applyOps (morphed);
+        hintLabel.setText ("← home  (" + juce::String ((int) (-p * 100.0f)) + "%)",
+                           juce::dontSendNotification);
     }
 }
 
@@ -182,8 +211,6 @@ juce::String SteerTab::resolveTextureCategory()
     if (textureAvailableOps.isEmpty()) return {};
 
     const int requested = (int) textureOpCount.getValue();
-
-    // Find the nearest available op-count by absolute distance.
     int bestN     = textureAvailableOps[0];
     int bestDist  = std::abs (bestN - requested);
     for (int i = 1; i < textureAvailableOps.size(); ++i)
@@ -193,38 +220,12 @@ juce::String SteerTab::resolveTextureCategory()
         if (d < bestDist) { bestN = n; bestDist = d; }
     }
 
-    // Look the category up by ASCII prefix + parse, never by literal `·`.
     const auto& idx = proc.getPullIndex();
     const auto suffix = juce::String (" ") + juce::String (bestN) + " ops";
     for (const auto& n : idx.getCategoryNamesStartingWith ("Textured-Smooth"))
         if (n.endsWith (suffix))
             return n;
     return {};
-}
-
-void SteerTab::applyMorphToward (const juce::String& category, float step)
-{
-    const auto* targetOps = proc.getPullIndex().getBestOps (category);
-    if (targetOps == nullptr)
-    {
-        hintLabel.setText ("no best-ops for '" + category + "'",
-                           juce::dontSendNotification);
-        return;
-    }
-    auto cur = proc.getCurrentOps();
-    auto nudged = PullIndex::morph (cur, *targetOps, step);
-    proc.applyOps (nudged);
-    hintLabel.setText (juce::String ("→ ") + category, juce::dontSendNotification);
-}
-
-void SteerTab::applyMorphToHome (float step)
-{
-    if (! capturedValid) anchorHome();
-    if (! capturedValid) return;
-    auto cur = proc.getCurrentOps();
-    auto nudged = PullIndex::morph (cur, captured, step);
-    proc.applyOps (nudged);
-    hintLabel.setText ("← back toward home", juce::dontSendNotification);
 }
 
 void SteerTab::anchorHome()
@@ -236,6 +237,14 @@ void SteerTab::anchorHome()
 void SteerTab::onReset()
 {
     anchorHome();
+    // Also reset every row's session start to the current state and
+    // zero its progress — so an in-flight morph doesn't snap back to
+    // an old start point the next time the user grabs that row.
+    for (auto& r : rows)
+    {
+        r->sessionStart    = captured;
+        r->sessionProgress = 0.0f;
+    }
     hintLabel.setText ("home re-anchored to current state",
                        juce::dontSendNotification);
 }
@@ -285,6 +294,11 @@ void SteerTab::onRandomize()
     }
     proc.applyOps (ops);
     anchorHome();
+    for (auto& r : rows)
+    {
+        r->sessionStart    = captured;
+        r->sessionProgress = 0.0f;
+    }
     const int enabledCount = (int) std::count_if (ops.begin(), ops.end(),
         [] (const PullIndex::OpState& s) { return s.enabled; });
     hintLabel.setText ("randomized — " + juce::String (enabledCount)
@@ -333,7 +347,6 @@ void SteerTab::resized()
     const int rowH = juce::jlimit (24, 36,
                                    (leftCol.getHeight() - rowGap * (totalRows - 1)) / juce::jmax (1, totalRows));
 
-    // Label width: roughly half the row so the slider has room.
     const int labelW = juce::jlimit (110, 180, leftCol.getWidth() * 4 / 10);
 
     int y = leftCol.getY();
@@ -344,7 +357,6 @@ void SteerTab::resized()
         r.removeFromLeft (6);
         if (row->isTextureRow)
         {
-            // op-count spinner + small "op" label between label and slider.
             const int spinnerW = 84;
             textureOpCount.setBounds (r.removeFromLeft (spinnerW).reduced (0, 2));
             r.removeFromLeft (4);
