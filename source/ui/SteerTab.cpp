@@ -113,6 +113,11 @@ void SteerTab::buildRows()
         r->slider.setRange (-1.0, 1.0, 0.0);
         r->slider.setDoubleClickReturnValue (true, 0.0);
         r->slider.setValue (0.0, juce::dontSendNotification);
+        // Click-on-track must NOT snap the value to the click position —
+        // otherwise a quick click pumps a tick or two of morph before
+        // the slider springs back. The user has to deliberately grab
+        // the thumb (parked at 0) and drag from there. P3.13(c).
+        r->slider.setSliderSnapsToMousePosition (false);
         r->slider.setTooltip (isTexture
             ? "Hold right to morph toward Textured-Smooth · N ops; left to pull home. "
               "Slider position is rate — further from neutral = faster. Releases to 0."

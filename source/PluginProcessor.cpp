@@ -591,14 +591,32 @@ std::vector<PullIndex::OpState> BrocotAudioProcessor::getCurrentOps() const
 void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& states)
 {
     const int n = juce::jmin ((int) states.size(), params::kNumOperators);
+
+    // Path writes inline + ONE rebuild at the end. The naive form
+    // (calling setOpPath in the loop) does a full position-LUT rebuild
+    // per op — 64 × kMaxPosition path constructions, repeated 64 times.
+    // At 30 Hz from the steer-tab timer that's ~4 M path constructions /
+    // sec on the message thread and the UI hard-freezes. P3.13(c).
+    {
+        const juce::ScopedLock lock (pathsLock);
+        for (int i = 0; i < n; ++i)
+            opPaths[(size_t) i] = states[(size_t) i].path;
+    }
+    for (int i = 0; i < n; ++i)
+    {
+        const Path p (states[(size_t) i].path);
+        opRatios[(size_t) i].store ((float) p.ratio(), std::memory_order_release);
+    }
+
     for (int i = 0; i < n; ++i)
     {
         if (auto* p = apvts.getParameter (params::opId (i, "enabled")))
             p->setValueNotifyingHost (states[(size_t) i].enabled ? 1.0f : 0.0f);
         if (auto* p = apvts.getParameter (params::opId (i, "depth")))
             p->setValueNotifyingHost (p->convertTo0to1 (states[(size_t) i].depth));
-        setOpPath (i, states[(size_t) i].path);
     }
+
+    rebuildOpPositionLUTs();
 }
 
 bool BrocotAudioProcessor::isDuoMode() const noexcept
