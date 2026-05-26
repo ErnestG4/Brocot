@@ -179,8 +179,15 @@ void OperatorPanel::resized()
     //   │                          │   gap            (8)
     //   │ I = ...    regime label  │   depth row      (14)
     //   │ ────●────────────────    │   depthSlider    (22)
+    //   │ det ──●──   key ──●──     │   tuning row     (16)
     //   └──────────────────────────┘
     auto r = getLocalBounds().reduced (8);
+
+    // Reserve the detune / key-scale row from the *bottom* first, so it's
+    // always laid out and visible even when the card is short (the elements
+    // above squeeze instead of the tuning sliders vanishing).
+    auto tuneRow = r.removeFromBottom (16);
+    r.removeFromBottom (3);
 
     enabledToggle.setBounds (r.removeFromTop (18));
     r.removeFromTop (4);
@@ -223,15 +230,9 @@ void OperatorPanel::resized()
 
     depthSlider.setBounds (r.removeFromTop (22));
 
-    // Bottom row: detune | key-scale, side by side (laid out only if the card
-    // has room left — the dense grid may clip, but the controls stay live).
-    if (r.getHeight() >= 16)
-    {
-        r.removeFromTop (4);
-        auto tuneRow = r.removeFromTop (juce::jmin (18, r.getHeight()));
-        detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
-        keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
-    }
+    // Reserved bottom row: detune | key-scale, side by side.
+    detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
+    keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
 }
 
 } // namespace brocot
