@@ -84,3 +84,90 @@ TEST_CASE ("key-scaling scales the effective modulation index with pitch")
     const float mid = steadyPeakDelta (*make (1.0f, 0.0f), 100.0f);
     REQUIRE (mid == Approx (base).epsilon (0.05));
 }
+
+namespace
+{
+    // Magnitude of the operator's output at the k-th harmonic of its own
+    // oscillation frequency, via direct sin/cos correlation. The operator
+    // returns depth·fMod·osc; we normalise out depth·fMod to recover osc and
+    // measure its harmonic content. ratio=1 ⇒ osc runs at carrierHz.
+    float harmonicMag (Operator& op, float carrierHz, float depth, int harmonic)
+    {
+        const float invSR = (float) (1.0 / kSampleRate);
+        const float twoPi = 6.2831853071795864769f;
+        const float w = twoPi * (carrierHz * (float) harmonic) / (float) kSampleRate;
+        const float norm = depth * carrierHz;          // depth·fMod (ratio=1)
+        double sinAcc = 0.0, cosAcc = 0.0;
+        const int settle = 4000, window = 16000;
+        for (int i = 0; i < settle + window; ++i)
+        {
+            const float osc = op.processSample (carrierHz, invSR) / norm;
+            if (i >= settle)
+            {
+                const float ph = w * (float) (i - settle);
+                sinAcc += osc * std::sin (ph);
+                cosAcc += osc * std::cos (ph);
+            }
+        }
+        return (float) (std::sqrt (sinAcc * sinAcc + cosAcc * cosAcc) / window);
+    }
+}
+
+TEST_CASE ("feedback adds harmonics absent from a clean sine operator")
+{
+    auto make = [] (float feedback)
+    {
+        auto op = std::make_unique<Operator>();
+        op->prepare (kSampleRate);
+        op->setEnabled (true);
+        op->snapRatio (1.0f);
+        op->setDepth (1.0f);
+        op->setFeedback (feedback);
+        return op;
+    };
+
+    // A pure sine has essentially no energy at its 2nd harmonic; self-feedback
+    // injects it (the bright/sawtooth character). 3rd harmonic likewise grows.
+    const float clean2 = harmonicMag (*make (0.0f), 220.0f, 1.0f, 2);
+    const float fb2    = harmonicMag (*make (0.7f), 220.0f, 1.0f, 2);
+    REQUIRE (clean2 < 0.02f);
+    REQUIRE (fb2 > 0.05f);
+    REQUIRE (fb2 > clean2 * 4.0f);
+}
+
+TEST_CASE ("feedback output stays bounded (2-sample averaging tames the loop)")
+{
+    Operator op;
+    op.prepare (kSampleRate);
+    op.setEnabled (true);
+    op.snapRatio (1.0f);
+    op.setDepth (1.0f);
+    op.setFeedback (1.0f);                      // max self-PM index (π)
+
+    const float invSR = (float) (1.0 / kSampleRate);
+    const float fMod = 220.0f;                  // depth·fMod with depth=1
+    float peak = 0.0f;
+    for (int i = 0; i < 48000; ++i)
+        peak = std::max (peak, std::abs (op.processSample (220.0f, invSR)));
+    // osc is a sine ⇒ |delta| can never exceed depth·fMod, no runaway.
+    REQUIRE (peak <= fMod * 1.001f);
+    REQUIRE (std::isfinite (peak));
+}
+
+TEST_CASE ("feedback=0 reproduces the pure-sine path exactly")
+{
+    Operator clean, fbZero;
+    for (auto* op : { &clean, &fbZero })
+    {
+        op->prepare (kSampleRate);
+        op->setEnabled (true);
+        op->snapRatio (1.0f);
+        op->setDepth (1.0f);
+    }
+    fbZero.setFeedback (0.0f);
+
+    const float invSR = (float) (1.0 / kSampleRate);
+    for (int i = 0; i < 2000; ++i)
+        REQUIRE (clean.processSample (220.0f, invSR)
+                     == Approx (fbZero.processSample (220.0f, invSR)));
+}

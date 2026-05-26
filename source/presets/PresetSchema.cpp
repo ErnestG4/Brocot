@@ -84,8 +84,13 @@ juce::var serialise (const BrocotAudioProcessor& proc)
     root->setProperty ("provenance", juce::var (provenance));
 
     auto* engine = new juce::DynamicObject();
-    engine->setProperty ("polyphony",
-                         paramValue (apvts, params::ids::polyphony) > 0.5f ? "duo" : "mono");
+    {
+        const int polyIdx = (int) std::lround (paramValue (apvts, params::ids::polyphony));
+        engine->setProperty ("polyphony",
+                             polyIdx >= 2 ? "poly" : polyIdx == 1 ? "duo" : "mono");
+        engine->setProperty ("maxVoices",
+                             (int) std::lround (paramValue (apvts, params::ids::maxVoices)));
+    }
     engine->setProperty ("octaveShift",
                          (int) std::round (paramValue (apvts, params::ids::octaveShift)));
 
@@ -108,6 +113,10 @@ juce::var serialise (const BrocotAudioProcessor& proc)
             op->setProperty ("detune", (double) dt);
         if (const float ks = paramValue (apvts, params::opId (i, "keyScale")); ks != 0.0f)
             op->setProperty ("keyScale", (double) ks);
+        // Self-feedback exists on op 1 (index 0) only; written when non-zero.
+        if (i == 0)
+            if (const float fb = paramValue (apvts, params::opId (0, "feedback")); fb != 0.0f)
+                op->setProperty ("feedback", (double) fb);
         if (sharedMode)
             op->setProperty ("position",
                              (int) std::round (paramValue (apvts, params::opId (i, "position"))));
@@ -184,8 +193,12 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                   (float) (int) engine->getProperty ("octaveShift"), false);
 
         const juce::String poly = engine->getProperty ("polyphony");
-        setParam (apvts, params::ids::polyphony,
-                  (poly == "duo") ? 1.0f : 0.0f, false);
+        const float polyIdx = (poly == "poly") ? 2.0f : (poly == "duo") ? 1.0f : 0.0f;
+        setParam (apvts, params::ids::polyphony, polyIdx, false);
+        // maxVoices absent (older presets) ⇒ leave at the param default (8).
+        if (engine->hasProperty ("maxVoices"))
+            setParam (apvts, params::ids::maxVoices,
+                      (float) (int) engine->getProperty ("maxVoices"), false);
 
         const juce::String pathMode = engine->getProperty ("pathMode");
         const bool sharedMode = pathMode != "free";
@@ -218,6 +231,11 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "keyScale"),
                           op->hasProperty ("keyScale")
                               ? (float) (double) op->getProperty ("keyScale") : 0.0f, false);
+                // Self-feedback (op 1 / index 0 only) — absent ⇒ 0 (clean sine).
+                if (i == 0)
+                    setParam (apvts, params::opId (0, "feedback"),
+                              op->hasProperty ("feedback")
+                                  ? (float) (double) op->getProperty ("feedback") : 0.0f, false);
 
                 if (sharedMode)
                     setParam (apvts, params::opId (i, "position"),
@@ -236,6 +254,8 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "position"), 0.0f, false);
                 setParam (apvts, params::opId (i, "detune"),   0.0f, false);
                 setParam (apvts, params::opId (i, "keyScale"), 0.0f, false);
+                if (i == 0)
+                    setParam (apvts, params::opId (0, "feedback"), 0.0f, false);
                 if (! sharedMode)
                     proc.setOpPath (i, "");
             }

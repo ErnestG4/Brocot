@@ -37,12 +37,15 @@ private:
         processorRef.getKeyboardState(),
         juce::MidiKeyboardComponent::horizontalKeyboard
     };
-    using ComboAttach = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ComboAttach  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
 
     juce::ComboBox pathModeCombo;
     juce::ComboBox polyphonyCombo;
-    std::unique_ptr<ComboAttach> pathModeAttach;
-    std::unique_ptr<ComboAttach> polyphonyAttach;
+    juce::Slider   maxVoicesSlider;
+    std::unique_ptr<ComboAttach>  pathModeAttach;
+    std::unique_ptr<ComboAttach>  polyphonyAttach;
+    std::unique_ptr<SliderAttach> maxVoicesAttach;
 
     PathNavigator  pathNavigator { processorRef };
     Oscilloscope   oscilloscope  { processorRef };

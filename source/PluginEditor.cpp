@@ -33,9 +33,19 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     addAndMakeVisible (polyphonyCombo);
     polyphonyCombo.addItem ("mono", 1);
     polyphonyCombo.addItem ("duo",  2);
+    polyphonyCombo.addItem ("poly", 3);
     polyphonyAttach = std::make_unique<ComboAttach> (
         processorRef.getAPVTS(), params::ids::polyphony, polyphonyCombo);
-    polyphonyCombo.setTooltip ("Mono: latest-note priority. Duo: two simultaneous notes with oldest-voice stealing.");
+    polyphonyCombo.setTooltip ("Mono: latest-note priority. Duo: two notes. "
+                               "Poly: up to 'voices' simultaneous notes with oldest-voice stealing.");
+
+    // Voice count for poly mode (inert in mono/duo).
+    addAndMakeVisible (maxVoicesSlider);
+    maxVoicesSlider.setSliderStyle (juce::Slider::IncDecButtons);
+    maxVoicesSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 32, 20);
+    maxVoicesSlider.setTooltip ("Poly voice count (number of simultaneous notes).");
+    maxVoicesAttach = std::make_unique<SliderAttach> (
+        processorRef.getAPVTS(), params::ids::maxVoices, maxVoicesSlider);
 
     addAndMakeVisible (pathNavigator);
     addAndMakeVisible (oscilloscope);
@@ -92,6 +102,8 @@ void BrocotAudioProcessorEditor::resized()
     pathModeCombo.setBounds  (pathRow.removeFromLeft (110).reduced (0, 12));
     pathRow.removeFromLeft (6);
     polyphonyCombo.setBounds (pathRow.removeFromLeft (80).reduced (0, 12));
+    pathRow.removeFromLeft (6);
+    maxVoicesSlider.setBounds (pathRow.removeFromLeft (78).reduced (0, 14));
     pathRow.removeFromLeft (8);
     pathNavigator.setBounds (pathRow);
     bounds.removeFromTop (8);

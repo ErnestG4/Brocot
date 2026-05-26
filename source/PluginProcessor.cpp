@@ -56,32 +56,13 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     setPos (1, 3);
     setPos (2, 5);
 
-    // V2.8: seed mod 0 as a default key-synced amp envelope so the synth
-    // out-of-the-box has note-on-driven amplitude shaping (replacing what
-    // the legacy ADSR used to provide). User can re-route mod 0 freely;
-    // presets will override these defaults via setStateInformation.
-    auto setChoice = [this] (juce::StringRef id, int choiceIdx)
-    {
-        if (auto* p = apvts.getParameter (id))
-            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-                rp->setValueNotifyingHost (
-                    rp->convertTo0to1 ((float) choiceIdx));
-    };
-    auto setFloat = [this] (juce::StringRef id, float v)
-    {
-        if (auto* p = apvts.getParameter (id))
-            if (auto* rp = dynamic_cast<juce::RangedAudioParameter*> (p))
-                rp->setValueNotifyingHost (rp->convertTo0to1 (v));
-    };
-
-    setChoice (params::modId (0, "shape"),
-               (int) envelope::Shape::ExpDecay);
-    setFloat  (params::modId (0, "kappa"), 6.0f);
-    setFloat  (params::modId (0, "depth"), 1.0f);
-    setChoice (params::modId (0, "targetKind"),
-               (int) params::TargetKind::CarrierAm);
-    setFloat  (params::modId (0, "rate"), 2.0f);  // 2 Hz = ~500ms cycle
-    setBool (params::modId (0, "keySync"), true);
+    // NB: do NOT seed mod 0 as a default amp envelope. V2.8 used to seed it as
+    // a key-synced ExpDecay → CarrierAm "amp envelope" because the ADSR was
+    // retired then, but P3.10e brought the global ADSR back as the amplitude
+    // source. The seeded mod was a periodic LFO (it loops), so on a held note
+    // it re-fired every ~500ms — a "bing… bing… bing" pulse on top of the
+    // ADSR. The default amplitude shape is the ADSR; the mod-bank CarrierAm
+    // route stays available for users who want exotic per-note envelopes.
 
     // Register parameter listeners so that path-mode / position changes
     // trigger an off-audio-thread ratio recompute via AsyncUpdater. This
@@ -179,9 +160,12 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
     if (auto* p = apvts.getRawParameterValue (params::ids::masterLevel))
         masterLevel = p->load();
 
-    // Halve the per-voice level in duo mode so two simultaneous notes don't
-    // clip; a more sophisticated voice mixer can come later.
-    const float perVoiceLevel = isDuoMode() ? masterLevel * 0.5f : masterLevel;
+    // Equal-power per-voice scaling: divide by sqrt(voice count) so the summed
+    // output stays bounded as polyphony rises without over-attenuating a single
+    // note. mono = ×1 (unchanged); duo = ×0.707 (was ×0.5 — a single duo note
+    // no longer sounds notably quieter than mono); poly-8 = ×0.354.
+    const int   voiceCount    = activeVoices();
+    const float perVoiceLevel = masterLevel / std::sqrt ((float) voiceCount);
 
     // P3.10e re-wired the global ADSR: env.* APVTS params drive the
     // voice's amp envelope again. The steer-tab EnvelopePanel binds to
@@ -232,6 +216,14 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
                 op.setKeyScale (keyScale);
             }
         }
+
+        // Single-op self-feedback lives on op 1 (index 0) only — the topology
+        // the parallel model can't reach. Applied even when op0 is disabled so
+        // its history stays warm; it contributes nothing unless op0 has depth.
+        float feedback = 0.0f;
+        if (auto* p = apvts.getRawParameterValue (params::opId (0, "feedback")))
+            feedback = p->load();
+        v.op (0).setFeedback (feedback);
     }
 
     // refreshSharedRatios is now invoked off the audio thread via
@@ -333,7 +325,7 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // Per-sample loop: apply MIDI events at their exact sample positions,
     // tick the modulator bank, route to targets, render voices, apply
     // filter, write scope.
-    const int activeVoiceCount = isDuoMode() ? kMaxVoices : 1;
+    const int activeVoiceCount = activeVoices();
     auto midiIter = midi.cbegin();
     const auto midiEnd = midi.cend();
 
@@ -632,25 +624,34 @@ void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& stat
     rebuildOpPositionLUTs();
 }
 
-bool BrocotAudioProcessor::isDuoMode() const noexcept
+int BrocotAudioProcessor::activeVoices() const noexcept
 {
+    int mode = 0;   // 0 = mono, 1 = duo, 2 = poly
     if (auto* p = apvts.getRawParameterValue (params::ids::polyphony))
-        return p->load() > 0.5f;   // 0 = mono, 1 = duo
-    return false;
+        mode = (int) std::lround (p->load());
+
+    if (mode <= 0) return 1;            // mono
+    if (mode == 1) return 2;            // duo
+
+    int mv = 8;                          // poly: voice count from the param
+    if (auto* p = apvts.getRawParameterValue (params::ids::maxVoices))
+        mv = (int) std::lround (p->load());
+    return juce::jlimit (1, kMaxVoices, mv);
 }
 
 int BrocotAudioProcessor::allocateVoice (int /*midiNote*/) noexcept
 {
+    const int count = activeVoices();
     // BROCOT-SPEC.md §8 mono: voice 0 always gets retriggered.
-    if (! isDuoMode()) return 0;
+    if (count <= 1) return 0;
 
-    // Duo: prefer a voice that's done playing (envelope inactive).
-    for (int i = 0; i < kMaxVoices; ++i)
+    // Prefer a voice that's done playing (envelope inactive).
+    for (int i = 0; i < count; ++i)
         if (! voices[(size_t) i].isActive()) return i;
 
-    // Otherwise steal the oldest voice.
+    // Otherwise steal the oldest-sounding voice.
     int oldest = 0;
-    for (int i = 1; i < kMaxVoices; ++i)
+    for (int i = 1; i < count; ++i)
         if (voiceNoteOnOrder[(size_t) i] < voiceNoteOnOrder[(size_t) oldest])
             oldest = i;
     return oldest;
@@ -658,7 +659,7 @@ int BrocotAudioProcessor::allocateVoice (int /*midiNote*/) noexcept
 
 void BrocotAudioProcessor::noteOffOnAnyVoice (int midiNote) noexcept
 {
-    const int count = isDuoMode() ? kMaxVoices : 1;
+    const int count = activeVoices();
     for (int i = 0; i < count; ++i)
         voices[(size_t) i].noteOff (midiNote);
 }

@@ -83,6 +83,7 @@ namespace params
         inline constexpr auto octaveShift = "engine.octaveShift";
         inline constexpr auto pathMode    = "engine.pathMode";
         inline constexpr auto polyphony   = "engine.polyphony";
+        inline constexpr auto maxVoices   = "engine.maxVoices";
         inline constexpr auto envAttack   = "env.attack";
         inline constexpr auto envDecay    = "env.decay";
         inline constexpr auto envSustain  = "env.sustain";

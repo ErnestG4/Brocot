@@ -44,7 +44,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<ChoiceParam> (
         juce::ParameterID (ids::polyphony, 1),
         "Polyphony",
-        juce::StringArray { "mono", "duo" }, 0));
+        juce::StringArray { "mono", "duo", "poly" }, 0));
+
+    // Voice count used in "poly" mode (ignored for mono/duo). Upper bound must
+    // match BrocotAudioProcessor::kMaxVoices.
+    layout.add (std::make_unique<IntParam> (
+        juce::ParameterID (ids::maxVoices, 1),
+        "Max Voices", 2, 16, 8));
 
     // ADSR per spec §2 ranges. Skew gives more resolution toward fast attacks
     // / decays, which is where the audible action is for percussive / pluck
@@ -100,6 +106,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             "Op " + juce::String (i + 1) + " Key Scale",
             juce::NormalisableRange<float> (-1.0f, 1.0f), 0.0f));
     }
+
+    // Single-op self-feedback on op 1 (index 0) only — the one topology the
+    // parallel-FM model can't reach (phase3 topology study: ~70% of feedback
+    // timbres are unreachable by any parallel config). Classic DX-style
+    // feedback-sawtooth / bright character. 0..1 maps to a self-PM index of
+    // 0..π radians (above ~π the loop tips into noise); default 0 = clean sine.
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (opId (0, "feedback"), 1),
+        "Op 1 Feedback",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
 
     // Filter (spec §2). Cutoff is in normalized 0..1 here — PluginProcessor
     // maps that to a logarithmic 20 Hz..20 kHz sweep when reading.

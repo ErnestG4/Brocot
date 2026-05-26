@@ -73,6 +73,17 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     keyScaleSlider.setTooltip ("Key scale: how the modulation index tracks pitch. "
                                "+ = less FM up high (timbre stays coherent); - = more.");
 
+    // Self-feedback exists on op 1 only — the one topology parallel FM can't
+    // reach. Shares the bottom row (split three ways) when present.
+    if (opIndex == 0)
+    {
+        addAndMakeVisible (feedbackSlider);
+        feedbackSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+        feedbackSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 36, 16);
+        feedbackSlider.setTooltip ("Feedback: op 1 modulates itself. "
+                                   "Adds bright, sawtooth-like harmonics.");
+    }
+
     auto& apvts = proc.getAPVTS();
     enabledAttach  = std::make_unique<ButtonAttach> (
         apvts, params::opId (opIndex, "enabled"), enabledToggle);
@@ -84,6 +95,9 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
         apvts, params::opId (opIndex, "detune"), detuneSlider);
     keyScaleAttach = std::make_unique<SliderAttach> (
         apvts, params::opId (opIndex, "keyScale"), keyScaleSlider);
+    if (opIndex == 0)
+        feedbackAttach = std::make_unique<SliderAttach> (
+            apvts, params::opId (0, "feedback"), feedbackSlider);
 
     // When the user enables this op in shared mode and the position is still 0
     // (i.e., this op has never been positioned), snap to the current shared
@@ -230,9 +244,20 @@ void OperatorPanel::resized()
 
     depthSlider.setBounds (r.removeFromTop (22));
 
-    // Reserved bottom row: detune | key-scale, side by side.
-    detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
-    keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
+    // Reserved bottom row: detune | key-scale (| feedback on op 1), side by
+    // side. Op 1 splits the row three ways to fit its self-feedback slider.
+    if (opIndex == 0)
+    {
+        const int third = tuneRow.getWidth() / 3;
+        detuneSlider.setBounds   (tuneRow.removeFromLeft (third).reduced (1, 0));
+        keyScaleSlider.setBounds (tuneRow.removeFromLeft (third).reduced (1, 0));
+        feedbackSlider.setBounds (tuneRow.reduced (1, 0));
+    }
+    else
+    {
+        detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
+        keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
+    }
 }
 
 } // namespace brocot

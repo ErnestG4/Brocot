@@ -37,7 +37,7 @@ public:
         smoothedRatio.setCurrentAndTargetValue (1.0f);
     }
 
-    void reset() noexcept { phase = 0.0f; }
+    void reset() noexcept { phase = 0.0f; fbPrev1 = 0.0f; fbPrev2 = 0.0f; }
 
     void setPath (const Path& p) { setRatio ((float) p.ratio()); }
     /** Set the *base* (Stern-Brocot, exact-rational) ratio. The effective
@@ -82,6 +82,17 @@ public:
         noteOctaves = octavesFromMiddleC;
         updateDepthScale();
     }
+    /** Self-feedback amount in [0, 1]: the operator's sine is phase-modulated
+        by its own (2-sample-averaged) previous output, the classic DX-style
+        single-op feedback. 0 = clean sine; 1 = self-PM index of π radians
+        (bright, sawtooth-like). Two-sample averaging is the standard trick to
+        tame the runaway oscillation the bare 1-sample loop is prone to.
+        Only op 1 (index 0) is driven by the host; see ParameterTree. */
+    void setFeedback (float amount01) noexcept
+    {
+        constexpr float pi = 3.14159265358979324f;
+        feedbackBeta = amount01 * pi;
+    }
     void setDepth (float depthI) noexcept
     {
         targetDepth = depthI;
@@ -117,7 +128,24 @@ public:
 
         const float fMod = carrierHz * currentRatio;
         const float twoPi = 6.2831853071795864769f;
-        const float delta = currentDepth * fMod * std::sin (twoPi * phase);
+
+        // Self-feedback: phase-modulate this oscillator by its own recent
+        // output (2-sample averaged for stability). osc is the unit-amplitude
+        // operator output; the carrier-frequency contribution is depth·fMod·osc
+        // exactly as before, so feedback=0 reproduces the pure-sine path.
+        float osc;
+        if (feedbackBeta > 0.0f)
+        {
+            const float fb = 0.5f * (fbPrev1 + fbPrev2);
+            osc = std::sin (twoPi * phase + feedbackBeta * fb);
+            fbPrev2 = fbPrev1;
+            fbPrev1 = osc;
+        }
+        else
+        {
+            osc = std::sin (twoPi * phase);
+        }
+        const float delta = currentDepth * fMod * osc;
 
         phase += fMod * invSampleRate;
         if (phase >= 1.0f) phase -= std::floor (phase);
@@ -139,6 +167,9 @@ private:
     float keyScaleAmount { 0.0f };  // [-1, +1] depth-vs-pitch slope
     float noteOctaves    { 0.0f };  // octaves of active note above middle C
     float depthScale     { 1.0f };  // 2^(-keyScaleAmount · noteOctaves)
+    float feedbackBeta   { 0.0f };  // self-PM index in radians (0..π)
+    float fbPrev1        { 0.0f };  // last operator output (for feedback)
+    float fbPrev2        { 0.0f };  // output before that (2-sample average)
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedDepth;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smoothedRatio;
 };

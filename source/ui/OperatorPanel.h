@@ -58,6 +58,8 @@ private:
     // keep the dense 64-card grid uncluttered).
     juce::Slider detuneSlider;
     juce::Slider keyScaleSlider;
+    // Self-feedback — created only on op 1 (index 0); shares the bottom row.
+    juce::Slider feedbackSlider;
 
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -65,6 +67,7 @@ private:
     std::unique_ptr<SliderAttach> positionAttach;
     std::unique_ptr<SliderAttach> detuneAttach;
     std::unique_ptr<SliderAttach> keyScaleAttach;
+    std::unique_ptr<SliderAttach> feedbackAttach;  // op 1 (index 0) only
     std::unique_ptr<ButtonAttach> enabledAttach;
 
     void setFreeModeWidgetsVisible (bool freeMode);

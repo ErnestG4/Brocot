@@ -108,14 +108,19 @@ public:
 private:
     juce::AudioProcessorValueTreeState apvts;
 
-    static constexpr int kMaxVoices = 2;
+    // Compile-time max voice pool. "poly" mode runs up to the maxVoices param
+    // (clamped to this); mono uses 1, duo uses 2. Must match the maxVoices
+    // parameter's upper bound in ParameterTree.
+    static constexpr int kMaxVoices = 16;
     std::array<BrocotVoice, kMaxVoices> voices {};
     std::array<juce::int64, kMaxVoices> voiceNoteOnOrder {};
     juce::int64 noteOnCounter { 0 };
     FilterBank  filter;
     LFO         lfo;
 
-    bool isDuoMode() const noexcept;
+    /** Number of voices to render/allocate this block: mono=1, duo=2,
+        poly=maxVoices (clamped to [1, kMaxVoices]). */
+    int  activeVoices() const noexcept;
     int  allocateVoice (int midiNote) noexcept;
     void noteOffOnAnyVoice (int midiNote) noexcept;
     void applyParametersToAllVoices();
