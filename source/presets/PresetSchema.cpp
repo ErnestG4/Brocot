@@ -102,6 +102,12 @@ juce::var serialise (const BrocotAudioProcessor& proc)
                          paramValue (apvts, params::opId (i, "enabled")) > 0.5f);
         op->setProperty ("depth",
                          (double) paramValue (apvts, params::opId (i, "depth")));
+        // Per-op detune (cents) and key-scaling — written only when non-zero
+        // so existing/handwritten presets stay byte-identical at defaults.
+        if (const float dt = paramValue (apvts, params::opId (i, "detune")); dt != 0.0f)
+            op->setProperty ("detune", (double) dt);
+        if (const float ks = paramValue (apvts, params::opId (i, "keyScale")); ks != 0.0f)
+            op->setProperty ("keyScale", (double) ks);
         if (sharedMode)
             op->setProperty ("position",
                              (int) std::round (paramValue (apvts, params::opId (i, "position"))));
@@ -204,6 +210,14 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                           (bool) op->getProperty ("enabled") ? 1.0f : 0.0f, false);
                 setParam (apvts, params::opId (i, "depth"),
                           (float) (double) op->getProperty ("depth"), false);
+                // Optional per-op detune / key-scaling — absent ⇒ 0 (so older
+                // presets without these keys load as exact-ratio, no scaling).
+                setParam (apvts, params::opId (i, "detune"),
+                          op->hasProperty ("detune")
+                              ? (float) (double) op->getProperty ("detune") : 0.0f, false);
+                setParam (apvts, params::opId (i, "keyScale"),
+                          op->hasProperty ("keyScale")
+                              ? (float) (double) op->getProperty ("keyScale") : 0.0f, false);
 
                 if (sharedMode)
                     setParam (apvts, params::opId (i, "position"),
@@ -220,6 +234,8 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "enabled"),  0.0f, false);
                 setParam (apvts, params::opId (i, "depth"),    0.0f, false);
                 setParam (apvts, params::opId (i, "position"), 0.0f, false);
+                setParam (apvts, params::opId (i, "detune"),   0.0f, false);
+                setParam (apvts, params::opId (i, "keyScale"), 0.0f, false);
                 if (! sharedMode)
                     proc.setOpPath (i, "");
             }

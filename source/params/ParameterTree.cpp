@@ -83,6 +83,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
         layout.add (std::make_unique<IntParam> (
             juce::ParameterID (opId (i, "position"), 1),
             "Op " + juce::String (i + 1) + " Position", 0, 32, 0));
+
+        // Per-op fine detune in cents (offset from the exact SB ratio). ±100c
+        // = ±1 semitone; the musically-useful drift/chorus region is the first
+        // few cents. Default 0 = exact rational (perfectly harmonic).
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (opId (i, "detune"), 1),
+            "Op " + juce::String (i + 1) + " Detune",
+            juce::NormalisableRange<float> (-100.0f, 100.0f), 0.0f));
+
+        // Per-op key-scaling: how the modulation index tracks pitch. +1 halves
+        // the index one octave above middle C (fewer sidebands up high); -1
+        // doubles it. Default 0 = no scaling (depth constant across keyboard).
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (opId (i, "keyScale"), 1),
+            "Op " + juce::String (i + 1) + " Key Scale",
+            juce::NormalisableRange<float> (-1.0f, 1.0f), 0.0f));
     }
 
     // Filter (spec §2). Cutoff is in normalized 0..1 here — PluginProcessor

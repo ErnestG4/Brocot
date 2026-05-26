@@ -57,6 +57,22 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     regimeLabel.setFont (fonts::serifItalic (10.0f));
     regimeLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.4f));
 
+    // Per-op detune + key-scaling — compact sliders, labelled by tooltip and
+    // value suffix (the SB path gives the exact ratio; detune is the cents
+    // off it where analog beating lives; key-scale tracks index to pitch).
+    addAndMakeVisible (detuneSlider);
+    detuneSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    detuneSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 42, 16);
+    detuneSlider.setTextValueSuffix (" ct");
+    detuneSlider.setTooltip ("Detune: cents off the exact Stern-Brocot ratio. "
+                             "A few cents = analog beating / chorus / drift.");
+
+    addAndMakeVisible (keyScaleSlider);
+    keyScaleSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    keyScaleSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 42, 16);
+    keyScaleSlider.setTooltip ("Key scale: how the modulation index tracks pitch. "
+                               "+ = less FM up high (timbre stays coherent); - = more.");
+
     auto& apvts = proc.getAPVTS();
     enabledAttach  = std::make_unique<ButtonAttach> (
         apvts, params::opId (opIndex, "enabled"), enabledToggle);
@@ -64,6 +80,10 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
         apvts, params::opId (opIndex, "depth"), depthSlider);
     positionAttach = std::make_unique<SliderAttach> (
         apvts, params::opId (opIndex, "position"), positionSlider);
+    detuneAttach   = std::make_unique<SliderAttach> (
+        apvts, params::opId (opIndex, "detune"), detuneSlider);
+    keyScaleAttach = std::make_unique<SliderAttach> (
+        apvts, params::opId (opIndex, "keyScale"), keyScaleSlider);
 
     // When the user enables this op in shared mode and the position is still 0
     // (i.e., this op has never been positioned), snap to the current shared
@@ -202,6 +222,16 @@ void OperatorPanel::resized()
     regimeLabel.setBounds (depthRow);
 
     depthSlider.setBounds (r.removeFromTop (22));
+
+    // Bottom row: detune | key-scale, side by side (laid out only if the card
+    // has room left — the dense grid may clip, but the controls stay live).
+    if (r.getHeight() >= 16)
+    {
+        r.removeFromTop (4);
+        auto tuneRow = r.removeFromTop (juce::jmin (18, r.getHeight()));
+        detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
+        keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
+    }
 }
 
 } // namespace brocot

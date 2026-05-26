@@ -217,6 +217,19 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
                 if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
                     depth = p->load();
                 op.setDepth (depth);
+
+                // Per-op detune (cents off the exact SB ratio) — applied after
+                // setRatio so it multiplies the freshly-set base ratio.
+                float detune = 0.0f;
+                if (auto* p = apvts.getRawParameterValue (params::opId (i, "detune")))
+                    detune = p->load();
+                op.setDetuneCents (detune);
+
+                // Per-op key-scaling (modulation index vs pitch).
+                float keyScale = 0.0f;
+                if (auto* p = apvts.getRawParameterValue (params::opId (i, "keyScale")))
+                    keyScale = p->load();
+                op.setKeyScale (keyScale);
             }
         }
     }

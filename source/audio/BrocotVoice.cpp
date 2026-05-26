@@ -28,6 +28,12 @@ void BrocotVoice::noteOn (int midiNoteNumber, float /*velocity*/) noexcept
 {
     activeNote = midiNoteNumber;
     carrierHz = (float) juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
+    // Tell every operator how far the played note sits from middle C (MIDI
+    // 60), in octaves, so per-op key-scaling can adjust the modulation index
+    // with pitch. Done at note-on (env is at 0, so any depth step is masked).
+    const float octavesFromMiddleC = (float) (midiNoteNumber - 60) / 12.0f;
+    for (auto& o : ops)
+        o.setNoteOctaves (octavesFromMiddleC);
     // Retrigger only — phases free-run, matching the prototype's continuous
     // FM character. Resetting phase on every note-on causes audible clicks
     // and changes the timbral attack; the prototype doesn't do this and

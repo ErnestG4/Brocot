@@ -52,10 +52,19 @@ private:
     juce::Slider positionSlider;
     juce::Label  positionLabel;
 
+    // Per-op fine detune (cents off the exact SB ratio) and key-scaling
+    // (modulation index vs pitch). Compact sliders sharing one bottom row;
+    // tooltips + value suffixes label them (no separate label widgets, to
+    // keep the dense 64-card grid uncluttered).
+    juce::Slider detuneSlider;
+    juce::Slider keyScaleSlider;
+
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<SliderAttach> depthAttach;
     std::unique_ptr<SliderAttach> positionAttach;
+    std::unique_ptr<SliderAttach> detuneAttach;
+    std::unique_ptr<SliderAttach> keyScaleAttach;
     std::unique_ptr<ButtonAttach> enabledAttach;
 
     void setFreeModeWidgetsVisible (bool freeMode);

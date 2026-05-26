@@ -152,6 +152,7 @@ if(BROCOT_BUILD_TESTS)
         tests/PresetRoundtripTests.cpp
         tests/PullIndexTests.cpp
         tests/UniversalModulatorTests.cpp
+        tests/OperatorTuningTests.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp
         source/audio/BrocotVoice.cpp
