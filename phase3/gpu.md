@@ -33,6 +33,21 @@ target must be extracted in that *same* space — `gpu_fm.audio_to_fingerprint`,
 like a good match on one metric but renders poorly on the other (we measured a
 0.04 "match" reading 0.42 in the other space). Extract and score in one space.
 
+## The 10M GPU bank (`gpu_bank.py`)
+
+The 4090 renders + FFT-fingerprints **~840,000 configs/second**, so a
+10-million-entry bank builds in **14 s** (1.46 GB, half-precision). Coverage
+in this space is near-saturated:
+
+```
+held-out NN L1:  p50 0.030  p90 0.077  p95 0.089  p99 0.117  max 0.21
+within 0.05: 70%     within 0.10: 97%
+```
+
+vs the 175k CPU bank's 55% within 0.10 — ~3× tighter. Almost any target has a
+bank entry within 0.1 L1, retrieved in milliseconds (GPU L1, chunked to stay
+within VRAM). This is the "ready for any input sound" table.
+
 ## Why not just gradient-match everything?
 
 Because of the ratio-gradient problem above. The discrete Stern-Brocot lattice

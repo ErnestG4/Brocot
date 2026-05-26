@@ -102,19 +102,26 @@ def coverage(n_probe: int = 1000, seed: int = 999):
     win = torch.hann_window(N_FFT, device=DEVICE)
     W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
     R = rvt.numel()
+    # Generate all probe fingerprints first.
+    ri = torch.randint(0, R, (n_probe, N_OPS), generator=g, device=DEVICE)
+    keepn = torch.randint(1, N_OPS + 1, (n_probe, 1), generator=g, device=DEVICE)
+    active = (torch.arange(N_OPS, device=DEVICE).unsqueeze(0) < keepn).float()
+    dp = torch.empty(n_probe, N_OPS, device=DEVICE).uniform_(0.1, 5.0, generator=g) * active
+    probes = fingerprint_batch(
+        render_batch(torch.log(rvt[ri]), dp, torch.zeros(n_probe, N_OPS, device=DEVICE),
+                     t, F_CARRIER), W, win)
+    # Per-probe nearest L1 to the bank — broadcast over the 10M rows one probe
+    # at a time (the (N, q_max) transient is reused; cdist(p=1) would OOM).
     nn = []
-    for _ in range(0, n_probe, 200):
-        b = min(200, n_probe - len(nn))
-        ri = torch.randint(0, R, (b, N_OPS), generator=g, device=DEVICE)
-        keepn = torch.randint(1, N_OPS + 1, (b, 1), generator=g, device=DEVICE)
-        active = (torch.arange(N_OPS, device=DEVICE).unsqueeze(0) < keepn).float()
-        dp = torch.empty(b, N_OPS, device=DEVICE).uniform_(0.1, 5.0, generator=g) * active
-        fp = fingerprint_batch(
-            render_batch(torch.log(rvt[ri]), dp, torch.zeros(b, N_OPS, device=DEVICE),
-                         t, F_CARRIER), W, win)
-        # min L1 to bank for each probe (chunked over bank if needed).
-        d = torch.cdist(fp, amps_gpu, p=1.0)        # (b, N)
-        nn.extend(d.min(dim=1).values.cpu().numpy().tolist())
+    N = amps_gpu.shape[0]
+    CH = 1_000_000                       # 1M rows ⇒ ~256 MB transient
+    for i in range(n_probe):
+        p = probes[i].unsqueeze(0)
+        best = 1e9
+        for c in range(0, N, CH):
+            d = (amps_gpu[c:c + CH] - p).abs().sum(dim=1)
+            best = min(best, float(d.min()))
+        nn.append(best)
     nn = np.array(nn)
     print("held-out NN L1 distance:")
     for p in (50, 90, 95, 99):
