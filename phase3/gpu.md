@@ -48,6 +48,24 @@ vs the 175k CPU bank's 55% within 0.10 — ~3× tighter. Almost any target has a
 bank entry within 0.1 L1, retrieved in milliseconds (GPU L1, chunked to stay
 within VRAM). This is the "ready for any input sound" table.
 
+## Multi-topology exploration (`gpu_topology.py`) — which program sets pay off?
+
+The engine is parallel-only. Before investing in series/feedback program sets
+(DX7/SY99 territory), we measured how far their spectra fall from everything
+parallel FM can reach (min L1 to the 10M parallel bank), 1000 targets each:
+
+| topology        | median dist | frac > 0.15 (new) | verdict |
+|-----------------|------------:|------------------:|---------|
+| parallel (self) | 0.031       | 0%                | bank covers it |
+| **series**      | 0.011       | 14%               | mostly redundant |
+| **feedback**    | 0.238       | 70%               | genuinely new space |
+
+**Series chains are ~86% redundant** with parallel FM (modest-depth series
+collapses to spectra the bank already has). **Feedback unlocks a large new
+timbre space** — 70% of feedback spectra are unreachable by any parallel
+config. So if the engine gains one program set, make it **feedback**, not
+series. Renderers are differentiable; feedback ≈ a few fixed-point unrolls.
+
 ## Amortized inverse net (`gpu_invnet.py`) — negative result
 
 The 10M bank is labelled data (fingerprint → ratios/depths), so we trained an
