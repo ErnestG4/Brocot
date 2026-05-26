@@ -1,0 +1,140 @@
+"""Massive GPU fingerprint bank — the headline precompute.
+
+Batch-renders millions of FM configs on the 4090 and fingerprints them in the
+matcher's integer-grid binning space (so retrieval is coherent with
+gpu_fm.audio_to_fingerprint / match_to_config). Stored half-precision; a few
+million entries fit in ~1 GB and retrieve in milliseconds via GPU L1.
+
+    build:    phase3/.venv-gpu/bin/python -m phase3.gpu_bank build --n 5000000
+    coverage: phase3/.venv-gpu/bin/python -m phase3.gpu_bank coverage
+
+Run under phase3/.venv-gpu (torch). Artifacts gitignored (derived/).
+"""
+
+from __future__ import annotations
+
+import argparse
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from phase3.gpu_fm import (DEVICE, F_CARRIER, SAMPLE_RATE, fingerprint_batch,
+                           interp_matrix, render_batch)
+
+NPZ = Path("phase3/derived/gpu_bank.npz")
+Q_MAX = 64
+N_FFT = 4096
+N_OPS = 6
+
+
+def _ratio_values():
+    from phase3.coverage_bank import curated_ratios
+    from phase3.config import path_ratio
+    paths = curated_ratios(5)
+    return paths, np.array([path_ratio(p) for p in paths], np.float32)
+
+
+def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0):
+    paths, rv = _ratio_values()
+    rvt = torch.from_numpy(rv).to(DEVICE)
+    R = rvt.numel()
+    g = torch.Generator(device=DEVICE).manual_seed(seed)
+    t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
+    win = torch.hann_window(N_FFT, device=DEVICE)
+    W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
+
+    amps = np.empty((n_total, Q_MAX), dtype=np.float16)
+    ridx = np.empty((n_total, N_OPS), dtype=np.uint8)
+    depths = np.empty((n_total, N_OPS), dtype=np.float16)
+    t0 = time.time()
+    done = 0
+    while done < n_total:
+        b = min(chunk, n_total - done)
+        ri = torch.randint(0, R, (b, N_OPS), generator=g, device=DEVICE)
+        # Variable effective op-count: zero out a random subset of slots so the
+        # bank spans 1..N_OPS active operators, not always 6.
+        keepn = torch.randint(1, N_OPS + 1, (b, 1), generator=g, device=DEVICE)
+        slot = torch.arange(N_OPS, device=DEVICE).unsqueeze(0)
+        active = (slot < keepn).float()
+        dp = torch.empty(b, N_OPS, device=DEVICE).uniform_(0.1, 5.0, generator=g) * active
+        fp = fingerprint_batch(
+            render_batch(torch.log(rvt[ri]), dp, torch.zeros(b, N_OPS, device=DEVICE),
+                         t, F_CARRIER), W, win)
+        amps[done:done + b] = fp.half().cpu().numpy()
+        ridx[done:done + b] = ri.byte().cpu().numpy()
+        depths[done:done + b] = dp.half().cpu().numpy()
+        done += b
+        if done % 500_000 == 0:
+            print(f"  {done:,}/{n_total:,} ({time.time()-t0:.0f}s, "
+                  f"{done/(time.time()-t0):,.0f}/s)")
+
+    NPZ.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(NPZ, amps=amps, ridx=ridx, depths=depths)
+    print(f"\nGPU bank: {n_total:,} fingerprints @ q_max={Q_MAX}  "
+          f"({NPZ.stat().st_size/1e9:.2f} GB) in {time.time()-t0:.0f}s -> {NPZ}")
+
+
+def load_to_gpu():
+    d = np.load(NPZ)
+    amps = torch.from_numpy(d["amps"]).to(DEVICE).float()   # (N, q_max)
+    return amps, d["ridx"], d["depths"]
+
+
+def retrieve(amps_gpu: torch.Tensor, target: np.ndarray, k: int = 10):
+    """Top-k nearest (L1) bank rows to an L1-normalised target, on GPU."""
+    t = torch.from_numpy(np.asarray(target, np.float32)[:amps_gpu.shape[1]]).to(DEVICE)
+    t = t / torch.clamp(t.sum(), min=1e-12)
+    d = (amps_gpu - t.unsqueeze(0)).abs().sum(dim=1)
+    vals, idx = torch.topk(d, k, largest=False)
+    return idx.cpu().numpy(), vals.cpu().numpy()
+
+
+def coverage(n_probe: int = 1000, seed: int = 999):
+    """Held-out random targets → nearest-neighbour distance in the bank."""
+    amps_gpu, ridx, depths = load_to_gpu()
+    print(f"GPU bank: {amps_gpu.shape[0]:,} fingerprints @ {amps_gpu.shape[1]}")
+    paths, rv = _ratio_values()
+    rvt = torch.from_numpy(rv).to(DEVICE)
+    g = torch.Generator(device=DEVICE).manual_seed(seed)
+    t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
+    win = torch.hann_window(N_FFT, device=DEVICE)
+    W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
+    R = rvt.numel()
+    nn = []
+    for _ in range(0, n_probe, 200):
+        b = min(200, n_probe - len(nn))
+        ri = torch.randint(0, R, (b, N_OPS), generator=g, device=DEVICE)
+        keepn = torch.randint(1, N_OPS + 1, (b, 1), generator=g, device=DEVICE)
+        active = (torch.arange(N_OPS, device=DEVICE).unsqueeze(0) < keepn).float()
+        dp = torch.empty(b, N_OPS, device=DEVICE).uniform_(0.1, 5.0, generator=g) * active
+        fp = fingerprint_batch(
+            render_batch(torch.log(rvt[ri]), dp, torch.zeros(b, N_OPS, device=DEVICE),
+                         t, F_CARRIER), W, win)
+        # min L1 to bank for each probe (chunked over bank if needed).
+        d = torch.cdist(fp, amps_gpu, p=1.0)        # (b, N)
+        nn.extend(d.min(dim=1).values.cpu().numpy().tolist())
+    nn = np.array(nn)
+    print("held-out NN L1 distance:")
+    for p in (50, 90, 95, 99):
+        print(f"  p{p}: {np.percentile(nn, p):.4f}")
+    print(f"  max {nn.max():.4f}  mean {nn.mean():.4f}")
+    print(f"  within 0.05: {(nn<0.05).mean()*100:.1f}%   "
+          f"within 0.10: {(nn<0.10).mean()*100:.1f}%")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    b = sub.add_parser("build"); b.add_argument("--n", type=int, default=5_000_000)
+    c = sub.add_parser("coverage"); c.add_argument("--n-probe", type=int, default=1000)
+    a = ap.parse_args()
+    if a.cmd == "build":
+        build(n_total=a.n)
+    else:
+        coverage(n_probe=a.n_probe)
+
+
+if __name__ == "__main__":
+    main()
