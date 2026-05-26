@@ -28,6 +28,7 @@ identical to what RESULTS.md's RF engine produces.
 from __future__ import annotations
 
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -52,26 +53,99 @@ def quantize_to_integer_grid(
     spectrum: Spectrum,
     f_carrier: float,
     q_max: int,
+    interpolate: bool = True,
 ) -> np.ndarray:
     """Project a partial set onto the integer-multiple-of-carrier grid.
 
     Position 1 = the fundamental at 1·f_carrier (the carrier itself).
-    Position 2 = 2·f_carrier. Etc. Out-of-range partials are dropped;
-    non-integer-multiple partials bin to the nearest integer.
+    Position 2 = 2·f_carrier. Etc. Out-of-range partials are dropped.
+
+    `interpolate=True` (default) splits each partial **linearly between the
+    two bracketing integer bins** by its fractional position: a partial at
+    2.4·f_c puts 0.6 in bin 2 and 0.4 in bin 3. This is the "smoothing" fix
+    (S1): hard nearest-integer rounding put half-integer partials (2.5·f_c,
+    from fractional Stern-Brocot ratios) on a bin-flip knife-edge, which
+    (a) made the spectrum a *discontinuous* function of depth/ratio — small
+    parameter moves snapped a partial between bins, carving spurious local
+    optima that trapped the search, and (b) split the analytic vs. measured
+    representations on which side of the tie they landed, inflating the
+    Mode B floor. Linear splitting makes the projection continuous in
+    frequency, so the family-distance landscape is smooth in the search
+    parameters and analytic/audio representations agree.
+
+    `interpolate=False` restores the legacy round(f/f_c) nearest-integer
+    binning (kept for A/B comparison and back-compat).
     """
     out = np.zeros(q_max, dtype=np.float64)
     if len(spectrum) == 0:
         return out
-    for f, a in zip(spectrum.freqs, spectrum.amps):
-        n = int(round(f / f_carrier))
-        if 1 <= n <= q_max:
-            out[n - 1] += a
+
+    if not interpolate:
+        for f, a in zip(spectrum.freqs, spectrum.amps):
+            n = int(round(f / f_carrier))
+            if 1 <= n <= q_max:
+                out[n - 1] += a
+        return out
+
+    # Vectorised linear split across the two bracketing integer positions.
+    x = np.asarray(spectrum.freqs, dtype=np.float64) / f_carrier  # continuous pos
+    a = np.asarray(spectrum.amps, dtype=np.float64)
+    lo = np.floor(x).astype(int)          # lower integer position
+    frac = x - lo                         # weight toward lo+1
+    # lower bin lo gets (1-frac), upper bin lo+1 gets frac. Bins are
+    # 1-indexed positions ⇒ array index = position-1.
+    for pos, w in ((lo, 1.0 - frac), (lo + 1, frac)):
+        idx = pos - 1
+        valid = (pos >= 1) & (pos <= q_max)
+        np.add.at(out, idx[valid], (a * w)[valid])
     return out
 
 
 # ---------------------------------------------------------------------------
 # RF on an amplitude vector (consumes ARS primitives, no event-time API)
 # ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=8)
+def _phi_mu_sieve(N: int) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorised Euler-φ and Möbius-μ for 1..N (index i ↔ value i).
+
+    Replaces ARS's per-call _factorize/euler_phi/mobius (fine for scalar
+    use, but O(N√N) when we need every value up to q_max=2048). The sieves
+    are O(N log log N) and cached per N.
+    """
+    phi = np.arange(N + 1, dtype=np.int64)
+    for p in range(2, N + 1):
+        if phi[p] == p:                       # p is prime
+            phi[p::p] -= phi[p::p] // p
+    mu = np.ones(N + 1, dtype=np.int64)
+    mu[0] = 0
+    sieve = np.ones(N + 1, dtype=bool)
+    sieve[:2] = False
+    for p in range(2, N + 1):
+        if sieve[p]:
+            sieve[p * p::p] = False
+            mu[p::p] *= -1
+            mu[p * p::p * p] = 0
+    return phi, mu
+
+
+@lru_cache(maxsize=4)
+def _ramanujan_matrix(Q: int, n: int) -> np.ndarray:
+    """C[q-1, k-1] = c_q(k), the Ramanujan sum, for q=1..Q, k=1..n.
+
+    Hölder's identity: c_q(k) = μ(q/g)·φ(q)/φ(q/g) with g = gcd(k, q).
+    Built once and cached — the matrix depends only on (Q, n), not on the
+    amplitudes, so every rf_amplitude_vector call over a search reuses it.
+    """
+    phi, mu = _phi_mu_sieve(max(Q, n))
+    k = np.arange(1, n + 1)
+    C = np.empty((Q, n), dtype=np.float64)
+    for q in range(1, Q + 1):
+        g = np.gcd(k, q)
+        m = q // g                            # exact: g | q
+        C[q - 1] = mu[m] * (phi[q] / phi[m])
+    return C
+
 
 def rf_amplitude_vector(amplitudes: np.ndarray, q_max: int) -> np.ndarray:
     """Compute |a_q| for q=1..q_max from an amplitude vector indexed by
@@ -81,14 +155,19 @@ def rf_amplitude_vector(amplitudes: np.ndarray, q_max: int) -> np.ndarray:
     the input event times produce an indicator function equal to this
     amplitude vector — but bypasses the events→bins conversion since
     we already have the bins.
+
+    a_q = (1/n)·Σ_k amplitudes[k]·c_q(k) / φ(q). Vectorised as a single
+    matrix–vector product against the cached Ramanujan matrix — replaces
+    the former per-q Python loop (which re-ran np.unique inside
+    ramanujan_sum_array for every q, the dominant cost at large q_max:
+    ~372 ms → a few ms at q_max=2048).
     """
     n = len(amplitudes)
     if n == 0:
         return np.zeros(q_max, dtype=np.float64)
-    a = np.zeros(q_max, dtype=np.float64)
-    for q in range(1, q_max + 1):
-        c = ramanujan_sum_array(q, n)
-        a[q - 1] = float(np.mean(amplitudes * c)) / _phi(q)
+    C = _ramanujan_matrix(q_max, n)           # (q_max, n)
+    phi = _phi_mu_sieve(q_max)[0][1:q_max + 1].astype(np.float64)
+    a = (C @ np.asarray(amplitudes, dtype=np.float64)) / n / phi
     return np.abs(a)
 
 

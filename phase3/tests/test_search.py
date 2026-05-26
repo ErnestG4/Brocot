@@ -67,8 +67,9 @@ def test_sample_produces_valid_config():
 
     for m in cfg.mods:
         if m.enabled:
-            # P3.7 raised max_path_depth to 16.
-            assert 1 <= len(m.path) <= 16
+            # P3.7 raised max_path_depth to 16. The empty path (len 0,
+            # ratio 1/1, the harmonic fundamental) is now sampleable too.
+            assert 0 <= len(m.path) <= 16
             assert all(c in "LR" for c in m.path)
             # P3.7 floors enabled depth at MIN_DEPTH (0.04).
             from phase3.config import MIN_DEPTH

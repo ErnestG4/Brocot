@@ -151,6 +151,50 @@ def family_bell_stretched(beta: float, max_n: int = 30, sigma: float = 0.3) -> F
 
 
 # ---------------------------------------------------------------------------
+# External-target family (Mode B, P0.2)
+# ---------------------------------------------------------------------------
+
+def family_from_target(
+    amplitudes: np.ndarray,
+    name: str = "external",
+    f_carrier: float = 220.0,
+) -> Family:
+    """Wrap an externally-measured amplitude vector as a Family.
+
+    This is the Mode B entry point: `amplitudes` is the integer-partial
+    spectrum extracted from a recording by
+    `audio_spectrum.audio_to_spectrum`. The returned Family plugs into the
+    existing `family_distance` / `two_phase_search` machinery with no core
+    changes.
+
+    `characteristic_q=None` — there is no a-priori "signature q" for an
+    arbitrary external target, so the distance is KL-only on the smoothed
+    spectra, reusing the bell_stretched precedent (see family_distance:
+    the RF term is dropped when characteristic_q is None).
+
+    `target_amplitudes(q_max)` returns the supplied vector truncated or
+    zero-padded to length q_max, cached per q_max (the search calls it
+    once per distance evaluation).
+    """
+    base = np.asarray(amplitudes, dtype=np.float64).ravel()
+    cache: dict[int, np.ndarray] = {}
+
+    def target(q_max: int) -> np.ndarray:
+        cached = cache.get(q_max)
+        if cached is not None:
+            return cached
+        out = np.zeros(q_max, dtype=np.float64)
+        m = min(q_max, base.size)
+        out[:m] = base[:m]
+        cache[q_max] = out
+        return out
+
+    return Family(name, target, characteristic_q=None,
+                  params={"source": "external", "f_carrier": f_carrier,
+                          "n_partials": int(base.size)})
+
+
+# ---------------------------------------------------------------------------
 # Prime-p families
 # ---------------------------------------------------------------------------
 

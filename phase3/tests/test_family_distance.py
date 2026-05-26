@@ -239,3 +239,73 @@ def test_triangle_input_closer_to_triangle_than_square():
     d_tri = family_distance(sp, tri, 110.0, q_max=16)
     d_sq = family_distance(sp, sq, 110.0, q_max=16)
     assert d_tri < d_sq
+
+
+# ---------------------------------------------------------------------------
+# Vectorised RF (Ramanujan-matrix LUT) — must equal the per-q reference (P1.2)
+# ---------------------------------------------------------------------------
+
+def _rf_reference(amps, q_max):
+    """Original per-q implementation, kept as the correctness oracle."""
+    from phase3.ars.arithmetic_toolkit import ramanujan_sum_array, _phi
+    n = len(amps)
+    a = np.zeros(q_max)
+    for q in range(1, q_max + 1):
+        c = ramanujan_sum_array(q, n)
+        a[q - 1] = float(np.mean(amps * c)) / _phi(q)
+    return np.abs(a)
+
+
+@pytest.mark.parametrize("q_max", [8, 16, 64, 200])
+def test_rf_vectorised_matches_reference(q_max):
+    rng = np.random.default_rng(q_max)
+    amps = np.abs(rng.standard_normal(q_max))
+    np.testing.assert_allclose(
+        rf_amplitude_vector(amps, q_max), _rf_reference(amps, q_max), atol=1e-12)
+
+
+def test_phi_mu_sieve_matches_ars():
+    from phase3.ars.arithmetic_toolkit import euler_phi, mobius
+    from phase3.family_distance import _phi_mu_sieve
+    phi, mu = _phi_mu_sieve(200)
+    for n in range(1, 201):
+        assert phi[n] == euler_phi(n), n
+        assert mu[n] == mobius(n), n
+
+
+# ---------------------------------------------------------------------------
+# Interpolated grid projection (smoothing, S1)
+# ---------------------------------------------------------------------------
+
+def test_interpolated_grid_splits_half_integer():
+    # A single partial at exactly 2.5·f_c splits evenly between bins 2 and 3.
+    sp = Spectrum(freqs=np.array([2.5 * 220.0]), amps=np.array([1.0]))
+    out = quantize_to_integer_grid(sp, 220.0, 8, interpolate=True)
+    assert out[1] == pytest.approx(0.5)
+    assert out[2] == pytest.approx(0.5)
+
+
+def test_interpolated_grid_continuous_in_frequency():
+    # Sliding a partial from 2.0→3.0·f_c moves weight smoothly bin2→bin3,
+    # with no discontinuous jump (the property that smooths the landscape).
+    prev = None
+    for x in np.linspace(2.0, 3.0, 11):
+        sp = Spectrum(freqs=np.array([x * 220.0]), amps=np.array([1.0]))
+        out = quantize_to_integer_grid(sp, 220.0, 8, interpolate=True)
+        if prev is not None:
+            assert abs(out[2] - prev) <= 0.11    # ≤ one linspace step, no jump
+        prev = out[2]
+
+
+def test_interpolated_integer_partial_unchanged():
+    # Exact-integer partials land wholly in their bin (no leakage).
+    sp = Spectrum(freqs=np.array([3.0 * 220.0]), amps=np.array([1.0]))
+    out = quantize_to_integer_grid(sp, 220.0, 8, interpolate=True)
+    assert out[2] == pytest.approx(1.0)
+    assert out.sum() == pytest.approx(1.0)
+
+
+def test_hard_round_still_available():
+    sp = Spectrum(freqs=np.array([2.4 * 220.0]), amps=np.array([1.0]))
+    out = quantize_to_integer_grid(sp, 220.0, 8, interpolate=False)
+    assert out[1] == pytest.approx(1.0)   # 2.4 → nearest int 2

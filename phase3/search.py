@@ -60,7 +60,7 @@ def sample_random_config(
     max_enabled: int | None = 8,
     max_path_depth: int = 16,
     sample_max_path_depth: int = 6,
-    landmark_bias: float = 0.7,
+    landmark_bias: float = 0.55,
     landmark_jitter_std: float = 0.15,
     depth_range: tuple[float, float] = (MIN_DEPTH, 6.0),
     f_carrier: float = 220.0,
@@ -73,10 +73,12 @@ def sample_random_config(
       the random subset choice and the slot assignment are decoupled
       because the slot doesn't matter musically (canonicalisation
       packs the leading slots anyway).
-    - Path length uniform in [1, sample_max_path_depth] (default 6).
-      Sampler stays shallow because most random deep-path configs are
-      noisy and never improve; coord-descent extends paths up to
-      `max_path_depth` (default 16) where it pays off.
+    - Path length uniform in [0, sample_max_path_depth] (default 6).
+      Length 0 is the empty path (ratio 1/1, the fundamental); including
+      it lets harmonic-stack targets be seeded directly. Sampler stays
+      shallow because most random deep-path configs are noisy and never
+      improve; coord-descent extends paths up to `max_path_depth`
+      (default 16) where it pays off.
     - Depth: `landmark_bias` chance of being drawn near a Bessel
       landmark (Gaussian jitter); otherwise uniform over `depth_range`.
       Floored at MIN_DEPTH.
@@ -90,7 +92,11 @@ def sample_random_config(
         if i >= n_enabled:
             mods.append(ModConfig(path="", depth=0.0, enabled=False))
             continue
-        path_len = int(rng.integers(1, sample_cap + 1))
+        # Path length from 0 so the *empty path* (ratio 1/1, the harmonic
+        # fundamental) is reachable in Phase 1 — previously path_len ≥ 1 made
+        # ratio-1 modulators impossible to seed, so any harmonic-stack target
+        # with a 1/1 op could only be reached via Phase-2 parent moves (rare).
+        path_len = int(rng.integers(0, sample_cap + 1))
         path = "".join("L" if rng.random() < 0.5 else "R" for _ in range(path_len))
 
         if rng.random() < landmark_bias:
