@@ -58,13 +58,19 @@ def render_feedback(log_ratio, depth, detune, t, f_carrier=F_CARRIER, iters=4):
     return torch.sin(phase)
 
 
-def _gen_targets(render_fn, rvt, n, K, t, W, win, g):
-    ri = torch.randint(0, rvt.numel(), (n, K), generator=g, device=DEVICE)
-    keepn = torch.randint(1, K + 1, (n, 1), generator=g, device=DEVICE)
-    active = (torch.arange(K, device=DEVICE).unsqueeze(0) < keepn).float()
-    dp = torch.empty(n, K, device=DEVICE).uniform_(0.3, 5.0, generator=g) * active
-    x = render_fn(torch.log(rvt[ri]), dp, torch.zeros(n, K, device=DEVICE), t)
-    return fingerprint_batch(x, W, win)
+def _gen_targets(render_fn, rvt, n, K, t, W, win, g, chunk=40_000):
+    """Render+fingerprint n configs of a topology, chunked so the (chunk, T)
+    render transient stays within VRAM. Returns (n, q_max) fingerprints."""
+    outs = []
+    for s in range(0, n, chunk):
+        b = min(chunk, n - s)
+        ri = torch.randint(0, rvt.numel(), (b, K), generator=g, device=DEVICE)
+        keepn = torch.randint(1, K + 1, (b, 1), generator=g, device=DEVICE)
+        active = (torch.arange(K, device=DEVICE).unsqueeze(0) < keepn).float()
+        dp = torch.empty(b, K, device=DEVICE).uniform_(0.3, 5.0, generator=g) * active
+        x = render_fn(torch.log(rvt[ri]), dp, torch.zeros(b, K, device=DEVICE), t)
+        outs.append(fingerprint_batch(x, W, win))
+    return torch.cat(outs)
 
 
 def _min_l1_to_bank(targets, bank, chunk=1_000_000):
@@ -76,6 +82,39 @@ def _min_l1_to_bank(targets, bank, chunk=1_000_000):
             best = min(best, float((bank[c:c + chunk] - p).abs().sum(1).min()))
         out.append(best)
     return np.array(out)
+
+
+def feedback_value(n_targets=400, n_cand=500_000, K=6, seed=11):
+    """Concrete payoff: take feedback-rich targets and ask whether a PARALLEL
+    candidate pool can match them vs a FEEDBACK candidate pool. If feedback
+    candidates match them far better, feedback is *necessary* for those sounds
+    (not just a different route to the same spectrum)."""
+    from phase3.coverage_bank import curated_ratios
+    from phase3.config import path_ratio
+    paths = curated_ratios(5)
+    rvt = torch.from_numpy(np.array([path_ratio(p) for p in paths], np.float32)).to(DEVICE)
+    t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
+    win = torch.hann_window(N_FFT, device=DEVICE)
+    W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
+    g = torch.Generator(device=DEVICE).manual_seed(seed)
+
+    tgts = _gen_targets(render_feedback, rvt, n_targets, K, t, W, win, g)
+    par = _gen_targets(render_batch, rvt, n_cand, K, t, W, win, g)
+    fb = _gen_targets(render_feedback, rvt, n_cand, K, t, W, win, g)
+
+    def best_match(cands):
+        out = []
+        for i in range(tgts.shape[0]):
+            out.append(float((cands - tgts[i].unsqueeze(0)).abs().sum(1).min()))
+        return np.array(out)
+
+    par_l1, fb_l1 = best_match(par), best_match(fb)
+    print(f"feedback-rich targets ({n_targets}), best match from {n_cand:,} "
+          f"candidates of each pool:")
+    print(f"  parallel pool : median {np.median(par_l1):.4f}  p90 {np.percentile(par_l1,90):.4f}")
+    print(f"  feedback pool : median {np.median(fb_l1):.4f}  p90 {np.percentile(fb_l1,90):.4f}")
+    print(f"  feedback wins (lower L1) on {100*(fb_l1<par_l1).mean():.0f}% of targets; "
+          f"median improvement {np.median(par_l1-fb_l1):+.4f}")
 
 
 def main(n_targets=1000, K=6, seed=7):

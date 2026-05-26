@@ -66,6 +66,12 @@ timbre space** — 70% of feedback spectra are unreachable by any parallel
 config. So if the engine gains one program set, make it **feedback**, not
 series. Renderers are differentiable; feedback ≈ a few fixed-point unrolls.
 
+`feedback_value()` makes the case concrete: feedback-rich targets, best match
+from **500k candidates** of each pool — parallel reaches only **median 0.25
+L1** (p90 0.48), feedback reaches **0.09** (p90 0.13), winning on **86%** of
+targets (median gap 0.15). Parallel FM can't approximate these sounds no
+matter how many candidates; feedback is *necessary*, not just an alternative.
+
 ## Amortized inverse net (`gpu_invnet.py`) — negative result
 
 The 10M bank is labelled data (fingerprint → ratios/depths), so we trained an
