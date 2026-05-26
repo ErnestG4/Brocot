@@ -68,16 +68,31 @@ def interp_matrix(n_fft: int, sr: int, q_max: int, f_carrier: float,
 
 def render_batch(log_ratio: torch.Tensor, depth: torch.Tensor,
                  detune_cents: torch.Tensor, t: torch.Tensor,
-                 f_carrier: float = F_CARRIER) -> torch.Tensor:
+                 f_carrier: float = F_CARRIER,
+                 feedback: torch.Tensor | None = None,
+                 fb_iters: int = 4) -> torch.Tensor:
     """Batched sine-FM render. Shapes: params (B, K), t (T,) → (B, T).
-    K-loop accumulation keeps memory at O(B·T) (no B·K·T tensor)."""
+    K-loop accumulation keeps memory at O(B·T) (no B·K·T tensor).
+
+    `feedback` (B,), if given, is op 0's self-PM index in radians: op 0
+    modulates itself (fixed-point unroll) before contributing to the carrier,
+    matching the engine's single-op feedback. Default None ⇒ pure parallel FM
+    (unchanged for every existing caller)."""
     B, K = log_ratio.shape
     two_pi = 2.0 * np.pi
     ratio = torch.exp(log_ratio) * torch.pow(2.0, detune_cents / 1200.0)  # (B,K)
     phase = two_pi * f_carrier * t.unsqueeze(0).expand(B, -1).clone()      # (B,T)
     for k in range(K):
         fmod = (f_carrier * ratio[:, k]).unsqueeze(1)                      # (B,1)
-        phase = phase + depth[:, k].unsqueeze(1) * torch.sin(two_pi * fmod * t)
+        base = two_pi * fmod * t                                          # (B,T)
+        if k == 0 and feedback is not None:
+            beta = feedback.unsqueeze(1)                                   # (B,1)
+            y = torch.sin(base)
+            for _ in range(fb_iters):
+                y = torch.sin(base + beta * y)                            # self-PM
+            phase = phase + depth[:, 0].unsqueeze(1) * y
+        else:
+            phase = phase + depth[:, k].unsqueeze(1) * torch.sin(base)
     return torch.sin(phase)
 
 

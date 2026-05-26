@@ -48,6 +48,7 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0):
     amps = np.empty((n_total, Q_MAX), dtype=np.float16)
     ridx = np.empty((n_total, N_OPS), dtype=np.uint8)
     depths = np.empty((n_total, N_OPS), dtype=np.float16)
+    feedback = np.empty((n_total,), dtype=np.float16)
     t0 = time.time()
     done = 0
     while done < n_total:
@@ -59,19 +60,24 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0):
         slot = torch.arange(N_OPS, device=DEVICE).unsqueeze(0)
         active = (slot < keepn).float()
         dp = torch.empty(b, N_OPS, device=DEVICE).uniform_(0.1, 5.0, generator=g) * active
+        # Half the configs get op-0 self-feedback in (0, π) — the dimension
+        # parallel FM can't reach (Square/Glass/Reed/Bell); rest stay parallel.
+        fb = torch.empty(b, device=DEVICE).uniform_(0.0, float(np.pi), generator=g)
+        fb *= (torch.rand(b, generator=g, device=DEVICE) < 0.5).float()
         fp = fingerprint_batch(
             render_batch(torch.log(rvt[ri]), dp, torch.zeros(b, N_OPS, device=DEVICE),
-                         t, F_CARRIER), W, win)
+                         t, F_CARRIER, feedback=fb), W, win)
         amps[done:done + b] = fp.half().cpu().numpy()
         ridx[done:done + b] = ri.byte().cpu().numpy()
         depths[done:done + b] = dp.half().cpu().numpy()
+        feedback[done:done + b] = fb.half().cpu().numpy()
         done += b
         if done % 500_000 == 0:
             print(f"  {done:,}/{n_total:,} ({time.time()-t0:.0f}s, "
                   f"{done/(time.time()-t0):,.0f}/s)")
 
     NPZ.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(NPZ, amps=amps, ridx=ridx, depths=depths)
+    np.savez(NPZ, amps=amps, ridx=ridx, depths=depths, feedback=feedback)
     print(f"\nGPU bank: {n_total:,} fingerprints @ q_max={Q_MAX}  "
           f"({NPZ.stat().st_size/1e9:.2f} GB) in {time.time()-t0:.0f}s -> {NPZ}")
 
