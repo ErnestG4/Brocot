@@ -1,0 +1,61 @@
+{
+ "name": "Pluck",
+ "version": "2.0",
+ "provenance": {
+  "kind": "flavour-match",
+  "author": "ARS Phase 3",
+  "description": "Pluck: FM approximation of the 'pluck_0_18' target (objective 0.0347). Spectral character: dark · pure.",
+  "category": "Plucked",
+  "search": {
+   "family": "pluck_0_18",
+   "seed": -1,
+   "objective": 0.03470191838038711,
+   "params": {
+    "n_phase1": 1000,
+    "k_top": 20,
+    "q_max": 16
+   },
+   "timestamp": "2026-05-26T10:24:42.814391+00:00",
+   "family_distance": 0.03470191838038711,
+   "criticality": 0.0
+  },
+  "spectral_tags": "dark · pure"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "RLLRRRRRRRRRRRRL",
+    "depth": 1.2000000000000002
+   },
+   {
+    "enabled": true,
+    "path": "RRRRRR",
+    "depth": 0.1
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}

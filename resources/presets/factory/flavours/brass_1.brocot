@@ -1,0 +1,71 @@
+{
+ "name": "Brass",
+ "version": "2.0",
+ "provenance": {
+  "kind": "flavour-match",
+  "author": "ARS Phase 3",
+  "description": "Brass: FM approximation of the 'brass' target (objective 0.0317). Spectral character: bright · pure · noisy · rich.",
+  "category": "Brass",
+  "search": {
+   "family": "brass",
+   "seed": -1,
+   "objective": 0.03172394715250226,
+   "params": {
+    "n_phase1": 1000,
+    "k_top": 20,
+    "q_max": 16
+   },
+   "timestamp": "2026-05-26T10:24:42.814391+00:00",
+   "family_distance": 0.03172394715250226,
+   "criticality": 0.0
+  },
+  "spectral_tags": "bright · pure · noisy · rich"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "R",
+    "depth": 3.095
+   },
+   {
+    "enabled": true,
+    "path": "RLLL",
+    "depth": 1.841
+   },
+   {
+    "enabled": true,
+    "path": "RRR",
+    "depth": 5.2059999999999995
+   },
+   {
+    "enabled": true,
+    "path": "RRRRR",
+    "depth": 2.965
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}

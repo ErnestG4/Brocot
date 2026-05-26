@@ -1,0 +1,61 @@
+{
+ "name": "Vowel · Oo 2",
+ "version": "2.0",
+ "provenance": {
+  "kind": "flavour-match",
+  "author": "ARS Phase 3",
+  "description": "Vowel · Oo: FM approximation of the 'vowel_u' target (objective 0.1090). Spectral character: dark · pure.",
+  "category": "Vowel",
+  "search": {
+   "family": "vowel_u",
+   "seed": -1,
+   "objective": 0.10895361971159365,
+   "params": {
+    "n_phase1": 1000,
+    "k_top": 20,
+    "q_max": 16
+   },
+   "timestamp": "2026-05-26T10:24:42.814391+00:00",
+   "family_distance": 0.10895361971159365,
+   "criticality": 0.0
+  },
+  "spectral_tags": "dark · pure"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "LLRLRRRRRRRRRLLR",
+    "depth": 6.15
+   },
+   {
+    "enabled": true,
+    "path": "RRRRLRLLRRRRRRRR",
+    "depth": 0.05
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}

@@ -1,0 +1,61 @@
+{
+ "name": "Vowel · Ah",
+ "version": "2.0",
+ "provenance": {
+  "kind": "flavour-match",
+  "author": "ARS Phase 3",
+  "description": "Vowel · Ah: FM approximation of the 'vowel_a' target (objective 0.1919). Spectral character: warm · pure.",
+  "category": "Vowel",
+  "search": {
+   "family": "vowel_a",
+   "seed": -1,
+   "objective": 0.19193971840404694,
+   "params": {
+    "n_phase1": 1000,
+    "k_top": 20,
+    "q_max": 16
+   },
+   "timestamp": "2026-05-26T10:24:42.814391+00:00",
+   "family_distance": 0.19193971840404694,
+   "criticality": 0.0
+  },
+  "spectral_tags": "warm · pure"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "",
+    "depth": 0.9500000000000001
+   },
+   {
+    "enabled": true,
+    "path": "RRR",
+    "depth": 5.136
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}

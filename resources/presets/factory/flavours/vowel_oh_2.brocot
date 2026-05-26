@@ -1,0 +1,61 @@
+{
+ "name": "Vowel · Oh 2",
+ "version": "2.0",
+ "provenance": {
+  "kind": "flavour-match",
+  "author": "ARS Phase 3",
+  "description": "Vowel · Oh: FM approximation of the 'vowel_o' target (objective 0.1136). Spectral character: dark · pure.",
+  "category": "Vowel",
+  "search": {
+   "family": "vowel_o",
+   "seed": -1,
+   "objective": 0.113616214978965,
+   "params": {
+    "n_phase1": 1000,
+    "k_top": 20,
+    "q_max": 16
+   },
+   "timestamp": "2026-05-26T10:24:42.814391+00:00",
+   "family_distance": 0.113616214978965,
+   "criticality": 0.0
+  },
+  "spectral_tags": "dark · pure"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "",
+    "depth": 2.4
+   },
+   {
+    "enabled": true,
+    "path": "RR",
+    "depth": 0.05
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}
