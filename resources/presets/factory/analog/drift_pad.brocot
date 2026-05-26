@@ -1,0 +1,362 @@
+{
+ "name": "Drift Pad",
+ "version": "2.0",
+ "provenance": {
+  "kind": "hand-authored",
+  "author": "Brocot (detune demo)",
+  "description": "Low-index cluster with gentle ±2-5 cent spread — slow evolving pad.",
+  "category": "Analog"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "",
+    "depth": 0.7,
+    "detune": -2.0
+   },
+   {
+    "enabled": true,
+    "path": "R",
+    "depth": 0.6,
+    "detune": 3.0
+   },
+   {
+    "enabled": true,
+    "path": "RLL",
+    "depth": 0.5,
+    "detune": -4.0
+   },
+   {
+    "enabled": true,
+    "path": "L",
+    "depth": 0.55,
+    "detune": 5.0
+   },
+   {
+    "enabled": true,
+    "path": "RR",
+    "depth": 0.45,
+    "detune": -3.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   },
+   {
+    "enabled": false,
+    "path": "",
+    "depth": 0.0
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}
