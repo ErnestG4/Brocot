@@ -78,6 +78,13 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     if (auto idxFile = PullIndex::findIndexFile(); idxFile.existsAsFile())
         pullIndex.load (idxFile);
 
+    // FM-soundspace graph + per-family gradient fields for SteerTab's
+    // "track smoothly across the landscape" steering. Best-effort, like the
+    // pull index — if it isn't on disk the steer tab falls back to the
+    // best-exemplar morph.
+    if (auto gFile = Landscape::findFile(); gFile.existsAsFile())
+        landscape.load (gFile);
+
     // P3.12: default initial patch is the absolute-best 64-op
     // textured-smooth carpet — obj 0.334, H≈7.81, ~4370 partials —
     // discovered by the overnight P3.12 search. Loading here makes

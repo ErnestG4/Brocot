@@ -141,6 +141,27 @@ void SteerTab::wireSlider (ScrubRow& row)
         rowPtr->dragging        = true;
         rowPtr->sessionStart    = proc.getCurrentOps();
         rowPtr->sessionProgress = 0.0f;
+
+        // Pre-plot the gradient route across the landscape from where we are
+        // to this row's family: locate the nearest node by params, follow the
+        // family's next-hop field. Computed once per drag (sessionStart is
+        // fixed during the drag). Empty ⇒ fall back to best-exemplar morph.
+        rowPtr->routeWaypoints.clear();
+        const auto cat = rowPtr->isTextureRow ? resolveTextureCategory()
+                                              : rowPtr->category;
+        const auto& ls = proc.getLandscape();
+        if (! ls.isEmpty() && cat.isNotEmpty() && ls.hasFamily (cat))
+        {
+            const int start = ls.nearestNode (rowPtr->sessionStart);
+            auto wp = ls.waypoints (start, cat);
+            if (! wp.empty())
+            {
+                rowPtr->routeWaypoints.reserve (wp.size() + 1);
+                rowPtr->routeWaypoints.push_back (rowPtr->sessionStart);
+                for (auto& w : wp)
+                    rowPtr->routeWaypoints.push_back (std::move (w));
+            }
+        }
     };
     // No onValueChange morph — slider position is a *rate*, processed
     // by the timer. The user can wiggle the slider freely without
@@ -187,6 +208,19 @@ void SteerTab::applyRowMorph (ScrubRow& row)
                                juce::dontSendNotification);
             return;
         }
+        // Preferred path: walk the pre-plotted gradient route across the
+        // landscape (the journey is the steering). Falls back to the single
+        // best-exemplar morph when no gradient field covers this family.
+        if (! row.routeWaypoints.empty())
+        {
+            auto morphed = walkWaypoints (row.routeWaypoints, p);
+            proc.applyOps (morphed);
+            hintLabel.setText (juce::String ("→ ") + category + " (landscape "
+                               + juce::String ((int) (p * 100.0f)) + "%)",
+                               juce::dontSendNotification);
+            return;
+        }
+
         const auto* targetOps = proc.getPullIndex().getBestOps (category);
         if (targetOps == nullptr)
         {
@@ -209,6 +243,24 @@ void SteerTab::applyRowMorph (ScrubRow& row)
         hintLabel.setText ("← home  (" + juce::String ((int) (-p * 100.0f)) + "%)",
                            juce::dontSendNotification);
     }
+}
+
+std::vector<PullIndex::OpState> SteerTab::walkWaypoints (
+    const std::vector<std::vector<PullIndex::OpState>>& wp, float alpha)
+{
+    if (wp.empty())
+        return {};
+    if (wp.size() == 1)
+        return wp.front();
+
+    const float a = juce::jlimit (0.0f, 1.0f, alpha);
+    const int segments = (int) wp.size() - 1;
+    const float scaled = a * (float) segments;
+    int seg = (int) std::floor (scaled);
+    if (seg >= segments)                       // a == 1 → final waypoint
+        return wp.back();
+    const float local = scaled - (float) seg;
+    return PullIndex::morph (wp[(size_t) seg], wp[(size_t) seg + 1], local);
 }
 
 juce::String SteerTab::resolveTextureCategory()

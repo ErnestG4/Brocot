@@ -14,6 +14,7 @@
 #include "params/ModTarget.h"
 #include "presets/PresetManager.h"
 #include "pull/PullIndex.h"
+#include "pull/Landscape.h"
 
 namespace brocot
 {
@@ -66,6 +67,7 @@ public:
         found (the steer-tab UI shows a "rebuild the index" hint in
         that case). */
     const PullIndex& getPullIndex() const noexcept { return pullIndex; }
+    const Landscape& getLandscape() const noexcept { return landscape; }
 
     /** Snapshot the current operator bank as `OpState`s the PullIndex
         morph helper can consume. Length is always `kNumOperators`. */
@@ -190,6 +192,7 @@ private:
     // resources/pull_index.json; stays empty (and the steer-tab UI
     // hides itself) if the file isn't on disk.
     PullIndex pullIndex;
+    Landscape landscape;
 
     juce::MidiKeyboardState keyboardState;
 
