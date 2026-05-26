@@ -259,6 +259,73 @@ def export(n_nodes: int, k: int, k_paths: int, waypoints: int,
           f"(<= {waypoints} waypoints each) in {time.time()-t0:.0f}s")
 
 
+def gradients(n_nodes: int, k: int, min_family: int = 30,
+              out: Path = Path("resources/landscape_graph.json")):
+    """Export the runtime graph + per-family gradient fields ("vector LUTs").
+
+    For each family we run a multi-source Dijkstra INTO the family (a virtual
+    super-source wired to every family node), giving, for every node, the
+    next-hop node one smooth step closer to that family. At runtime the synth
+    locates its current patch by parameter distance to the nearest node, then
+    follows family F's next-hop pointers — the shortest smooth path to F, with
+    no runtime Dijkstra and no spectral analysis. Different start nodes yield
+    different routes (the "where are we / where are we going" multiplicity)."""
+    import json as _json
+    from scipy.sparse import vstack, hstack
+    t0 = time.time()
+    print(f"Subsampling {n_nodes:,} nodes ...")
+    nodeIdx, amps, node_lab, ridx, depths, fam_names = _subsample(n_nodes)
+    n = amps.shape[0]
+    print(f"Building {k}-NN graph ...")
+    g = _knn_graph(amps, k=k).tocsr()
+    cur_paths = _curated_paths()
+
+    # Node params (reconstructable synth state) + family label per node.
+    nodes = [{"family": int(node_lab[i]),
+              "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
+
+    # Per-family next-hop field via super-source-into-family Dijkstra.
+    print("Computing per-family gradient fields ...")
+    fields = {}
+    for fi, fam in enumerate(fam_names):
+        tgt = np.where(node_lab == fi)[0]
+        if tgt.size < min_family:                 # skip thinly-covered families
+            continue
+        # Augment: node n = super-source, ~0-weight edges to every family node.
+        top = hstack([g, csr_matrix((n, 1))])
+        bottomrow = np.zeros(n + 1, np.float32); bottomrow[tgt] = 1e-6
+        aug = vstack([top, csr_matrix(bottomrow)]).tocsr()
+        dist, pred = dijkstra(aug, indices=n, return_predecessors=True)
+        # pred[i] = next node toward the family (or n = arrived at family edge).
+        nh = pred[:n].astype(np.int32)
+        nh[nh == n] = -1                           # -1 = "at the family"
+        nh[~np.isfinite(dist[:n])] = -2            # -2 = unreachable
+        fields[fam] = nh.tolist()
+
+    doc = {
+        "version": "1.0",
+        "f_carrier_ref": F_CARRIER,
+        "n_nodes": n,
+        "n_families": len(fields),
+        "family_names": list(fields.keys()),
+        "nodes": nodes,
+        "next_hop": fields,            # family -> [next-hop node per node]
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(_json.dumps(doc, ensure_ascii=False) + "\n")
+    print(f"\nWrote {out} ({out.stat().st_size/1e6:.1f} MB): {n:,} nodes, "
+          f"{len(fields)} family gradient fields in {time.time()-t0:.0f}s")
+
+    # Quick sanity: average route length from a neutral origin to a few families.
+    pure = torch.zeros(amps.shape[1], device=DEVICE); pure[0] = 1.0
+    src = int((amps - pure).abs().sum(1).argmin().item())
+    for fam in list(fields.keys())[:4]:
+        nh = fields[fam]; node = src; hops = 0
+        while nh[node] >= 0 and hops < 1000:
+            node = nh[node]; hops += 1
+        print(f"  origin → {fam}: {hops} hops")
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -272,11 +339,16 @@ def main():
     e.add_argument("--k", type=int, default=12)
     e.add_argument("--k-paths", type=int, default=3)
     e.add_argument("--waypoints", type=int, default=10)
+    gr = sub.add_parser("gradients")
+    gr.add_argument("--nodes", type=int, default=16_000)
+    gr.add_argument("--k", type=int, default=12)
     a = ap.parse_args()
     if a.cmd == "demo":
         demo(a.nodes, a.k, a.targets)
     elif a.cmd == "export":
         export(a.nodes, a.k, a.k_paths, a.waypoints)
+    elif a.cmd == "gradients":
+        gradients(a.nodes, a.k)
 
 
 if __name__ == "__main__":
