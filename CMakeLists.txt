@@ -155,6 +155,7 @@ if(BROCOT_BUILD_TESTS)
         tests/LandscapeTests.cpp
         tests/UniversalModulatorTests.cpp
         tests/OperatorTuningTests.cpp
+        tests/GrooveFieldTests.cpp
         tests/RenderBenchmark.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp
