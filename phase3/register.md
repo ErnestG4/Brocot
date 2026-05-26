@@ -62,7 +62,13 @@ library doesn't need register handling. Instead:
    where bright/feedback timbres live.
 4. **Non-stationarity** (ARP drift, AFM feedback-sweeps): match the
    representative (Welch-averaged) spectrum for the static core, then recreate
-   the motion with the modulator bank — a future time-resolved extractor
-   (STFT trajectory) can drive those modulators.
+   the motion with the modulator bank. The time-resolved extractor is built —
+   `stft_trajectory.audio_to_drift_profile` returns `mean_spectrum` (= the
+   Mode B target) plus motion features: spectral-centroid trajectory + its
+   dominant LFO rate/depth (brightness sweeps), per-partial envelopes, flux,
+   loudness, and f0-drift in cents (analog pitch wander). Brightness motion
+   surfaces in the centroid; pitch drift in f0_drift_cents (a small detune
+   keeps partials in-bin, so it doesn't move the integer-grid frames). These
+   are the inputs that drive the modulator bank.
 
 Derived (gitignored): `derived/register_drift.jsonl`, `derived/corpus_q2048.jsonl`.
