@@ -1,0 +1,63 @@
+{
+ "name": "Atlas 04 · Bright",
+ "version": "2.0",
+ "provenance": {
+  "kind": "atlas",
+  "author": "Brocot (space tour)",
+  "description": "A distinct corner of FM space — spectral character: bright · pure · noisy · rich.",
+  "category": "Atlas",
+  "spectral_tags": "bright · pure · noisy · rich"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "RRRRR",
+    "depth": 5.825
+   },
+   {
+    "enabled": true,
+    "path": "RRR",
+    "depth": 5.282
+   },
+   {
+    "enabled": true,
+    "path": "LRL",
+    "depth": 5.455
+   },
+   {
+    "enabled": true,
+    "path": "LRR",
+    "depth": 5.571
+   },
+   {
+    "enabled": true,
+    "path": "LRRL",
+    "depth": 6.459
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}

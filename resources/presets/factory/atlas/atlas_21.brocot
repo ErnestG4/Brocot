@@ -1,0 +1,53 @@
+{
+ "name": "Atlas 21 · Bright",
+ "version": "2.0",
+ "provenance": {
+  "kind": "atlas",
+  "author": "Brocot (space tour)",
+  "description": "A distinct corner of FM space — spectral character: bright · pure · hollow · rich.",
+  "category": "Atlas",
+  "spectral_tags": "bright · pure · hollow · rich"
+ },
+ "engine": {
+  "polyphony": "mono",
+  "octaveShift": 0,
+  "pathMode": "free",
+  "operators": [
+   {
+    "enabled": true,
+    "path": "R",
+    "depth": 4.1
+   },
+   {
+    "enabled": true,
+    "path": "RRRRR",
+    "depth": 5.357
+   },
+   {
+    "enabled": true,
+    "path": "R",
+    "depth": 1.748
+   }
+  ]
+ },
+ "filter": {
+  "type": "lp",
+  "cutoff": 0.85,
+  "resonance": 0.1
+ },
+ "envelope": {
+  "attack": 0.01,
+  "decay": 0.15,
+  "sustain": 0.8,
+  "release": 0.4
+ },
+ "lfo": {
+  "shape": "sine",
+  "rate": 0.5,
+  "depth": 0.0,
+  "keySync": false
+ },
+ "master": {
+  "level": 0.5
+ }
+}
