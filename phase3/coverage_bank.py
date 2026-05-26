@@ -103,11 +103,16 @@ def enumerate_configs(n_random: int, seed: int = 0):
 
     # 3–5-op: structured random sampling (capped op-count + shallow paths so
     # the fingerprint predict stays fast; complex timbres still appear via the
-    # multi-op combinations).
+    # multi-op combinations). Half the draws use the default landmark-biased
+    # depths; half use near-uniform depths (landmark_bias 0.1) so the depth
+    # space between the Bessel landmarks is filled too — that's where the
+    # coverage tail (e.g. mid-depth multi-op patches) was thin.
     rng = np.random.default_rng(seed)
-    for _ in range(n_random):
+    for k in range(n_random):
+        lb = 0.55 if (k % 2 == 0) else 0.1
         cfg = sample_random_config(rng, min_enabled=3, max_enabled=5,
-                                   sample_max_path_depth=5, f_carrier=F_CARRIER)
+                                   sample_max_path_depth=5, landmark_bias=lb,
+                                   f_carrier=F_CARRIER)
         ps, ds = [], []
         for m in cfg.mods:
             if m.enabled:
