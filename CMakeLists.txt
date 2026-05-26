@@ -77,6 +77,7 @@ target_sources(Brocot PRIVATE
     source/presets/PresetManager.cpp
     source/presets/PresetSchema.cpp
     source/pull/PullIndex.cpp
+    source/pull/Landscape.cpp
 )
 
 target_compile_definitions(Brocot PUBLIC
@@ -151,6 +152,7 @@ if(BROCOT_BUILD_TESTS)
         tests/DepthRatioTests.cpp
         tests/PresetRoundtripTests.cpp
         tests/PullIndexTests.cpp
+        tests/LandscapeTests.cpp
         tests/UniversalModulatorTests.cpp
         tests/OperatorTuningTests.cpp
         tests/RenderBenchmark.cpp
