@@ -125,3 +125,40 @@ def test_plan_describe_runs():
                                q_max=32, f_carrier=F_C, sample_rate=SR))
     assert isinstance(plan.describe(), str)
     assert "ModulationPlan" in plan.describe()
+
+
+# ---------------------------------------------------------------------------
+# Keystone: drift_to_brocot (spectral match + motion → preset)
+# ---------------------------------------------------------------------------
+
+def test_apply_detune_spread_round_robin():
+    from phase3.drift_mapping import apply_detune_spread
+    cfg = Config(mods=[ModConfig("", 1.0, True), ModConfig("R", 1.0, True),
+                       ModConfig("RL", 1.0, True)] + [ModConfig() for _ in range(5)],
+                 f_carrier=F_C)
+    out = apply_detune_spread(cfg, [-5.0, 0.0, 5.0])
+    det = [m.detune_cents for m in out.mods if m.enabled]
+    assert det == [-5.0, 0.0, 5.0]
+    # original untouched
+    assert all(m.detune_cents == 0.0 for m in cfg.mods)
+
+
+def test_drift_to_brocot_carries_motion():
+    from phase3.audio_spectrum import render_config_audio
+    from phase3.stft_trajectory import audio_to_drift_profile
+    from phase3.drift_mapping import drift_to_brocot
+    # A drifting target: detuned pair (beats) under a matched config.
+    cfg = Config(mods=[ModConfig("", 2.0, True, 0.0),
+                       ModConfig("", 2.0, True, 8.0)]
+                      + [ModConfig() for _ in range(6)], f_carrier=F_C)
+    audio = render_config_audio(cfg, duration_s=2.5)
+    profile = audio_to_drift_profile(audio, q_max=64, f_carrier=F_C, sample_rate=SR)
+    doc = drift_to_brocot(cfg, profile, name="Test Match")
+    # Valid schema shape.
+    assert set(doc) >= {"name", "engine", "envelope", "lfo", "provenance"}
+    assert doc["name"] == "Test Match"
+    env = doc["envelope"]
+    assert set(env) == {"attack", "decay", "sustain", "release"}
+    # LFO block present and well-formed.
+    assert set(doc["lfo"]) >= {"shape", "rate", "depth"}
+    assert doc["provenance"]["kind"] == "spectral+motion-match"

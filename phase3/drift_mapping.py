@@ -268,3 +268,62 @@ def plan_to_v1_brocot(plan: ModulationPlan) -> dict:
         if L.source == "amplitude" and L.kind == "tremolo":
             out["unmapped"].append(L)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Keystone: matched spectrum + measured motion → a complete .brocot preset
+# ---------------------------------------------------------------------------
+
+def apply_detune_spread(config, osc_detune_cents: list[float]):
+    """Distribute a plan's per-osc detune offsets across a config's enabled
+    operators (round-robin), returning a new Config. This is what turns a
+    static spectral match into a *beating* one — recreating analog drift."""
+    from phase3.config import Config
+    from dataclasses import replace
+    if not osc_detune_cents:
+        return config
+    mods = [replace(m) for m in config.mods]
+    j = 0
+    for m in mods:
+        if m.enabled:
+            m.detune_cents = float(osc_detune_cents[j % len(osc_detune_cents)])
+            j += 1
+    return Config(mods=mods, f_carrier=config.f_carrier)
+
+
+def drift_to_brocot(matched_config, profile, name: str = "matched",
+                    category: str = "Matched") -> dict:
+    """Close the loop: combine a matched FM config (the static spectrum) with
+    a DriftProfile's recovered motion into a complete v2 .brocot dict.
+
+        audio → audio_to_spectrum → bank_seeded_search → matched_config
+              → audio_to_drift_profile → profile
+              → drift_to_brocot(matched_config, profile)
+
+    The static config carries the timbre; the modulation plan adds the life:
+    a detune spread (so the operators beat = analog drift), an LFO on filter
+    cutoff (brightness motion), and an ADSR fitted to the loudness envelope.
+    """
+    from datetime import datetime, timezone
+    from phase3.brocot_writer import result_to_brocot_json
+    from phase3.search import SearchResult
+
+    plan = drift_profile_to_plan(profile)
+    v1 = plan_to_v1_brocot(plan)
+    voiced = apply_detune_spread(matched_config, plan.osc_detune_cents)
+
+    res = SearchResult(config=voiced, objective=0.0, family="matched",
+                       seed=0, phase1_objective=0.0)
+    doc = result_to_brocot_json(res, name=name,
+                                timestamp=datetime.now(timezone.utc).isoformat())
+    doc["envelope"] = v1["envelope"]
+    doc["lfo"] = v1["lfo"]
+    doc["provenance"]["kind"] = "spectral+motion-match"
+    doc["provenance"]["category"] = category
+    doc["provenance"]["description"] = (
+        f"Spectral match + recovered motion. "
+        f"Detune spread {[round(c, 1) for c in plan.osc_detune_cents]} cents; "
+        f"{len(plan.layers)} motion layer(s); "
+        f"f0 drift {profile.f0_drift_cents:.1f} cents.")
+    doc["provenance"].pop("search", None)
+    return doc
