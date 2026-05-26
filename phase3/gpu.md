@@ -48,6 +48,27 @@ vs the 175k CPU bank's 55% within 0.10 — ~3× tighter. Almost any target has a
 bank entry within 0.1 L1, retrieved in milliseconds (GPU L1, chunked to stay
 within VRAM). This is the "ready for any input sound" table.
 
+## Amortized inverse net (`gpu_invnet.py`) — negative result
+
+The 10M bank is labelled data (fingerprint → ratios/depths), so we trained an
+MLP to invert it directly: spectrum → presence+depth over the 63 curated
+Stern-Brocot ratios (a permutation-invariant canonical form; duplicate ratios
+sum depths, exactly as FM combines them). Inference is **2-4 ms/target**.
+
+But it **doesn't work well**: recovery L1 ≈ 0.5, only ~7-14% of targets within
+0.15. Presence precision/recall top out around 0.17/0.30. The cause is
+**multimodality** — many different ratio-sets give near-identical spectra, so
+a deterministic regressor hedges (blurry average that isn't itself a valid
+config) rather than committing. This is the well-known reason direct parameter
+regression fails for synth inversion (DDSP trains through a differentiable
+render loss instead — and even then frequency inference is hard, as we saw).
+
+Conclusion: **the bank retrieval + hybrid matcher are the production path**;
+the net is kept as a documented experiment. A spectral-reconstruction-loss
+(through the differentiable renderer) or an ARS-arithmetic target (less
+multimodal) could be revisited, but neither was needed — matching already
+works.
+
 ## Why not just gradient-match everything?
 
 Because of the ratio-gradient problem above. The discrete Stern-Brocot lattice
