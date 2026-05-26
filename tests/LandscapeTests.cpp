@@ -25,9 +25,9 @@ namespace
       "n_families": 1,
       "family_names": ["Bright"],
       "nodes": [
-        {"family": 0, "ops": [{"path": "R",   "depth": 1.0, "enabled": true}]},
-        {"family": 0, "ops": [{"path": "RR",  "depth": 1.0, "enabled": true}]},
-        {"family": 0, "ops": [{"path": "RRR", "depth": 1.0, "enabled": true}]}
+        {"family": 0, "feedback": 0.0, "ops": [{"path": "R",   "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.0, "ops": [{"path": "RR",  "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.5, "ops": [{"path": "RRR", "depth": 1.0, "enabled": true}]}
       ],
       "next_hop": { "Bright": [1, 2, -1] }
     })JSON";
@@ -103,10 +103,12 @@ TEST_CASE ("route follows next-hop pointers to the family", "[Landscape]")
     // Unknown family → empty.
     REQUIRE (ls.route (0, "Nope").empty());
 
-    // Waypoints carry each node's ops in order.
+    // Waypoints carry each node's ops + op-0 feedback in order.
     const auto wp = ls.waypoints (0, "Bright");
     REQUIRE (wp.size() == 3);
-    REQUIRE (wp.front().front().path == "R");
-    REQUIRE (wp.back().front().path == "RRR");
+    REQUIRE (wp.front().ops.front().path == "R");
+    REQUIRE (wp.back().ops.front().path == "RRR");
+    REQUIRE (wp.front().feedback == Catch::Approx (0.0f));
+    REQUIRE (wp.back().feedback == Catch::Approx (0.5f));  // node 2's feedback
     f.deleteFile();
 }

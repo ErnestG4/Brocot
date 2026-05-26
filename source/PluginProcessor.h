@@ -79,6 +79,12 @@ public:
         tail untouched. Use to apply a morph result. */
     void applyOps (const std::vector<PullIndex::OpState>& states);
 
+    /** Op-1 (index 0) self-feedback, in the 0..1 param convention — read for
+        a steer session's start, written as the steer walk crosses landscape
+        waypoints that carry feedback. */
+    float getOp0Feedback() const;
+    void  applyOp0Feedback (float value01);
+
     /** Exposed for the editor's on-screen MidiKeyboardComponent. Notes
         played on the on-screen keyboard inject events into this state;
         processBlock copies them into the MIDI buffer before the voice

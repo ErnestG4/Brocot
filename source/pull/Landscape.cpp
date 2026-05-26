@@ -87,7 +87,8 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
             Node n;
             if (auto* no = asObject (nv))
             {
-                n.family = (int) no->getProperty ("family");
+                n.family   = (int) no->getProperty ("family");
+                n.feedback = (float) (double) no->getProperty ("feedback");
                 if (auto* opsArr = no->getProperty ("ops").getArray())
                     for (const auto& opv : *opsArr)
                         n.ops.push_back (parseOp (opv));
@@ -179,13 +180,13 @@ std::vector<int> Landscape::route (int startNode, const juce::String& family) co
     return path;
 }
 
-std::vector<std::vector<PullIndex::OpState>>
+std::vector<Landscape::Waypoint>
 Landscape::waypoints (int startNode, const juce::String& family) const
 {
-    std::vector<std::vector<PullIndex::OpState>> out;
+    std::vector<Waypoint> out;
     for (int idx : route (startNode, family))
         if (auto* n = node (idx))
-            out.push_back (n->ops);
+            out.push_back ({ n->ops, n->feedback });
     return out;
 }
 

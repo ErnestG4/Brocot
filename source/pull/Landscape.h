@@ -31,8 +31,17 @@ public:
     struct Node
     {
         std::vector<PullIndex::OpState> ops;     // reconstructable synth state
+        float              feedback  { 0.0f };   // op-0 self-feedback, 0..1 param
         int                family    { -1 };     // index into familyNames
         std::vector<float> ratioHist;            // param-space locate signature
+    };
+
+    /** A waypoint = a node's operator state plus its op-0 feedback amount.
+        SteerTab morphs the ops (PullIndex::morph) and lerps the feedback. */
+    struct Waypoint
+    {
+        std::vector<PullIndex::OpState> ops;
+        float feedback { 0.0f };
     };
 
     static constexpr int kHistBins = 40;         // log2-ratio bins over [-5, +5]
@@ -61,7 +70,7 @@ public:
 
     /** The OpState waypoint sequence for `route()` — what SteerTab morphs
         through toward the family. */
-    std::vector<std::vector<PullIndex::OpState>>
+    std::vector<Waypoint>
         waypoints (int startNode, const juce::String& family) const;
 
     const Node* node (int i) const noexcept

@@ -631,6 +631,19 @@ void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& stat
     rebuildOpPositionLUTs();
 }
 
+float BrocotAudioProcessor::getOp0Feedback() const
+{
+    if (auto* p = apvts.getRawParameterValue (params::opId (0, "feedback")))
+        return p->load();
+    return 0.0f;
+}
+
+void BrocotAudioProcessor::applyOp0Feedback (float value01)
+{
+    if (auto* p = apvts.getParameter (params::opId (0, "feedback")))
+        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value01)));
+}
+
 int BrocotAudioProcessor::activeVoices() const noexcept
 {
     int mode = 0;   // 0 = mono, 1 = duo, 2 = poly

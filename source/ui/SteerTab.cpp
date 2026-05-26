@@ -157,7 +157,10 @@ void SteerTab::wireSlider (ScrubRow& row)
             if (! wp.empty())
             {
                 rowPtr->routeWaypoints.reserve (wp.size() + 1);
-                rowPtr->routeWaypoints.push_back (rowPtr->sessionStart);
+                // Waypoint 0 = where we are now (current ops + current op-0
+                // feedback) so the glide departs smoothly from the live patch.
+                rowPtr->routeWaypoints.push_back (
+                    { rowPtr->sessionStart, proc.getOp0Feedback() });
                 for (auto& w : wp)
                     rowPtr->routeWaypoints.push_back (std::move (w));
             }
@@ -214,7 +217,8 @@ void SteerTab::applyRowMorph (ScrubRow& row)
         if (! row.routeWaypoints.empty())
         {
             auto morphed = walkWaypoints (row.routeWaypoints, p);
-            proc.applyOps (morphed);
+            proc.applyOps (morphed.ops);
+            proc.applyOp0Feedback (morphed.feedback);
             hintLabel.setText (juce::String ("→ ") + category + " (landscape "
                                + juce::String ((int) (p * 100.0f)) + "%)",
                                juce::dontSendNotification);
@@ -245,8 +249,8 @@ void SteerTab::applyRowMorph (ScrubRow& row)
     }
 }
 
-std::vector<PullIndex::OpState> SteerTab::walkWaypoints (
-    const std::vector<std::vector<PullIndex::OpState>>& wp, float alpha)
+Landscape::Waypoint SteerTab::walkWaypoints (
+    const std::vector<Landscape::Waypoint>& wp, float alpha)
 {
     if (wp.empty())
         return {};
@@ -260,7 +264,10 @@ std::vector<PullIndex::OpState> SteerTab::walkWaypoints (
     if (seg >= segments)                       // a == 1 → final waypoint
         return wp.back();
     const float local = scaled - (float) seg;
-    return PullIndex::morph (wp[(size_t) seg], wp[(size_t) seg + 1], local);
+    const auto& A = wp[(size_t) seg];
+    const auto& B = wp[(size_t) seg + 1];
+    return { PullIndex::morph (A.ops, B.ops, local),
+             A.feedback + (B.feedback - A.feedback) * local };
 }
 
 juce::String SteerTab::resolveTextureCategory()

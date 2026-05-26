@@ -108,16 +108,17 @@ private:
 
         // Gradient route computed once at drag-start: the waypoint sequence
         // [sessionStart, node0, node1, ..., family] the positive-direction
-        // scrub walks across the FM landscape. Empty ⇒ no gradient field for
-        // this family ⇒ fall back to the best-exemplar morph.
-        std::vector<std::vector<PullIndex::OpState>> routeWaypoints;
+        // scrub walks across the FM landscape (ops + op-0 feedback per
+        // waypoint). Empty ⇒ no gradient field for this family ⇒ fall back to
+        // the best-exemplar morph.
+        std::vector<Landscape::Waypoint> routeWaypoints;
     };
 
     // Morph through a waypoint sequence by a single global α∈[0,1]: α maps to
-    // a segment + local fraction, and consecutive waypoints are blended with
-    // PullIndex::morph. α≥1 returns the final waypoint (the family).
-    static std::vector<PullIndex::OpState> walkWaypoints (
-        const std::vector<std::vector<PullIndex::OpState>>& wp, float alpha);
+    // a segment + local fraction; ops blend with PullIndex::morph and op-0
+    // feedback lerps. α≥1 returns the final waypoint (the family).
+    static Landscape::Waypoint walkWaypoints (
+        const std::vector<Landscape::Waypoint>& wp, float alpha);
     std::vector<std::unique_ptr<ScrubRow>> rows;
 
     // Texture row extras.

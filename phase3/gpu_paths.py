@@ -77,7 +77,11 @@ def _subsample(n_nodes: int, seed: int = 0):
     chosen = np.sort(chosen[:n_nodes])
 
     amps = torch.from_numpy(bank["amps"][chosen]).to(DEVICE).float()
-    return chosen, amps, labels[chosen], bank["ridx"][chosen], bank["depths"][chosen], fam_names
+    # op-0 feedback per node (radians 0..π); absent in older banks → zeros.
+    fb = (bank["feedback"][chosen].astype(np.float32)
+          if "feedback" in bank.files else np.zeros(len(chosen), np.float32))
+    return (chosen, amps, labels[chosen], bank["ridx"][chosen],
+            bank["depths"][chosen], fb, fam_names)
 
 
 def _knn_graph(amps: torch.Tensor, k: int = 12, chunk: int = 2000):
@@ -168,7 +172,7 @@ def _reconstruct(node: int, ridx, depths, paths):
 def demo(n_nodes: int, k: int, targets_fam: list[str]):
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes (stratified by family) ...")
-    nodeIdx, amps, node_lab, ridx, depths, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(n_nodes)
     print(f"  {amps.shape[0]:,} nodes ({time.time()-t0:.1f}s)")
 
     print(f"Building {k}-NN graph on GPU ...")
@@ -216,7 +220,7 @@ def export(n_nodes: int, k: int, k_paths: int, waypoints: int,
     import json as _json
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(n_nodes)
     print(f"Building {k}-NN graph ...")
     g = _knn_graph(amps, k=k)
     cur_paths = _curated_paths()
@@ -274,14 +278,16 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     from scipy.sparse import vstack, hstack
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(n_nodes)
     n = amps.shape[0]
     print(f"Building {k}-NN graph ...")
     g = _knn_graph(amps, k=k).tocsr()
     cur_paths = _curated_paths()
 
     # Node params (reconstructable synth state) + family label per node.
+    # feedback stored in the engine's 0..1 param convention (β = param·π rad).
     nodes = [{"family": int(node_lab[i]),
+              "feedback": round(float(node_fb[i]) / float(np.pi), 4),
               "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.
