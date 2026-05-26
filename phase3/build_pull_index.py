@@ -86,6 +86,7 @@ def _config_from_preset(doc: dict) -> Config:
             path=o.get("path", "") or "",
             depth=float(o.get("depth", 0.0)),
             enabled=bool(o.get("enabled", False)),
+            detune_cents=float(o.get("detune", 0.0)),
         )
         for o in ops
     ]

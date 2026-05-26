@@ -80,11 +80,16 @@ def _engine_block(cfg: Config) -> dict[str, Any]:
     """Free-mode engine block — each op carries its own L/R path string."""
     operators: list[dict[str, Any]] = []
     for m in cfg.mods:
-        operators.append({
+        op: dict[str, Any] = {
             "enabled": bool(m.enabled),
             "path":    m.path,
             "depth":   float(m.depth),
-        })
+        }
+        # Per-op fine detune in cents (offset from the exact SB ratio).
+        # Omitted when zero to keep existing presets byte-identical.
+        if getattr(m, "detune_cents", 0.0):
+            op["detune"] = float(m.detune_cents)
+        operators.append(op)
     return {
         "polyphony":   "mono",
         "octaveShift": 0,

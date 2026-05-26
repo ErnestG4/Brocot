@@ -66,6 +66,18 @@ class ModConfig:
     path: str = ""        # Stern-Brocot L/R path; "" = 1/1
     depth: float = 0.0    # modulation index I, range [0, 8]
     enabled: bool = False
+    detune_cents: float = 0.0  # fine offset from the exact SB ratio, in cents
+
+    def ratio(self) -> float:
+        """Effective ratio: the exact Stern-Brocot rational nudged by
+        `detune_cents`. The SB path picks *which* rational p/q; detune sets
+        *how far off* it the oscillator runs — the cents between rationals
+        where analog beating / chorusing / drift lives. 0 cents = the exact
+        rational (perfectly harmonic)."""
+        r = path_ratio(self.path)
+        if self.detune_cents != 0.0:
+            r *= 2.0 ** (self.detune_cents / 1200.0)
+        return r
 
 
 @dataclass
@@ -85,11 +97,12 @@ class Config:
         )
 
     def ratios_and_depths(self) -> tuple[list[float], list[float]]:
-        """Only the enabled mods' (ratio, depth) pairs."""
+        """Only the enabled mods' (ratio, depth) pairs. Ratios include any
+        per-op detune (see ModConfig.ratio)."""
         rs, ds = [], []
         for m in self.mods:
             if m.enabled:
-                rs.append(path_ratio(m.path))
+                rs.append(m.ratio())
                 ds.append(m.depth)
         return rs, ds
 
@@ -107,7 +120,7 @@ class Config:
         """
         enabled = sorted(
             (m for m in self.mods if m.enabled),
-            key=lambda m: (m.path, round(m.depth, 4)),
+            key=lambda m: (m.path, round(m.depth, 4), round(m.detune_cents, 2)),
         )
         n_total = len(self.mods)
         new_mods = [replace(m) for m in enabled]
@@ -115,12 +128,12 @@ class Config:
         return Config(mods=new_mods, f_carrier=self.f_carrier)
 
     def fingerprint(self) -> tuple:
-        """Hashable identity of the patch. Quantises depths to 1e-3 so
-        floating-point jitter doesn't split otherwise-identical configs.
-        Drives the P3.7 dedup pass."""
+        """Hashable identity of the patch. Quantises depths to 1e-3 and
+        detune to 1e-2 cents so floating-point jitter doesn't split
+        otherwise-identical configs. Drives the P3.7 dedup pass."""
         c = self.canonicalised()
         return tuple(
-            (m.path, round(m.depth, 3))
+            (m.path, round(m.depth, 3), round(m.detune_cents, 2))
             for m in c.mods if m.enabled
         )
 
