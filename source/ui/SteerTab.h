@@ -99,26 +99,22 @@ private:
                                 juce::Slider::NoTextBox };
         bool          dragging { false };
 
-        // Snapshot of the patch the moment the user grabbed the
-        // slider — `morph()` always runs from here, with a signed
-        // progress driving it toward either `category` (>0) or
-        // `home` (<0).
-        std::vector<PullIndex::OpState> sessionStart;
-        float sessionProgress { 0.0f };   // in [-1, +1]
-
-        // Gradient route computed once at drag-start: the waypoint sequence
-        // [sessionStart, node0, node1, ..., family] the positive-direction
-        // scrub walks across the FM landscape (ops + op-0 feedback per
-        // waypoint). Empty ⇒ no gradient field for this family ⇒ fall back to
-        // the best-exemplar morph.
+        // Route resolved once at drag-start: waypoint[0] = where we grabbed
+        // (current patch), then the smooth path across the landscape toward
+        // this row's family (or a single best-exemplar waypoint as fallback).
+        // The slider drives `pos` — a *velocity cursor* along this route — so
+        // the patch travels in a direction at a rate, never an anchored
+        // 0→100 morph (Will). pos is in WAYPOINT units (hops), so a distant
+        // family is traversed at the same timbral pace as a near one.
         std::vector<Landscape::Waypoint> routeWaypoints;
+        float pos { 0.0f };               // [0, routeWaypoints.size()-1]
     };
 
-    // Morph through a waypoint sequence by a single global α∈[0,1]: α maps to
-    // a segment + local fraction; ops blend with PullIndex::morph and op-0
-    // feedback lerps. α≥1 returns the final waypoint (the family).
-    static Landscape::Waypoint walkWaypoints (
-        const std::vector<Landscape::Waypoint>& wp, float alpha);
+    // Sample a route at a continuous waypoint position `pos` (hops from the
+    // start): integer part picks the segment, fractional part blends the two
+    // bracketing waypoints (ops via PullIndex::morph, op-0 feedback lerped).
+    static Landscape::Waypoint sampleRoute (
+        const std::vector<Landscape::Waypoint>& wp, float pos);
     std::vector<std::unique_ptr<ScrubRow>> rows;
 
     // Texture row extras.
@@ -127,20 +123,18 @@ private:
                                     juce::Slider::TextBoxLeft };
     juce::SortedSet<int> textureAvailableOps;  // op-counts present in pull index
 
-    // The patch state the negative-direction slider walks toward.
+    // Re-anchor reference for the Reset button (returns the patch home).
     std::vector<PullIndex::OpState> captured;
     bool capturedValid { false };
 
     // Timer: 30 Hz polling of slider deflections.
     static constexpr int kTimerHz = 30;
 
-    // How fast a fully-deflected slider sweeps progress. 0.05 α/sec
-    // = a full morph at full deflection takes ~20 sec (Will's call:
-    // "cut the slider impact down by a factor of 30"). The scrub is
-    // for *fine* shaping; depth interpolates continuously through it,
-    // and SB paths advance after enough ticks accumulate past the
-    // round-to-nearest step threshold.
-    static constexpr float kRatePerSecAtFull = 0.05f;
+    // Travel speed at full slider deflection, in WAYPOINTS (timbral hops) per
+    // second — so steering is a constant-pace glide along the route regardless
+    // of how far the target family is. ~0.6 hop/s ≈ 1.7 s of smooth morph per
+    // hop; each hop is itself a smooth SB-path-walk + depth + feedback morph.
+    static constexpr float kHopsPerSecAtFull = 0.6f;
 
     void buildRows();
     void wireSlider (ScrubRow& row);

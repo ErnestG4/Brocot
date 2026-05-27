@@ -138,43 +138,46 @@ void SteerTab::wireSlider (ScrubRow& row)
     auto* rowPtr = &row;
     row.slider.onDragStart = [this, rowPtr]
     {
-        rowPtr->dragging        = true;
-        rowPtr->sessionStart    = proc.getCurrentOps();
-        rowPtr->sessionProgress = 0.0f;
+        rowPtr->dragging = true;
+        rowPtr->pos      = 0.0f;     // start the cursor at where we are now
 
-        // Pre-plot the gradient route across the landscape from where we are
-        // to this row's family: locate the nearest node by params, follow the
-        // family's next-hop field. Computed once per drag (sessionStart is
-        // fixed during the drag). Empty ⇒ fall back to best-exemplar morph.
+        // Resolve the route once per grab. Waypoint 0 is the live patch (so the
+        // glide departs smoothly from here); the rest is the landscape gradient
+        // toward this row's family, or — when no gradient field covers it — a
+        // single best-exemplar destination waypoint as fallback. The slider
+        // then drives `pos` along this route as a velocity cursor.
         rowPtr->routeWaypoints.clear();
         const auto cat = rowPtr->isTextureRow ? resolveTextureCategory()
                                               : rowPtr->category;
+        if (cat.isEmpty())
+            return;
+
+        const Landscape::Waypoint startWp { proc.getCurrentOps(),
+                                            proc.getOp0Feedback() };
         const auto& ls = proc.getLandscape();
-        if (! ls.isEmpty() && cat.isNotEmpty() && ls.hasFamily (cat))
+        if (! ls.isEmpty() && ls.hasFamily (cat))
         {
-            const int start = ls.nearestNode (rowPtr->sessionStart);
-            auto wp = ls.waypoints (start, cat);
+            auto wp = ls.waypoints (ls.nearestNode (startWp.ops), cat);
             if (! wp.empty())
             {
                 rowPtr->routeWaypoints.reserve (wp.size() + 1);
-                // Waypoint 0 = where we are now (current ops + current op-0
-                // feedback) so the glide departs smoothly from the live patch.
-                rowPtr->routeWaypoints.push_back (
-                    { rowPtr->sessionStart, proc.getOp0Feedback() });
+                rowPtr->routeWaypoints.push_back (startWp);
                 for (auto& w : wp)
                     rowPtr->routeWaypoints.push_back (std::move (w));
             }
         }
+        if (rowPtr->routeWaypoints.empty())
+            if (const auto* best = proc.getPullIndex().getBestOps (cat))
+            {
+                rowPtr->routeWaypoints.push_back (startWp);
+                rowPtr->routeWaypoints.push_back ({ *best, 0.0f });
+            }
     };
-    // No onValueChange morph — slider position is a *rate*, processed
-    // by the timer. The user can wiggle the slider freely without
-    // each wiggle inducing a morph step.
+    // No onValueChange morph — slider position is a *rate*, processed by the
+    // timer. The cursor position (and the patch) persist on release.
     row.slider.onDragEnd = [rowPtr]
     {
         rowPtr->dragging = false;
-        // Spring-back. The session's accumulated `sessionProgress`
-        // stays where it is — the patch reflects whatever progress
-        // the user reached at release. Next drag starts fresh.
         rowPtr->slider.setValue (0.0, juce::dontSendNotification);
     };
 }
@@ -185,89 +188,49 @@ void SteerTab::timerCallback()
 
     for (auto& row : rows)
     {
-        if (! row->dragging) continue;
+        if (! row->dragging || row->routeWaypoints.empty()) continue;
         const float v = (float) row->slider.getValue();
         if (std::abs (v) < 1e-3f) continue;
 
-        row->sessionProgress = juce::jlimit (-1.0f, 1.0f,
-            row->sessionProgress + v * kRatePerSecAtFull * dt);
-
+        // Velocity cursor: advance/retreat the position along the route at a
+        // rate set by the slider, in waypoint (hop) units. No anchored 0→100,
+        // no snap — release leaves the patch wherever the cursor stopped.
+        const float maxPos = (float) row->routeWaypoints.size() - 1.0f;
+        row->pos = juce::jlimit (0.0f, maxPos,
+                                 row->pos + v * kHopsPerSecAtFull * dt);
         applyRowMorph (*row);
     }
 }
 
 void SteerTab::applyRowMorph (ScrubRow& row)
 {
-    const float p = row.sessionProgress;
-    if (std::abs (p) < 1e-4f) return;
+    if (row.routeWaypoints.empty()) return;
 
-    if (p > 0.0f)
-    {
-        const auto category = row.isTextureRow ? resolveTextureCategory()
-                                                : row.category;
-        if (category.isEmpty())
-        {
-            hintLabel.setText ("Textured-Smooth: no exemplars loaded",
-                               juce::dontSendNotification);
-            return;
-        }
-        // Preferred path: walk the pre-plotted gradient route across the
-        // landscape (the journey is the steering). Falls back to the single
-        // best-exemplar morph when no gradient field covers this family.
-        if (! row.routeWaypoints.empty())
-        {
-            auto morphed = walkWaypoints (row.routeWaypoints, p);
-            proc.applyOps (morphed.ops);
-            proc.applyOp0Feedback (morphed.feedback);
-            hintLabel.setText (juce::String ("→ ") + category + " (landscape "
-                               + juce::String ((int) (p * 100.0f)) + "%)",
-                               juce::dontSendNotification);
-            return;
-        }
+    const auto sampled = sampleRoute (row.routeWaypoints, row.pos);
+    proc.applyOps (sampled.ops);
+    proc.applyOp0Feedback (sampled.feedback);
 
-        const auto* targetOps = proc.getPullIndex().getBestOps (category);
-        if (targetOps == nullptr)
-        {
-            hintLabel.setText ("no best-ops for '" + category + "'",
-                               juce::dontSendNotification);
-            return;
-        }
-        auto morphed = PullIndex::morph (row.sessionStart, *targetOps, p);
-        proc.applyOps (morphed);
-        hintLabel.setText (juce::String ("→ ") + category
-                           + "  (" + juce::String ((int) (p * 100.0f)) + "%)",
-                           juce::dontSendNotification);
-    }
-    else
-    {
-        if (! capturedValid) anchorHome();
-        if (! capturedValid) return;
-        auto morphed = PullIndex::morph (row.sessionStart, captured, -p);
-        proc.applyOps (morphed);
-        hintLabel.setText ("← home  (" + juce::String ((int) (-p * 100.0f)) + "%)",
-                           juce::dontSendNotification);
-    }
+    const auto cat = row.isTextureRow ? resolveTextureCategory() : row.category;
+    const int total = (int) row.routeWaypoints.size() - 1;
+    hintLabel.setText (juce::String ("→ ") + cat + "   hop "
+                       + juce::String (row.pos, 1) + " / " + juce::String (total),
+                       juce::dontSendNotification);
 }
 
-Landscape::Waypoint SteerTab::walkWaypoints (
-    const std::vector<Landscape::Waypoint>& wp, float alpha)
+Landscape::Waypoint SteerTab::sampleRoute (
+    const std::vector<Landscape::Waypoint>& wp, float pos)
 {
     if (wp.empty())
         return {};
-    if (wp.size() == 1)
-        return wp.front();
-
-    const float a = juce::jlimit (0.0f, 1.0f, alpha);
-    const int segments = (int) wp.size() - 1;
-    const float scaled = a * (float) segments;
-    int seg = (int) std::floor (scaled);
-    if (seg >= segments)                       // a == 1 → final waypoint
+    const float clamped = juce::jlimit (0.0f, (float) wp.size() - 1.0f, pos);
+    int i = (int) std::floor (clamped);
+    if (i >= (int) wp.size() - 1)              // at / past the final waypoint
         return wp.back();
-    const float local = scaled - (float) seg;
-    const auto& A = wp[(size_t) seg];
-    const auto& B = wp[(size_t) seg + 1];
-    return { PullIndex::morph (A.ops, B.ops, local),
-             A.feedback + (B.feedback - A.feedback) * local };
+    const float frac = clamped - (float) i;
+    const auto& A = wp[(size_t) i];
+    const auto& B = wp[(size_t) i + 1];
+    return { PullIndex::morph (A.ops, B.ops, frac),
+             A.feedback + (B.feedback - A.feedback) * frac };
 }
 
 juce::String SteerTab::resolveTextureCategory()
@@ -301,13 +264,12 @@ void SteerTab::anchorHome()
 void SteerTab::onReset()
 {
     anchorHome();
-    // Also reset every row's session start to the current state and
-    // zero its progress — so an in-flight morph doesn't snap back to
-    // an old start point the next time the user grabs that row.
+    // Drop any cached route + cursor so the next grab re-plots from the
+    // current (re-anchored) patch.
     for (auto& r : rows)
     {
-        r->sessionStart    = captured;
-        r->sessionProgress = 0.0f;
+        r->routeWaypoints.clear();
+        r->pos = 0.0f;
     }
     hintLabel.setText ("home re-anchored to current state",
                        juce::dontSendNotification);
@@ -360,8 +322,8 @@ void SteerTab::onRandomize()
     anchorHome();
     for (auto& r : rows)
     {
-        r->sessionStart    = captured;
-        r->sessionProgress = 0.0f;
+        r->routeWaypoints.clear();
+        r->pos = 0.0f;
     }
     const int enabledCount = (int) std::count_if (ops.begin(), ops.end(),
         [] (const PullIndex::OpState& s) { return s.enabled; });
