@@ -22,6 +22,69 @@ namespace
         }
     }
 
+    float paramValue (const juce::AudioProcessorValueTreeState& apvts,
+                      juce::StringRef id);   // defined below; used by the bank helpers
+
+    // The 16-slot universal modulator bank — one spec per per-mod param, with
+    // its ParameterTree default. Choice/bool params (isInt) round-trip as the
+    // integer index; rate/kappa/depth/pskSmooth as doubles. Shared by save +
+    // load so the JSON shape and the defaults can't drift apart.
+    struct ModParamSpec { const char* key; float defVal; bool isInt; };
+    constexpr ModParamSpec kModParams[] = {
+        { "rate", 4.0f, false }, { "shape", 0.0f, true },  { "kappa", 8.0f, false },
+        { "depth", 0.0f, false }, { "lockKind", 0.0f, true }, { "lockIndex", 0.0f, true },
+        { "targetKind", 0.0f, true }, { "targetIndex", 0.0f, true },
+        { "psk", 0.0f, true }, { "pskSmooth", 0.0f, false }, { "keySync", 0.0f, true },
+    };
+
+    // Reset all 16 mods to defaults, then overlay whatever `root.modulators`
+    // (a sparse array of {index, ...params}) specifies. ALWAYS resetting is the
+    // leak fix: loading a preset with no modulators clears the bank rather than
+    // inheriting the previous patch's modulation. Used for full presets and
+    // mod-only presets alike.
+    void applyModBank (juce::AudioProcessorValueTreeState& apvts, const juce::var& root)
+    {
+        for (int i = 0; i < params::kNumModulators; ++i)
+            for (const auto& s : kModParams)
+                setParam (apvts, params::modId (i, s.key), s.defVal, false);
+
+        auto* ro = root.isObject() ? root.getDynamicObject() : nullptr;
+        if (ro == nullptr) return;
+        if (auto* arr = ro->getProperty ("modulators").getArray())
+            for (const auto& mv : *arr)
+                if (auto* m = (mv.isObject() ? mv.getDynamicObject() : nullptr))
+                {
+                    const int idx = (int) m->getProperty ("index");
+                    if (idx < 0 || idx >= params::kNumModulators) continue;
+                    for (const auto& s : kModParams)
+                        if (m->hasProperty (s.key))
+                            setParam (apvts, params::modId (idx, s.key),
+                                      (float) (double) m->getProperty (s.key), false);
+                }
+    }
+
+    // Build the sparse modulators array: only mods with depth>0 (the rest load
+    // as defaults), each carrying its slot index + all params.
+    juce::var writeModBank (const juce::AudioProcessorValueTreeState& apvts)
+    {
+        juce::Array<juce::var> mods;
+        for (int i = 0; i < params::kNumModulators; ++i)
+        {
+            if (paramValue (apvts, params::modId (i, "depth")) <= 0.0f)
+                continue;
+            auto* m = new juce::DynamicObject();
+            m->setProperty ("index", i);
+            for (const auto& s : kModParams)
+            {
+                const float v = paramValue (apvts, params::modId (i, s.key));
+                if (s.isInt) m->setProperty (s.key, (int) std::round (v));
+                else         m->setProperty (s.key, (double) v);
+            }
+            mods.add (juce::var (m));
+        }
+        return mods.isEmpty() ? juce::var() : juce::var (mods);
+    }
+
     int filterTypeIndex (const juce::String& s)
     {
         const auto lower = s.toLowerCase();
@@ -150,6 +213,12 @@ juce::var serialise (const BrocotAudioProcessor& proc)
     lfo->setProperty ("depth",   (double) paramValue (apvts, params::ids::lfoDepth));
     lfo->setProperty ("keySync", paramValue (apvts, params::ids::lfoKeySync) > 0.5f);
     root->setProperty ("lfo", juce::var (lfo));
+
+    // The 16-slot universal modulator bank (only active mods written; absence
+    // ⇒ bank loads as all-default). Makes full presets self-contained and stops
+    // modulation leaking across patches.
+    if (auto mb = writeModBank (apvts); ! mb.isVoid())
+        root->setProperty ("modulators", mb);
 
     auto* master = new juce::DynamicObject();
     master->setProperty ("level", (double) paramValue (apvts, params::ids::masterLevel));
@@ -288,6 +357,11 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
         setParam (apvts, params::ids::lfoDepth,   (float) (double) lfo->getProperty ("depth"),   false);
         setParam (apvts, params::ids::lfoKeySync, (bool)  lfo->getProperty ("keySync") ? 1.0f : 0.0f, false);
     }
+
+    // Universal modulator bank: always reset all 16 to defaults, then overlay
+    // the preset's (the leak fix — a preset with no modulators clears the bank
+    // rather than inheriting the previous patch's).
+    applyModBank (apvts, json);
 
     if (auto* master = asObject (root->getProperty ("master")))
         setParam (apvts, params::ids::masterLevel,
