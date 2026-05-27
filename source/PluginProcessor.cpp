@@ -202,19 +202,31 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
 
             if (enabled)
             {
-                op.setRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
+                // Groove steering: a positive steered-ratio override replaces
+                // the path rational + detune with an exact continuous ratio
+                // (the glide already incorporates any offset from a rational).
+                const float steer = steeredRatios[(size_t) i].load (std::memory_order_acquire);
+                if (steer > 0.0f)
+                {
+                    op.setRatio (steer);
+                    op.setDetuneCents (0.0f);
+                }
+                else
+                {
+                    op.setRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
+
+                    // Per-op detune (cents off the exact SB ratio) — applied
+                    // after setRatio so it multiplies the freshly-set base.
+                    float detune = 0.0f;
+                    if (auto* p = apvts.getRawParameterValue (params::opId (i, "detune")))
+                        detune = p->load();
+                    op.setDetuneCents (detune);
+                }
 
                 float depth = 0.0f;
                 if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
                     depth = p->load();
                 op.setDepth (depth);
-
-                // Per-op detune (cents off the exact SB ratio) — applied after
-                // setRatio so it multiplies the freshly-set base ratio.
-                float detune = 0.0f;
-                if (auto* p = apvts.getRawParameterValue (params::opId (i, "detune")))
-                    detune = p->load();
-                op.setDetuneCents (detune);
 
                 // Per-op key-scaling (modulation index vs pitch).
                 float keyScale = 0.0f;
@@ -661,6 +673,21 @@ void BrocotAudioProcessor::applyOp0Feedback (float value01)
 {
     if (auto* p = apvts.getParameter (params::opId (0, "feedback")))
         p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value01)));
+}
+
+void BrocotAudioProcessor::applySteeredRatios (const std::vector<float>& ratios)
+{
+    const int n = juce::jmin ((int) ratios.size(), params::kNumOperators);
+    for (int i = 0; i < n; ++i)
+        steeredRatios[(size_t) i].store (ratios[(size_t) i], std::memory_order_release);
+    for (int i = n; i < params::kNumOperators; ++i)
+        steeredRatios[(size_t) i].store (0.0f, std::memory_order_release);
+}
+
+void BrocotAudioProcessor::clearSteeredRatios()
+{
+    for (auto& s : steeredRatios)
+        s.store (0.0f, std::memory_order_release);
 }
 
 int BrocotAudioProcessor::activeVoices() const noexcept

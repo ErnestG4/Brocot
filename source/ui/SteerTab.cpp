@@ -1,7 +1,10 @@
 #include "SteerTab.h"
 #include "BrocotLookAndFeel.h"
+#include "../audio/Path.h"
 #include "../util/Colors.h"
 #include "../util/Fonts.h"
+
+#include <cmath>
 
 namespace brocot
 {
@@ -175,10 +178,14 @@ void SteerTab::wireSlider (ScrubRow& row)
     };
     // No onValueChange morph — slider position is a *rate*, processed by the
     // timer. The cursor position (and the patch) persist on release.
-    row.slider.onDragEnd = [rowPtr]
+    row.slider.onDragEnd = [this, rowPtr]
     {
         rowPtr->dragging = false;
         rowPtr->slider.setValue (0.0, juce::dontSendNotification);
+        // Release the continuous override: the patch reverts to the discrete
+        // (path) state the morph left it at — near a groove, so the 20ms ratio
+        // smoother absorbs the tiny settle.
+        proc.clearSteeredRatios();
     };
 }
 
@@ -209,6 +216,9 @@ void SteerTab::applyRowMorph (ScrubRow& row)
     const auto sampled = sampleRoute (row.routeWaypoints, row.pos);
     proc.applyOps (sampled.ops);
     proc.applyOp0Feedback (sampled.feedback);
+    // Groove steering: override each op's ratio with a continuous, Farey-pulled
+    // glide (the SB path-walk in applyOps is bypassed for the audible ratio).
+    proc.applySteeredRatios (groovedRatios (row));
 
     const auto cat = row.isTextureRow ? resolveTextureCategory() : row.category;
     const int total = (int) row.routeWaypoints.size() - 1;
@@ -231,6 +241,44 @@ Landscape::Waypoint SteerTab::sampleRoute (
     const auto& B = wp[(size_t) i + 1];
     return { PullIndex::morph (A.ops, B.ops, frac),
              A.feedback + (B.feedback - A.feedback) * frac };
+}
+
+std::vector<float> SteerTab::groovedRatios (const ScrubRow& row) const
+{
+    const auto& wp = row.routeWaypoints;
+    std::vector<float> out;
+    if (wp.empty()) return out;
+
+    const float clamped = juce::jlimit (0.0f, (float) wp.size() - 1.0f, row.pos);
+    int i = (int) std::floor (clamped);
+    int j = i + 1;
+    float frac = clamped - (float) i;
+    if (i >= (int) wp.size() - 1) { i = (int) wp.size() - 1; j = i; frac = 0.0f; }
+
+    const auto& A = wp[(size_t) i].ops;
+    const auto& B = wp[(size_t) j].ops;
+    const int n = juce::jmin ((int) A.size(), (int) B.size(),
+                              params::kNumOperators);
+    out.assign ((size_t) n, 0.0f);
+
+    for (int op = 0; op < n; ++op)
+    {
+        // Only ops audible across this segment get a continuous ratio.
+        if (! (A[(size_t) op].enabled || B[(size_t) op].enabled))
+            continue;
+        double rA = brocot::Path (A[(size_t) op].path).ratio();
+        double rB = brocot::Path (B[(size_t) op].path).ratio();
+        if (! (rA > 0.0)) rA = 1.0;
+        if (! (rB > 0.0)) rB = 1.0;
+        // Continuous log-ratio glide between the two waypoints' rationals,
+        // then Farey-gravity pull toward the nearest consonant groove.
+        const float logL = (float) ((1.0 - frac) * std::log2 (rA)
+                                     + frac * std::log2 (rB));
+        const float logG = logL + grooveField.pull (logL, kGrooveGravity,
+                                                     kGrooveRestlessness);
+        out[(size_t) op] = std::exp2 (logG);
+    }
+    return out;
 }
 
 juce::String SteerTab::resolveTextureCategory()

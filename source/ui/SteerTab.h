@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../PluginProcessor.h"
+#include "../audio/GrooveField.h"
 #include "EnvelopePanel.h"
 #include "FilterPanel.h"
 #include "ModulatorPanel.h"
@@ -135,6 +136,19 @@ private:
     // of how far the target family is. ~0.6 hop/s ≈ 1.7 s of smooth morph per
     // hop; each hop is itself a smooth SB-path-walk + depth + feedback morph.
     static constexpr float kHopsPerSecAtFull = 0.6f;
+
+    // Farey-gravity groove field: between waypoints, each op's ratio glides
+    // CONTINUOUSLY in log-ratio and is pulled toward consonant rationals (the
+    // SB path-walk is bypassed during steering — Will). Gravity = pull
+    // strength; restlessness lets shallow wells be escaped. Feel constants,
+    // tunable / UI-exposed later.
+    GrooveField grooveField;
+    static constexpr float kGrooveGravity     = 0.6f;
+    static constexpr float kGrooveRestlessness = 0.3f;
+
+    // Continuous grooved ratio per op for the route position `pos`; 0 for
+    // disabled ops. Pushed to the engine's steered-ratio override each tick.
+    std::vector<float> groovedRatios (const ScrubRow& row) const;
 
     void buildRows();
     void wireSlider (ScrubRow& row);

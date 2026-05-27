@@ -85,6 +85,15 @@ public:
     float getOp0Feedback() const;
     void  applyOp0Feedback (float value01);
 
+    /** Continuous per-op "steered ratio" override (groove steering). While
+        active for an op, the voice plays this exact ratio instead of the
+        path-derived rational + detune — so steering can glide continuously
+        through relative frequency and lock into Farey grooves. `ratios` is
+        indexed by operator; a value <= 0 means "no override for this op".
+        Set per timer tick during a steer drag; clear on release. */
+    void applySteeredRatios (const std::vector<float>& ratios);
+    void clearSteeredRatios();
+
     /** Exposed for the editor's on-screen MidiKeyboardComponent. Notes
         played on the on-screen keyboard inject events into this state;
         processBlock copies them into the MIDI buffer before the voice
@@ -199,6 +208,11 @@ private:
     // hides itself) if the file isn't on disk.
     PullIndex pullIndex;
     Landscape landscape;
+
+    // Continuous per-op ratio override for groove steering (<=0 = inactive).
+    // Written from the message thread (SteerTab timer), read on the audio
+    // thread per block — atomics, like opRatios.
+    std::array<std::atomic<float>, params::kNumOperators> steeredRatios {};
 
     juce::MidiKeyboardState keyboardState;
 
