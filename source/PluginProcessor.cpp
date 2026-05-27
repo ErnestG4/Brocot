@@ -271,6 +271,25 @@ float BrocotAudioProcessor::midiNoteWithBend (int noteNumber) const noexcept
     return 440.0f * std::pow (2.0f, (shiftedNote - 69.0f) / 12.0f);
 }
 
+namespace
+{
+    // Master soft-limiter: identity below ±kSoftKnee (transparent for normal
+    // levels), then a smooth tanh saturation above it that asymptotes to ±1 —
+    // so no patch (bright/feedback/poly stack/resonant filter) can ever clip the
+    // output, while clean signals pass through untouched. The synth has no other
+    // output protection.
+    inline float softClip (float x) noexcept
+    {
+        constexpr float knee = 0.7f;          // ~ -3 dBFS linear region
+        const float a = std::abs (x);
+        if (a <= knee)
+            return x;
+        const float over = (a - knee) / (1.0f - knee);
+        const float shaped = knee + (1.0f - knee) * std::tanh (over);
+        return std::copysign (shaped, x);
+    }
+}
+
 void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -478,7 +497,7 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         const float cutoff01 = juce::jlimit (0.0f, 1.0f, baseCutoff01 + cutoffMod01);
         const float cutoffHz = 20.0f * std::pow (1000.0f, cutoff01);
         filter.setCutoff (cutoffHz);
-        monoOut[n] = filter.processSample (mono);
+        monoOut[n] = softClip (filter.processSample (mono));
     }
 
     // Feed the scope ring before mirroring to stereo so the scope sees the
