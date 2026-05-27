@@ -10,7 +10,7 @@ using Catch::Approx;
 
 namespace
 {
-    constexpr float log2f_ (double r) { return (float) std::log2 (r); }
+    float log2f_ (double r) { return (float) std::log2 (r); }
 }
 
 TEST_CASE ("GrooveField enumerates simple rationals with simplicity weights")
