@@ -38,8 +38,16 @@ def features(amps: np.ndarray, feedback: np.ndarray) -> dict:
     entropy = -(a * np.log(a + 1e-9)).sum(1)
     cum = np.cumsum(a, 1)
     rolloff = (cum < 0.85).sum(1) + 1                         # partial holding 85% energy
+    # Spectral flatness (Wiener entropy): geomean/mean over partials. ~0 = peaky
+    # / tonal / musical; →1 = flat / dense / chaotic. The musical-vs-chaotic axis
+    # that cuts ACROSS spectral regions (a 'square' region is mostly chaos with
+    # true squares only at the tonal points).
+    eps = 1e-4
+    geo = np.exp(np.log(a + eps).mean(1))
+    flatness = geo / (a.mean(1) + eps)
     return dict(brightness=centroid, fundamental=fundamental, n_partials=n_eff,
                 odd_frac=odd, entropy=entropy, rolloff=rolloff.astype(np.float32),
+                flatness=flatness.astype(np.float32),
                 feedback=feedback.astype(np.float32))
 
 

@@ -332,6 +332,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     feat = _spectral_features(amps_np, node_fb)
     bmax = float(max(feat["brightness"].max(), 1e-6))
     dmax = float(max(feat["n_partials"].max(), 1e-6))
+    fmax = float(max(feat["flatness"].max(), 1e-6))   # for tonality normalisation
 
     # Node params (reconstructable synth state) + family + 2D pos + descriptors.
     # feedback stored in the engine's 0..1 param convention (β = param·π rad);
@@ -342,6 +343,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
               "bright": round(float(feat["brightness"][i]) / bmax, 4),
               "dense":  round(float(feat["n_partials"][i]) / dmax, 4),
               "odd":    round(float(feat["odd_frac"][i]), 4),
+              "tonal":  round(1.0 - float(feat["flatness"][i]) / fmax, 4),  # 1=musical
               "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.

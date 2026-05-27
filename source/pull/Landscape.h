@@ -37,6 +37,7 @@ public:
         float              bright { 0.0f };      // spectral centroid, 0..1
         float              dense  { 0.0f };      // ~partial count, 0..1
         float              odd    { 0.0f };      // odd-harmonic fraction, 0..1
+        float              tonal  { 0.0f };      // musical(1) ↔ chaotic(0)
         std::vector<float> ratioHist;            // param-space locate signature
     };
 

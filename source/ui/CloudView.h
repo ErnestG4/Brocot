@@ -38,7 +38,7 @@ public:
 
     // How the dots are coloured — by imposed family, or by a measured spectral
     // characteristic (to reveal the real axes / fine structure of the cloud).
-    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow };
+    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow, Musicality };
 
 private:
     void timerCallback() override;

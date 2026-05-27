@@ -27,6 +27,7 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     colourModeCombo.addItem ("density",    3);
     colourModeCombo.addItem ("feedback",   4);
     colourModeCombo.addItem ("hollowness", 5);
+    colourModeCombo.addItem ("musicality", 6);
     colourModeCombo.setSelectedId (1, juce::dontSendNotification);
     colourModeCombo.onChange = [this]
     {
@@ -184,6 +185,7 @@ void CloudView::rebuildImage()
             case ColourMode::Density:    return featureColour (n.dense);
             case ColourMode::Feedback:   return featureColour (n.feedback);
             case ColourMode::Hollow:     return featureColour (n.odd);
+            case ColourMode::Musicality: return featureColour (n.tonal);
             case ColourMode::Family:
             default:                     return familyColour (n.family, fcount);
         }
@@ -310,7 +312,7 @@ void CloudView::paint (juce::Graphics& g)
         g.setColour (colors::primaryText.withAlpha (0.6f));
         g.drawEllipse (hp.x - 4.0f, hp.y - 4.0f, 8.0f, 8.0f, 1.0f);
 
-        juce::Rectangle<int> box (10, getHeight() - 78, 250, 66);
+        juce::Rectangle<int> box (10, getHeight() - 78, 290, 66);
         g.setColour (colors::surface.withAlpha (0.9f));
         g.fillRoundedRectangle (box.toFloat(), 4.0f);
         g.setColour (colors::borderAtAlpha (0.5f));
@@ -324,7 +326,8 @@ void CloudView::paint (juce::Graphics& g)
         g.drawText ("bright " + pct (n.bright) + "  dense " + pct (n.dense),
                     box.reduced (8, 6).withTrimmedTop (20).removeFromTop (15),
                     juce::Justification::topLeft);
-        g.drawText ("feedback " + pct (n.feedback) + "  hollow " + pct (n.odd),
+        g.drawText ("feedback " + pct (n.feedback) + "  hollow " + pct (n.odd)
+                    + "  musical " + pct (n.tonal),
                     box.reduced (8, 6).withTrimmedTop (36).removeFromTop (15),
                     juce::Justification::topLeft);
     }
