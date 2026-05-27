@@ -56,7 +56,9 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     // classes; this editor just hosts the chrome.
     addAndMakeVisible (tabs);
     tabs.setTabBarDepth (28);
-    tabs.addTab ("steer",          colors::background, &steerTab,        false);
+    // The old slider-based "steer" tab is retired — steering now lives directly
+    // on the landscape map (click-to-seek). SteerTab.{h,cpp} are kept in the
+    // build but no longer surfaced; reinstate the tab here to bring it back.
     tabs.addTab ("landscape",      colors::background, &cloudView,       false);
     tabs.addTab ("under the hood", colors::background, &underTheHoodTab, false);
 
