@@ -122,21 +122,25 @@ def classify():
     centroids = centroids / centroids.sum(1, keepdim=True).clamp(min=1e-12)
     print(f"  {F} family centroids")
 
-    # Load the 10M bank and classify each row to nearest centroid (chunked L1).
-    print("Classifying 10M bank rows to nearest family centroid ...")
-    d = np.load(BANK_NPZ)
-    amps = torch.from_numpy(d["amps"]).to(DEVICE).float()    # (N, Q_MAX)
-    N = amps.shape[0]
+    # Classify each bank row to nearest centroid (chunked L1). The bank stays on
+    # CPU (f16); only one chunk is uploaded+upcast at a time, so this scales to
+    # tens of millions of rows without OOM (loading all 40M as GPU float is
+    # ~10 GB and fragments the card).
+    d = np.load(BANK_NPZ, mmap_mode="r")
+    amps_cpu = d["amps"]
+    N = amps_cpu.shape[0]
+    print(f"Classifying {N:,} bank rows to nearest family centroid ...")
     labels = np.empty(N, np.int16)
     dists = np.empty(N, np.float32)
-    CH = 200_000
+    CH = 500_000
     for c in range(0, N, CH):
-        block = amps[c:c + CH]                                # (b, Q)
-        # (b, F) L1 distances to each centroid; argmin → family.
+        block = torch.from_numpy(np.ascontiguousarray(amps_cpu[c:c + CH])) \
+                     .to(DEVICE).float()                      # (b, Q)
         dmat = (block.unsqueeze(1) - centroids.unsqueeze(0)).abs().sum(2)
         best = dmat.min(1)
         labels[c:c + CH] = best.indices.cpu().numpy().astype(np.int16)
         dists[c:c + CH] = best.values.cpu().numpy()
+        del block, dmat, best
 
     counts = Counter(labels.tolist())
     print(f"\nClassified {N:,} configs into {F} families "
