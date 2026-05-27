@@ -28,6 +28,7 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     colourModeCombo.addItem ("feedback",   4);
     colourModeCombo.addItem ("hollowness", 5);
     colourModeCombo.addItem ("musicality", 6);
+    colourModeCombo.addItem ("criticality", 7);
     colourModeCombo.setSelectedId (1, juce::dontSendNotification);
     colourModeCombo.onChange = [this]
     {
@@ -186,6 +187,7 @@ void CloudView::rebuildImage()
             case ColourMode::Feedback:   return featureColour (n.feedback);
             case ColourMode::Hollow:     return featureColour (n.odd);
             case ColourMode::Musicality: return featureColour (n.tonal);
+            case ColourMode::Criticality:return featureColour (n.crit);
             case ColourMode::Family:
             default:                     return familyColour (n.family, fcount);
         }
@@ -323,7 +325,8 @@ void CloudView::paint (juce::Graphics& g)
         g.setColour (colors::secondaryText);
         g.setFont (fonts::mono (11.0f));
         auto pct = [] (float v) { return juce::String (juce::roundToInt (v * 100.0f)); };
-        g.drawText ("bright " + pct (n.bright) + "  dense " + pct (n.dense),
+        g.drawText ("bright " + pct (n.bright) + "  dense " + pct (n.dense)
+                    + "  critical " + pct (n.crit),
                     box.reduced (8, 6).withTrimmedTop (20).removeFromTop (15),
                     juce::Justification::topLeft);
         g.drawText ("feedback " + pct (n.feedback) + "  hollow " + pct (n.odd)

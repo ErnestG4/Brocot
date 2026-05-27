@@ -48,6 +48,50 @@ def _curated_paths():
     return curated_ratios(5)
 
 
+def _structure_score(xy: np.ndarray, k: int = 16) -> np.ndarray:
+    """Per-node 'criticality' from the 2D layout: the largest angular GAP among
+    a node's k nearest neighbours. On a filament/line, neighbours lie along the
+    line → one big empty sector (~180°); at a junction/plus, a few arms → medium
+    gaps; on an edge/void rim, neighbours only on the inward side → big gap; in a
+    dense blob, neighbours all around → tiny gap. So lines + crossings + void
+    rims score high, the bulk scores low. Returned normalised to [0,1]."""
+    from scipy.spatial import cKDTree
+    tree = cKDTree(xy)
+    _, idx = tree.query(xy, k=k + 1)                 # +1 = self
+    two_pi = 2.0 * np.pi
+    out = np.empty(xy.shape[0], np.float32)
+    for i in range(xy.shape[0]):
+        nb = idx[i, 1:]
+        ang = np.sort(np.arctan2(xy[nb, 1] - xy[i, 1], xy[nb, 0] - xy[i, 0]))
+        gaps = np.diff(ang)
+        wrap = (ang[0] + two_pi) - ang[-1]           # across the -pi/pi seam
+        out[i] = max(float(gaps.max()) if gaps.size else 0.0, wrap)
+    out /= two_pi                                    # 0..1 (0.5 ≈ a clean line)
+    return out
+
+
+def _intrinsic_criticality(amps: torch.Tensor, k: int = 16, chunk: int = 3000) -> np.ndarray:
+    """Per-node 'hidden' criticality from the FULL fingerprint space (not the 2D
+    layout, which buries structure inside dense projections). Local PCA of each
+    node's k nearest neighbours: a filament is intrinsically 1-D, a junction/plus
+    2-D, chaos is high-D. Score = 1 / participation-ratio of the singular values²
+    (1.0 ≈ line, ~0.5 ≈ plus/plane, low ≈ chaotic bulk) — so hidden lines AND
+    crossings light up wherever they are. Normalised to [0,1]."""
+    n = amps.shape[0]
+    out = np.empty(n, np.float32)
+    for c in range(0, n, chunk):
+        block = amps[c:c + chunk]                                  # (b, Q)
+        d = torch.cdist(block, amps, p=1)
+        nb = torch.topk(d, k + 1, largest=False).indices[:, 1:]    # (b, k)
+        pts = amps[nb]                                             # (b, k, Q)
+        pts = pts - pts.mean(1, keepdim=True)
+        s = torch.linalg.svdvals(pts)                             # (b, min(k,Q))
+        s2 = s * s
+        pr = (s2.sum(1) ** 2) / (s2.pow(2).sum(1) + 1e-12)         # participation ratio
+        out[c:c + chunk] = (1.0 / pr.clamp(min=1.0)).cpu().numpy()
+    return out
+
+
 def _embed2d(amps_np: np.ndarray) -> np.ndarray:
     """2D layout of node fingerprints for the cloud (screen dist ~ timbral
     dist). t-SNE with PCA init when sklearn is present; PCA fallback otherwise.
@@ -324,6 +368,17 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     # is the cloud's "weighting/alignment" — swap the projector here to redo it.
     amps_np = amps.cpu().numpy()
     xy = _embed2d(amps_np)
+    # Criticality = visible structure (2D angular gap: rims, lines at the voids)
+    # combined with HIDDEN structure (intrinsic low-dimensionality in fingerprint
+    # space: filaments/junctions buried inside dense projections). Each [0,1]
+    # normalised, then max — so lines, plus-signs, and void rims all light up
+    # whether or not the 2D layout exposes them.
+    s2d = _structure_score(xy)
+    sHD = _intrinsic_criticality(amps)
+    def _norm(a):
+        lo, hi = float(np.percentile(a, 2)), float(np.percentile(a, 98))
+        return np.clip((a - lo) / max(hi - lo, 1e-6), 0.0, 1.0)
+    struct = np.maximum(_norm(s2d), _norm(sHD)).astype(np.float32)
 
     # Interpretable per-node spectral descriptors so the cloud can be coloured
     # by character (brightness / density / hollowness) and interrogated — for
@@ -344,6 +399,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
               "dense":  round(float(feat["n_partials"][i]) / dmax, 4),
               "odd":    round(float(feat["odd_frac"][i]), 4),
               "tonal":  round(1.0 - float(feat["flatness"][i]) / fmax, 4),  # 1=musical
+              "crit":   round(float(struct[i]), 4),   # lines/junctions/void rims
               "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.

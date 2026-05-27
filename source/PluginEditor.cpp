@@ -56,10 +56,9 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     // classes; this editor just hosts the chrome.
     addAndMakeVisible (tabs);
     tabs.setTabBarDepth (28);
-    // The old slider-based "steer" tab is retired — steering now lives directly
-    // on the landscape map (click-to-seek). SteerTab.{h,cpp} are kept in the
-    // build but no longer surfaced; reinstate the tab here to bring it back.
+    // Landscape (map steering) · Drive (the slider steerer) · Under the hood.
     tabs.addTab ("landscape",      colors::background, &cloudView,       false);
+    tabs.addTab ("drive",          colors::background, &steerTab,        false);
     tabs.addTab ("under the hood", colors::background, &underTheHoodTab, false);
 
     // Bumped default height to 940 to fit the V2 LFO bank (16 panels in an
