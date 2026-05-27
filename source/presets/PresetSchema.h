@@ -28,6 +28,17 @@ namespace preset
         provenance block with kind="manual". Migrated presets re-save as v2. */
     bool applyTo (BrocotAudioProcessor&, const juce::var& json,
                   juce::String* outError = nullptr);
+
+    // Mod-only "bank" presets (.brocotmod): just the 16-slot universal
+    // modulator bank, to mix-and-match over any tone. serialiseModBank writes
+    // { kind:"modbank", name, modulators:[...] }; applyModBankOnly resets the
+    // bank to defaults then overlays the file's mods, leaving the tone (ops /
+    // filter / env / master) untouched.
+    inline constexpr auto kModBankKind = "modbank";
+
+    juce::var serialiseModBank (const BrocotAudioProcessor&);
+    bool applyModBankOnly (BrocotAudioProcessor&, const juce::var& json,
+                           juce::String* outError = nullptr);
 }
 
 } // namespace brocot

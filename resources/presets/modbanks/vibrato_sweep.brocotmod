@@ -1,0 +1,13 @@
+{
+  "kind": "modbank",
+  "version": "2.0",
+  "name": "Vibrato + Filter Sweep",
+  "modulators": [
+    { "index": 0, "rate": 5.5, "shape": 0, "kappa": 8.0, "depth": 0.12,
+      "lockKind": 0, "lockIndex": 0, "targetKind": 2, "targetIndex": 0,
+      "psk": 0, "pskSmooth": 0.0, "keySync": 1 },
+    { "index": 1, "rate": 0.2, "shape": 0, "kappa": 8.0, "depth": 0.7,
+      "lockKind": 0, "lockIndex": 0, "targetKind": 0, "targetIndex": 0,
+      "psk": 0, "pskSmooth": 0.0, "keySync": 0 }
+  ]
+}

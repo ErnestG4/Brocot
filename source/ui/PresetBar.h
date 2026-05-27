@@ -25,7 +25,9 @@ public:
 
 private:
     void rebuildMenu();
+    void rebuildModBankMenu();
     void showSaveAsDialog();
+    void showSaveModBankDialog();
 
     BrocotAudioProcessor& proc;
     PresetManager&        manager;
@@ -33,6 +35,11 @@ private:
     juce::ComboBox    presetCombo;
     juce::TextButton  saveBtn   { "save" };
     juce::TextButton  saveAsBtn { "save as" };
+
+    // Mix-and-match modulator-bank selector (applies just the mod bank over the
+    // current tone) + save.
+    juce::ComboBox    modBankCombo;
+    juce::TextButton  saveModsBtn { "save mods" };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PresetBar)
 };

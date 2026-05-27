@@ -42,22 +42,46 @@ juce::File PresetManager::getFactoryDirectory() const
     return {};
 }
 
+juce::File PresetManager::getModBankUserDirectory() const
+{
+    auto dir = juce::File::getSpecialLocation (
+                   juce::File::userApplicationDataDirectory)
+                   .getChildFile ("Brocot").getChildFile ("ModBanks");
+    if (! dir.exists()) dir.createDirectory();
+    return dir;
+}
+
 void PresetManager::rescan()
 {
     entries.clear();
+    modBanks.clear();
 
-    auto add = [this] (const juce::File& f, juce::StringRef category, bool factory)
+    auto readName = [] (const juce::File& f)
+    {
+        juce::String name;
+        if (auto json = juce::JSON::parse (f); auto* obj = json.getDynamicObject())
+            name = obj->getProperty ("name").toString();
+        return name.isEmpty() ? f.getFileNameWithoutExtension() : name;
+    };
+
+    auto add = [this, &readName] (const juce::File& f, juce::StringRef category, bool factory)
     {
         Entry e;
         e.file = f;
         e.category = category;
         e.factory = factory;
-        // Try to read the preset's friendly name; fall back to filename.
-        if (auto json = juce::JSON::parse (f); auto* obj = json.getDynamicObject())
-            e.name = obj->getProperty ("name").toString();
-        if (e.name.isEmpty())
-            e.name = f.getFileNameWithoutExtension();
+        e.name = readName (f);
         entries.push_back (std::move (e));
+    };
+
+    auto addModBank = [this, &readName] (const juce::File& f, bool factory)
+    {
+        Entry e;
+        e.file = f;
+        e.category = factory ? "factory" : "user";
+        e.factory = factory;
+        e.name = readName (f);
+        modBanks.push_back (std::move (e));
     };
 
     // P3.11: scan the top-level factory dir (32 hand-authored anchors)
@@ -83,11 +107,23 @@ void PresetManager::rescan()
         for (const auto& f : user.findChildFiles (juce::File::findFiles, true, "*.brocot"))
             add (f, "user", false);
 
-    std::sort (entries.begin(), entries.end(),
-               [] (const Entry& a, const Entry& b) {
-                   if (a.factory != b.factory) return a.factory;   // factory first
-                   return a.name.compareIgnoreCase (b.name) < 0;
-               });
+    // Mod banks (.brocotmod): factory ones live in resources/presets/modbanks/
+    // (sibling of factory/); user ones in the ModBanks app-data dir.
+    if (auto fac = getFactoryDirectory(); fac.isDirectory())
+        if (auto mb = fac.getParentDirectory().getChildFile ("modbanks"); mb.isDirectory())
+            for (const auto& f : mb.findChildFiles (juce::File::findFiles, false, "*.brocotmod"))
+                addModBank (f, true);
+
+    if (auto mbUser = getModBankUserDirectory(); mbUser.isDirectory())
+        for (const auto& f : mbUser.findChildFiles (juce::File::findFiles, true, "*.brocotmod"))
+            addModBank (f, false);
+
+    auto byFactoryThenName = [] (const Entry& a, const Entry& b) {
+        if (a.factory != b.factory) return a.factory;   // factory first
+        return a.name.compareIgnoreCase (b.name) < 0;
+    };
+    std::sort (entries.begin(), entries.end(), byFactoryThenName);
+    std::sort (modBanks.begin(), modBanks.end(), byFactoryThenName);
 }
 
 bool PresetManager::load (const juce::File& file, juce::String* outError)
@@ -123,6 +159,40 @@ bool PresetManager::save (const juce::File& file, const juce::String& name,
         file.getParentDirectory().createDirectory();
 
     if (! file.replaceWithText (juce::JSON::toString (json, true /*allOnOneLine=false*/)))
+    {
+        if (outError) *outError = "Could not write " + file.getFullPathName();
+        return false;
+    }
+    return true;
+}
+
+bool PresetManager::loadModBank (const juce::File& file, juce::String* outError)
+{
+    if (! file.existsAsFile())
+    {
+        if (outError) *outError = "File does not exist: " + file.getFullPathName();
+        return false;
+    }
+    const auto json = juce::JSON::parse (file);
+    if (! json.isObject())
+    {
+        if (outError) *outError = "Not valid JSON: " + file.getFullPathName();
+        return false;
+    }
+    return preset::applyModBankOnly (proc, json, outError);
+}
+
+bool PresetManager::saveModBank (const juce::File& file, const juce::String& name,
+                                 juce::String* outError) const
+{
+    auto json = preset::serialiseModBank (proc);
+    if (auto* obj = json.getDynamicObject())
+        obj->setProperty ("name", name);
+
+    if (! file.getParentDirectory().exists())
+        file.getParentDirectory().createDirectory();
+
+    if (! file.replaceWithText (juce::JSON::toString (json, true)))
     {
         if (outError) *outError = "Could not write " + file.getFullPathName();
         return false;

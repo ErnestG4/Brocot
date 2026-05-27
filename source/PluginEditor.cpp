@@ -95,7 +95,8 @@ void BrocotAudioProcessorEditor::resized()
     auto titleRow = bounds.removeFromTop (40);
     aboutBtn.setBounds (titleRow.removeFromRight (32).reduced (4, 8));
     titleRow.removeFromRight (4);
-    presetBar.setBounds (titleRow.removeFromRight (360));
+    // Wider now that the bar also carries the mod-bank selector + save.
+    presetBar.setBounds (titleRow.removeFromRight (560));
 
     // Path-mode toggle + shared-path navigator strip.
     auto pathRow = bounds.removeFromTop (52);

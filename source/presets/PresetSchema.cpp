@@ -370,4 +370,36 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
     return true;
 }
 
+juce::var serialiseModBank (const BrocotAudioProcessor& proc)
+{
+    const auto& apvts = proc.getAPVTS();
+    auto* root = new juce::DynamicObject();
+    root->setProperty ("kind",    kModBankKind);
+    root->setProperty ("version", kFormatVersion);
+    root->setProperty ("name",    "untitled mods");
+    auto mb = writeModBank (apvts);
+    root->setProperty ("modulators", mb.isVoid() ? juce::var (juce::Array<juce::var>{})
+                                                  : mb);
+    return juce::var (root);
+}
+
+bool applyModBankOnly (BrocotAudioProcessor& proc, const juce::var& json,
+                       juce::String* outError)
+{
+    auto* root = asObject (json);
+    if (root == nullptr)
+    {
+        if (outError) *outError = "Mod bank is not a JSON object";
+        return false;
+    }
+    if (root->getProperty ("kind").toString() != kModBankKind)
+    {
+        if (outError) *outError = "Not a modbank file (missing kind=modbank)";
+        return false;
+    }
+    // Overlay just the bank — tone (ops / filter / env / master) is untouched.
+    applyModBank (proc.getAPVTS(), json);
+    return true;
+}
+
 } // namespace brocot::preset

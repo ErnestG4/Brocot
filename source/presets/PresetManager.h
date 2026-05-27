@@ -33,6 +33,14 @@ public:
     bool save (const juce::File& file, const juce::String& name,
                juce::String* outError = nullptr) const;
 
+    // Mix-and-match modulator banks (.brocotmod) — just the mod bank, applied
+    // over the current tone. Discovered alongside presets; listed separately.
+    const std::vector<Entry>& getModBanks() const noexcept { return modBanks; }
+    bool loadModBank (const juce::File& file, juce::String* outError = nullptr);
+    bool saveModBank (const juce::File& file, const juce::String& name,
+                      juce::String* outError = nullptr) const;
+    juce::File getModBankUserDirectory() const;
+
     juce::File getUserDirectory() const;
     juce::File getFactoryDirectory() const;
 
@@ -42,6 +50,7 @@ private:
     BrocotAudioProcessor& proc;
     juce::String          currentName { "init" };
     std::vector<Entry>    entries;
+    std::vector<Entry>    modBanks;
 };
 
 } // namespace brocot
