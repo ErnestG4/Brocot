@@ -322,13 +322,26 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     # (fingerprint) distance, so families cluster and mis-alignment is visible.
     # t-SNE (PCA-init) over the node fingerprints; normalised to [-1, 1]. This
     # is the cloud's "weighting/alignment" — swap the projector here to redo it.
-    xy = _embed2d(amps.cpu().numpy())
+    amps_np = amps.cpu().numpy()
+    xy = _embed2d(amps_np)
 
-    # Node params (reconstructable synth state) + family label + 2D position.
-    # feedback stored in the engine's 0..1 param convention (β = param·π rad).
+    # Interpretable per-node spectral descriptors so the cloud can be coloured
+    # by character (brightness / density / hollowness) and interrogated — for
+    # exploring the fine structure (small clusters, tails, outliers).
+    from phase3.gpu_characterize import features as _spectral_features
+    feat = _spectral_features(amps_np, node_fb)
+    bmax = float(max(feat["brightness"].max(), 1e-6))
+    dmax = float(max(feat["n_partials"].max(), 1e-6))
+
+    # Node params (reconstructable synth state) + family + 2D pos + descriptors.
+    # feedback stored in the engine's 0..1 param convention (β = param·π rad);
+    # brightness/density normalised to [0,1] for colour mapping; odd in [0,1].
     nodes = [{"family": int(node_lab[i]),
               "feedback": round(float(node_fb[i]) / float(np.pi), 4),
               "x": round(float(xy[i, 0]), 4), "y": round(float(xy[i, 1]), 4),
+              "bright": round(float(feat["brightness"][i]) / bmax, 4),
+              "dense":  round(float(feat["n_partials"][i]) / dmax, 4),
+              "odd":    round(float(feat["odd_frac"][i]), 4),
               "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.

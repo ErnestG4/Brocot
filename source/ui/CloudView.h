@@ -30,10 +30,15 @@ public:
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
 
     /** Distinct colour per family index (stable hue wheel). */
     static juce::Colour familyColour (int index, int count);
+
+    // How the dots are coloured — by imposed family, or by a measured spectral
+    // characteristic (to reveal the real axes / fine structure of the cloud).
+    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow };
 
 private:
     void timerCallback() override;
@@ -41,7 +46,9 @@ private:
     juce::Point<float> mapToScreen (float x, float y) const;
     juce::Point<float> screenToMap (juce::Point<float> px) const;
     int  nearestNodeToDot() const;
+    int  nearestNodeTo (juce::Point<float> mapPt) const;
     void applyNode (int nodeIndex);
+    static juce::Colour featureColour (float v01);   // low→high gradient
 
     BrocotAudioProcessor& proc;
     juce::Image cloud;              // baked static dots + labels
@@ -57,6 +64,10 @@ private:
     bool  seeking   { false };
     bool  dotDriving { false };     // false until first interaction
     juce::Slider seekRateKnob;      // map-units / second at full
+
+    ColourMode colourMode { ColourMode::Family };
+    juce::ComboBox colourModeCombo;
+    int hoverNode { -1 };           // node nearest the mouse (inspect readout)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CloudView)
 };

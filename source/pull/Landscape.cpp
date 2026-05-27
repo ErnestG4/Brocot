@@ -91,6 +91,9 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
                 n.feedback = (float) (double) no->getProperty ("feedback");
                 n.x        = (float) (double) no->getProperty ("x");
                 n.y        = (float) (double) no->getProperty ("y");
+                n.bright   = (float) (double) no->getProperty ("bright");
+                n.dense    = (float) (double) no->getProperty ("dense");
+                n.odd      = (float) (double) no->getProperty ("odd");
                 if (auto* opsArr = no->getProperty ("ops").getArray())
                     for (const auto& opv : *opsArr)
                         n.ops.push_back (parseOp (opv));

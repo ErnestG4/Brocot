@@ -34,6 +34,9 @@ public:
         float              feedback  { 0.0f };   // op-0 self-feedback, 0..1 param
         int                family    { -1 };     // index into familyNames
         float              x { 0.0f }, y { 0.0f }; // 2D cloud position, [-1,1]
+        float              bright { 0.0f };      // spectral centroid, 0..1
+        float              dense  { 0.0f };      // ~partial count, 0..1
+        float              odd    { 0.0f };      // odd-harmonic fraction, 0..1
         std::vector<float> ratioHist;            // param-space locate signature
     };
 

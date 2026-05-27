@@ -19,6 +19,22 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     seekRateKnob.setTooltip ("Seek rate — how fast the dot travels to where you click.");
     addAndMakeVisible (seekRateKnob);
 
+    // Colour the cloud by family or by a measured spectral characteristic, to
+    // explore the real structure (axes, small clusters, tails, outliers).
+    colourModeCombo.addItem ("family",     1);
+    colourModeCombo.addItem ("brightness", 2);
+    colourModeCombo.addItem ("density",    3);
+    colourModeCombo.addItem ("feedback",   4);
+    colourModeCombo.addItem ("hollowness", 5);
+    colourModeCombo.setSelectedId (1, juce::dontSendNotification);
+    colourModeCombo.onChange = [this]
+    {
+        colourMode = (ColourMode) (colourModeCombo.getSelectedId() - 1);
+        rebuildImage();
+        repaint();
+    };
+    addAndMakeVisible (colourModeCombo);
+
     startTimerHz (30);
 }
 
@@ -29,6 +45,13 @@ juce::Colour CloudView::familyColour (int index, int count)
     if (count <= 0) count = 1;
     const float h = (float) (index % count) / (float) count;
     return juce::Colour::fromHSV (h, 0.55f, 0.95f, 1.0f);
+}
+
+juce::Colour CloudView::featureColour (float v01)
+{
+    // low → high : blue → cyan → green → yellow → red.
+    const float v = juce::jlimit (0.0f, 1.0f, v01);
+    return juce::Colour::fromHSV ((1.0f - v) * 0.66f, 0.75f, 0.95f, 1.0f);
 }
 
 juce::Point<float> CloudView::mapToScreen (float x, float y) const
@@ -60,6 +83,19 @@ int CloudView::nearestNodeToDot() const
     return best;
 }
 
+int CloudView::nearestNodeTo (juce::Point<float> p) const
+{
+    const auto& nodes = proc.getLandscape().getNodes();
+    int best = -1; float bestD = 1.0e30f;
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        const float dx = nodes[i].x - p.x, dy = nodes[i].y - p.y;
+        const float d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; best = (int) i; }
+    }
+    return best;
+}
+
 void CloudView::applyNode (int nodeIndex)
 {
     const auto& ls = proc.getLandscape();
@@ -73,7 +109,14 @@ void CloudView::resized()
 {
     plot = getLocalBounds().toFloat().reduced (16.0f);
     seekRateKnob.setBounds (getWidth() - 70, 8, 60, 60);
+    colourModeCombo.setBounds (10, 8, 120, 22);
     rebuildImage();
+}
+
+void CloudView::mouseMove (const juce::MouseEvent& e)
+{
+    const int node = nearestNodeTo (screenToMap (e.position));
+    if (node != hoverNode) { hoverNode = node; repaint(); }
 }
 
 void CloudView::mouseDown (const juce::MouseEvent& e)
@@ -120,35 +163,45 @@ void CloudView::rebuildImage()
     const int fcount = ls.getFamilyCount();
     const auto& nodes = ls.getNodes();
 
-    // Dots, coloured by family. Small + translucent so density reads as shading.
+    // Dots, coloured by family or by a measured characteristic. Small +
+    // translucent so density reads as shading and tails/outliers stay visible.
+    auto dotColour = [this, fcount] (const Landscape::Node& n) -> juce::Colour
+    {
+        switch (colourMode)
+        {
+            case ColourMode::Brightness: return featureColour (n.bright);
+            case ColourMode::Density:    return featureColour (n.dense);
+            case ColourMode::Feedback:   return featureColour (n.feedback);
+            case ColourMode::Hollow:     return featureColour (n.odd);
+            case ColourMode::Family:
+            default:                     return familyColour (n.family, fcount);
+        }
+    };
     for (const auto& n : nodes)
     {
         const auto pt = mapToScreen (n.x, n.y);
-        g.setColour (familyColour (n.family, fcount).withAlpha (0.45f));
+        g.setColour (dotColour (n).withAlpha (0.45f));
         g.fillEllipse (pt.x - 1.6f, pt.y - 1.6f, 3.2f, 3.2f);
     }
 
-    // Family names floating at each family's screen-space centroid.
-    std::map<int, juce::Point<float>> sum;
-    std::map<int, int> cnt;
-    for (const auto& n : nodes)
+    // Family names float at each family's centroid — only in family mode (in
+    // feature modes the colour gradient is the legend).
+    if (colourMode == ColourMode::Family)
     {
-        sum[n.family] += mapToScreen (n.x, n.y);
-        cnt[n.family] += 1;
-    }
-    const auto names = ls.getFamilyNames();
-    g.setFont (fonts::serif (12.0f));
-    for (const auto& [fi, s] : sum)
-    {
-        if (cnt[fi] < 30 || fi < 0 || fi >= names.size()) continue;   // skip tiny
-        const auto c = s / (float) cnt[fi];
-        const auto col = familyColour (fi, fcount).brighter (0.4f);
-        g.setColour (juce::Colours::black.withAlpha (0.55f));
-        g.drawText (names[fi], (int) c.x - 59, (int) c.y - 7, 120, 16,
-                    juce::Justification::centred);   // shadow
-        g.setColour (col);
-        g.drawText (names[fi], (int) c.x - 60, (int) c.y - 8, 120, 16,
-                    juce::Justification::centred);
+        std::map<int, juce::Point<float>> sum;
+        std::map<int, int> cnt;
+        for (const auto& n : nodes) { sum[n.family] += mapToScreen (n.x, n.y); cnt[n.family] += 1; }
+        const auto names = ls.getFamilyNames();
+        g.setFont (fonts::serif (12.0f));
+        for (const auto& [fi, s] : sum)
+        {
+            if (cnt[fi] < 30 || fi < 0 || fi >= names.size()) continue;
+            const auto c = s / (float) cnt[fi];
+            g.setColour (juce::Colours::black.withAlpha (0.55f));
+            g.drawText (names[fi], (int) c.x - 59, (int) c.y - 7, 120, 16, juce::Justification::centred);
+            g.setColour (familyColour (fi, fcount).brighter (0.4f));
+            g.drawText (names[fi], (int) c.x - 60, (int) c.y - 8, 120, 16, juce::Justification::centred);
+        }
     }
 }
 
@@ -221,12 +274,42 @@ void CloudView::paint (juce::Graphics& g)
     g.setColour (colors::primaryText);
     g.fillEllipse (pt.x - 2.0f, pt.y - 2.0f, 4.0f, 4.0f);
 
+    // Hover inspect: profile of the node nearest the mouse.
+    if (hoverNode >= 0 && hoverNode < ls.getNodeCount())
+    {
+        const auto& n = ls.getNodes()[(size_t) hoverNode];
+        const auto names = ls.getFamilyNames();
+        const auto fam = (n.family >= 0 && n.family < names.size())
+                             ? names[n.family] : juce::String ("?");
+        const auto hp = mapToScreen (n.x, n.y);
+        g.setColour (colors::primaryText.withAlpha (0.6f));
+        g.drawEllipse (hp.x - 4.0f, hp.y - 4.0f, 8.0f, 8.0f, 1.0f);
+
+        juce::Rectangle<int> box (10, getHeight() - 78, 250, 66);
+        g.setColour (colors::surface.withAlpha (0.9f));
+        g.fillRoundedRectangle (box.toFloat(), 4.0f);
+        g.setColour (colors::borderAtAlpha (0.5f));
+        g.drawRoundedRectangle (box.toFloat(), 4.0f, 1.0f);
+        g.setColour (colors::primaryText);
+        g.setFont (fonts::serif (13.0f));
+        g.drawText (fam, box.reduced (8, 6).removeFromTop (18), juce::Justification::topLeft);
+        g.setColour (colors::secondaryText);
+        g.setFont (fonts::mono (11.0f));
+        auto pct = [] (float v) { return juce::String (juce::roundToInt (v * 100.0f)); };
+        g.drawText ("bright " + pct (n.bright) + "  dense " + pct (n.dense),
+                    box.reduced (8, 6).withTrimmedTop (20).removeFromTop (15),
+                    juce::Justification::topLeft);
+        g.drawText ("feedback " + pct (n.feedback) + "  hollow " + pct (n.odd),
+                    box.reduced (8, 6).withTrimmedTop (36).removeFromTop (15),
+                    juce::Justification::topLeft);
+    }
+
     // Hint.
     g.setColour (colors::secondaryText.withAlpha (0.7f));
     g.setFont (fonts::serifItalic (12.0f));
-    g.drawText ("click to seek · double-click to drop the dot",
+    g.drawText ("click to seek · double-click to drop · hover to inspect",
                 getLocalBounds().reduced (10).removeFromBottom (18),
-                juce::Justification::centredLeft);
+                juce::Justification::centredRight);
 }
 
 } // namespace brocot
