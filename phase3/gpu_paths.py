@@ -284,6 +284,18 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     g = _knn_graph(amps, k=k).tocsr()
     cur_paths = _curated_paths()
 
+    # Family centroids (full-bank, from the classifier) → the gradient anchors
+    # at each family's PROTOTYPE, not its whole cloud: we steer TOWARD the clean
+    # canonical waveform (nearest the centroid), not whichever chaotic member is
+    # graph-closest. Anchoring at the top-K-closest-to-centroid keeps route
+    # diversity (many starts converge) while fixing the destination to be clean.
+    lab = np.load(LABELS_NPZ, allow_pickle=True)
+    centroids = torch.from_numpy(lab["centroids"]).to(DEVICE).float()   # (F, Q)
+    # Small anchor set: routes from many starts converge on the same few clean
+    # canonical members (the destination is one SOUND; the journey is where the
+    # many-paths diversity lives — Will's model).
+    anchor_k = 6
+
     # Node params (reconstructable synth state) + family label per node.
     # feedback stored in the engine's 0..1 param convention (β = param·π rad).
     nodes = [{"family": int(node_lab[i]),
@@ -294,10 +306,28 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     print("Computing per-family gradient fields ...")
     fields = {}
     for fi, fam in enumerate(fam_names):
-        tgt = np.where(node_lab == fi)[0]
-        if tgt.size < min_family:                 # skip thinly-covered families
+        members = np.where(node_lab == fi)[0]
+        if members.size < min_family:             # skip thinly-covered families
             continue
-        # Augment: node n = super-source, ~0-weight edges to every family node.
+        # Anchor = the family's CLEANEST members, so the gradient leads to the
+        # canonical waveform, not a chaotic outlier. The classifier centroid is
+        # itself complex (the random bank is dominated by dense high-op configs,
+        # so the family mean is high-entropy), so centroid-nearest ≠ clean.
+        # Instead: among members reasonably close to the centroid (still
+        # representative of the family shape), pick the lowest spectral-entropy
+        # ones (energy in a few ordered harmonics = tonal/clean, not mush).
+        mfp = amps[torch.from_numpy(members).to(DEVICE)]            # (m, Q)
+        cdist = (mfp - centroids[fi].unsqueeze(0)).abs().sum(1)     # L1 to centroid
+        # representative pool: closest 60% to the centroid (drops far outliers).
+        pool_k = max(anchor_k, int(0.6 * members.size))
+        pool_k = int(min(pool_k, members.size))
+        pool_local = torch.topk(cdist, pool_k, largest=False).indices
+        p = mfp[pool_local] / mfp[pool_local].sum(1, keepdim=True).clamp(min=1e-9)
+        entropy = -(p * (p + 1e-9).log()).sum(1)                   # tonal = low H
+        kk = int(min(anchor_k, pool_k))
+        clean_local = pool_local[torch.topk(entropy, kk, largest=False).indices]
+        tgt = members[clean_local.cpu().numpy()]
+        # Augment: node n = super-source, ~0-weight edges to the prototype set.
         top = hstack([g, csr_matrix((n, 1))])
         bottomrow = np.zeros(n + 1, np.float32); bottomrow[tgt] = 1e-6
         aug = vstack([top, csr_matrix(bottomrow)]).tocsr()
