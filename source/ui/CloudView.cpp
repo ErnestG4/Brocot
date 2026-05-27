@@ -13,8 +13,9 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     // Seek-rate knob: how fast the dot travels across the map (map-units/sec;
     // the map spans 2 units corner-to-corner per axis).
     seekRateKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    seekRateKnob.setRange (0.1, 3.0, 0.01);
-    seekRateKnob.setValue (0.6);
+    seekRateKnob.setRange (0.01, 2.0, 0.001);
+    seekRateKnob.setSkewFactorFromMidPoint (0.15);   // fine control at the slow end
+    seekRateKnob.setValue (0.2);
     seekRateKnob.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 48, 14);
     seekRateKnob.setTooltip ("Seek rate — how fast the dot travels to where you click.");
     addAndMakeVisible (seekRateKnob);
@@ -115,21 +116,31 @@ void CloudView::resized()
 
 void CloudView::mouseMove (const juce::MouseEvent& e)
 {
+    hovering = true;
     const int node = nearestNodeTo (screenToMap (e.position));
     if (node != hoverNode) { hoverNode = node; repaint(); }
 }
 
 void CloudView::mouseDown (const juce::MouseEvent& e)
 {
+    // A plain click sets a destination; the dot auto-travels there at seek rate.
     seekTarget = screenToMap (e.position);
     seeking    = true;
     dotDriving = true;
+    hovering   = false;
 }
 
 void CloudView::mouseDrag (const juce::MouseEvent& e)
 {
-    seekTarget = screenToMap (e.position);   // redirect mid-seek by dragging
-    seeking    = true;
+    // Dragging grabs the dot directly (1:1) — scrub the landscape by hand. The
+    // seek rate doesn't apply here; this is immediate, for hunting sounds.
+    dot        = screenToMap (e.position);
+    seeking    = false;
+    dotDriving = true;
+    hovering   = false;
+    const int node = nearestNodeToDot();
+    if (node != currentNode) { currentNode = node; applyNode (node); }
+    repaint();
 }
 
 void CloudView::mouseDoubleClick (const juce::MouseEvent& e)
@@ -237,12 +248,9 @@ void CloudView::timerCallback()
     }
 
     const int node = nearestNodeToDot();
-    if (node != currentNode)
-    {
-        currentNode = node;
-        applyNode (node);
-    }
-    repaint();
+    const bool changed = (node != currentNode);
+    if (changed) { currentNode = node; applyNode (node); }
+    if (seeking || changed) repaint();   // idle (stationary dot) → no repaint
 }
 
 void CloudView::paint (juce::Graphics& g)
@@ -274,7 +282,24 @@ void CloudView::paint (juce::Graphics& g)
     g.setColour (colors::primaryText);
     g.fillEllipse (pt.x - 2.0f, pt.y - 2.0f, 4.0f, 4.0f);
 
-    // Hover inspect: profile of the node nearest the mouse.
+    // Hover inspect: profile of the node nearest the mouse, and — to reveal how
+    // a sound type spreads — light up every node in that family (its scattered
+    // pockets). Only while idle-hovering, so it never runs during drag/seek.
+    if (hovering && hoverNode >= 0 && hoverNode < ls.getNodeCount())
+    {
+        const auto& nodes = ls.getNodes();
+        const int fam = nodes[(size_t) hoverNode].family;
+        const auto col = familyColour (fam, ls.getFamilyCount());
+        for (const auto& nn : nodes)
+            if (nn.family == fam)
+            {
+                const auto p = mapToScreen (nn.x, nn.y);
+                g.setColour (col.withAlpha (0.9f));
+                g.fillEllipse (p.x - 2.4f, p.y - 2.4f, 4.8f, 4.8f);
+            }
+    }
+
+    // Hover inspect readout.
     if (hoverNode >= 0 && hoverNode < ls.getNodeCount())
     {
         const auto& n = ls.getNodes()[(size_t) hoverNode];

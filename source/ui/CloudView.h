@@ -68,6 +68,7 @@ private:
     ColourMode colourMode { ColourMode::Family };
     juce::ComboBox colourModeCombo;
     int hoverNode { -1 };           // node nearest the mouse (inspect readout)
+    bool hovering { false };        // mouse moving without a button (idle inspect)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CloudView)
 };
