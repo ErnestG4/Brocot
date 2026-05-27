@@ -10,6 +10,7 @@
 #include "ui/Oscilloscope.h"
 #include "ui/PresetBar.h"
 #include "ui/AboutDialog.h"
+#include "ui/CloudView.h"
 #include "ui/SteerTab.h"
 #include "ui/UnderTheHoodTab.h"
 
@@ -57,6 +58,7 @@ private:
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
     SteerTab        steerTab        { processorRef };
     UnderTheHoodTab underTheHoodTab { processorRef };
+    CloudView       cloudView       { processorRef };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessorEditor)
 };

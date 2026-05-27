@@ -57,6 +57,7 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     addAndMakeVisible (tabs);
     tabs.setTabBarDepth (28);
     tabs.addTab ("steer",          colors::background, &steerTab,        false);
+    tabs.addTab ("landscape",      colors::background, &cloudView,       false);
     tabs.addTab ("under the hood", colors::background, &underTheHoodTab, false);
 
     // Bumped default height to 940 to fit the V2 LFO bank (16 panels in an

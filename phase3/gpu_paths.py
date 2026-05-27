@@ -48,6 +48,28 @@ def _curated_paths():
     return curated_ratios(5)
 
 
+def _embed2d(amps_np: np.ndarray) -> np.ndarray:
+    """2D layout of node fingerprints for the cloud (screen dist ~ timbral
+    dist). t-SNE with PCA init when sklearn is present; PCA fallback otherwise.
+    Returns (n, 2) normalised to [-1, 1]. Swap the projector here when redoing
+    the cloud's weighting/alignment."""
+    n = amps_np.shape[0]
+    try:
+        from sklearn.manifold import TSNE
+        perp = float(min(30, max(5, n // 100)))
+        xy = TSNE(n_components=2, init="pca", perplexity=perp,
+                  random_state=0).fit_transform(amps_np.astype(np.float32))
+    except Exception as e:
+        print(f"  (t-SNE unavailable: {e}; PCA fallback)")
+        a = amps_np.astype(np.float32) - amps_np.mean(0, keepdims=True)
+        _, _, vt = np.linalg.svd(a, full_matrices=False)
+        xy = a @ vt[:2].T
+    xy = xy - xy.min(0)
+    span = xy.max(0)
+    span[span == 0] = 1.0
+    return (xy / span) * 2.0 - 1.0      # → [-1, 1] per axis
+
+
 def _subsample(n_nodes: int, seed: int = 0):
     """Stratified subsample of the bank: keep every family represented so rare
     basins (Square, Glass, ...) are still reachable. Returns node indices into
@@ -296,10 +318,17 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     # many-paths diversity lives — Will's model).
     anchor_k = 6
 
-    # Node params (reconstructable synth state) + family label per node.
+    # 2D embedding for the neighbor-cloud visualizer: screen distance ≈ timbral
+    # (fingerprint) distance, so families cluster and mis-alignment is visible.
+    # t-SNE (PCA-init) over the node fingerprints; normalised to [-1, 1]. This
+    # is the cloud's "weighting/alignment" — swap the projector here to redo it.
+    xy = _embed2d(amps.cpu().numpy())
+
+    # Node params (reconstructable synth state) + family label + 2D position.
     # feedback stored in the engine's 0..1 param convention (β = param·π rad).
     nodes = [{"family": int(node_lab[i]),
               "feedback": round(float(node_fb[i]) / float(np.pi), 4),
+              "x": round(float(xy[i, 0]), 4), "y": round(float(xy[i, 1]), 4),
               "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.

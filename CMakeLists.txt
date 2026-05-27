@@ -72,6 +72,7 @@ target_sources(Brocot PRIVATE
     source/ui/AboutDialog.cpp
     source/ui/SteerTab.cpp
     source/ui/UnderTheHoodTab.cpp
+    source/ui/CloudView.cpp
     source/ui/EnvelopePanel.cpp
     source/ui/FilterPanel.cpp
     source/presets/PresetManager.cpp

@@ -33,6 +33,7 @@ public:
         std::vector<PullIndex::OpState> ops;     // reconstructable synth state
         float              feedback  { 0.0f };   // op-0 self-feedback, 0..1 param
         int                family    { -1 };     // index into familyNames
+        float              x { 0.0f }, y { 0.0f }; // 2D cloud position, [-1,1]
         std::vector<float> ratioHist;            // param-space locate signature
     };
 
@@ -57,7 +58,11 @@ public:
     bool isEmpty()       const noexcept { return nodes.empty(); }
     int  getNodeCount()  const noexcept { return (int) nodes.size(); }
     juce::StringArray getFamilyNames() const;
+    int  getFamilyCount() const noexcept { return familyNames.size(); }
     bool hasFamily (const juce::String& name) const;
+
+    /** All nodes (for the cloud visualiser — read their x/y + family). */
+    const std::vector<Node>& getNodes() const noexcept { return nodes; }
 
     /** Nearest node to a current patch, by depth-weighted ratio-histogram L1.
         Returns -1 if the landscape is empty. */
