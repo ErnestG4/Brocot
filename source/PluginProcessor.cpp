@@ -667,6 +667,8 @@ void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& stat
             p->setValueNotifyingHost (states[(size_t) i].enabled ? 1.0f : 0.0f);
         if (auto* p = apvts.getParameter (params::opId (i, "depth")))
             p->setValueNotifyingHost (p->convertTo0to1 (states[(size_t) i].depth));
+        if (auto* p = apvts.getParameter (params::opId (i, "waveform")))
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) states[(size_t) i].waveform));
     }
 
     rebuildOpPositionLUTs();
@@ -683,6 +685,11 @@ const Landscape& BrocotAudioProcessor::getLandscape() const noexcept
 int BrocotAudioProcessor::getMapDepth (int i) const noexcept
 {
     return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i]->getNOps() : 0;
+}
+
+juce::String BrocotAudioProcessor::getMapName (int i) const
+{
+    return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i]->getName() : juce::String();
 }
 
 float BrocotAudioProcessor::getOp0Feedback() const

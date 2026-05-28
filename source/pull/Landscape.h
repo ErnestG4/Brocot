@@ -67,6 +67,8 @@ public:
     int  getNodeCount()  const noexcept { return (int) nodes.size(); }
     /** This map's operator depth: it edits ops 0..nOps-1 (nested prefix). */
     int  getNOps()       const noexcept { return nOps; }
+    /** Display label for the map selector (e.g. "6-op saw", "4-op mix"). */
+    juce::String getName() const { return mapName; }
     juce::StringArray getFamilyNames() const;
     int  getFamilyCount() const noexcept { return familyNames.size(); }
     bool hasFamily (const juce::String& name) const;
@@ -100,6 +102,7 @@ public:
 private:
     std::vector<Node>             nodes;
     int                           nOps { 6 };   // map depth (nested prefix)
+    juce::String                  mapName;      // selector label
     juce::StringArray             familyNames;
     std::vector<std::vector<int>> nextHop;   // [familyIdx][node] → next node
                                              // (-1 = arrived, -2 = unreachable)

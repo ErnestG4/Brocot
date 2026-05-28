@@ -42,7 +42,9 @@ def bank_path(n_ops: int = 6) -> Path:
 
 
 def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
-          n_ops: int = 6, out: Path = None, mod_budget: float = 12.0):
+          n_ops: int = 6, out: Path = None, mod_budget: float = 12.0,
+          waveform: int = 0):
+    # waveform: 0..3 = SOLO (every op that shape) ; -1 = MIX (per-op random).
     out = out or bank_path(n_ops)
     paths, rv = _ratio_values()
     rvt = torch.from_numpy(rv).to(DEVICE)
@@ -56,6 +58,7 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
     ridx = np.empty((n_total, n_ops), dtype=np.uint8)
     depths = np.empty((n_total, n_ops), dtype=np.float16)
     feedback = np.empty((n_total,), dtype=np.float16)
+    waves = np.empty((n_total, n_ops), dtype=np.uint8)
     t0 = time.time()
     done = 0
     while done < n_total:
@@ -77,20 +80,26 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
         # parallel FM can't reach (Square/Glass/Reed/Bell); rest stay parallel.
         fb = torch.empty(b, device=DEVICE).uniform_(0.0, float(np.pi), generator=g)
         fb *= (torch.rand(b, generator=g, device=DEVICE) < 0.5).float()
+        # Operator waveform: solo (all ops = waveform) or mix (per-op random).
+        if waveform < 0:
+            wv = torch.randint(0, 4, (b, n_ops), generator=g, device=DEVICE)
+        else:
+            wv = torch.full((b, n_ops), int(waveform), device=DEVICE, dtype=torch.long)
         fp = fingerprint_batch(
             render_batch(torch.log(rvt[ri]), dp, torch.zeros(b, n_ops, device=DEVICE),
-                         t, F_CARRIER, feedback=fb), W, win)
+                         t, F_CARRIER, feedback=fb, waves=wv), W, win)
         amps[done:done + b] = fp.half().cpu().numpy()
         ridx[done:done + b] = ri.byte().cpu().numpy()
         depths[done:done + b] = dp.half().cpu().numpy()
         feedback[done:done + b] = fb.half().cpu().numpy()
+        waves[done:done + b] = wv.byte().cpu().numpy()
         done += b
         if done % 500_000 == 0:
             print(f"  {done:,}/{n_total:,} ({time.time()-t0:.0f}s, "
                   f"{done/(time.time()-t0):,.0f}/s)")
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(out, amps=amps, ridx=ridx, depths=depths, feedback=feedback)
+    np.savez(out, amps=amps, ridx=ridx, depths=depths, feedback=feedback, waves=waves)
     print(f"\nGPU bank: {n_total:,} fingerprints @ {n_ops} ops, q_max={Q_MAX}  "
           f"({out.stat().st_size/1e9:.2f} GB) in {time.time()-t0:.0f}s -> {out}")
 
@@ -157,10 +166,14 @@ def main():
     b.add_argument("--n-ops", type=int, default=6)
     b.add_argument("--mod-budget", type=float, default=12.0,
                    help="total modulation budget — lower = more tonal dense maps")
+    b.add_argument("--waveform", type=int, default=0,
+                   help="0-3 = solo (all ops sine/tri/saw/sqr); -1 = per-op mix")
+    b.add_argument("--out", type=str, default=None, help="explicit bank .npz path")
     c = sub.add_parser("coverage"); c.add_argument("--n-probe", type=int, default=1000)
     a = ap.parse_args()
     if a.cmd == "build":
-        build(n_total=a.n, n_ops=a.n_ops, mod_budget=a.mod_budget)
+        build(n_total=a.n, n_ops=a.n_ops, mod_budget=a.mod_budget,
+              waveform=a.waveform, out=(Path(a.out) if a.out else None))
     else:
         coverage(n_probe=a.n_probe)
 

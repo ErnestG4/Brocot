@@ -66,33 +66,54 @@ def interp_matrix(n_fft: int, sr: int, q_max: int, f_carrier: float,
 # Differentiable render + fingerprint
 # ---------------------------------------------------------------------------
 
+def _wave(arg_turns: torch.Tensor, wcode: torch.Tensor | None) -> torch.Tensor:
+    """Operator waveform of a phase given in TURNS (arg = 2π·turns). wcode (B,1)
+    selects per-config 0=sine 1=triangle 2=saw 3=square (None ⇒ all sine).
+    Matches Operator::wave in the engine so the maps reflect what's heard."""
+    two_pi = 2.0 * np.pi
+    if wcode is None:
+        return torch.sin(two_pi * arg_turns)
+    p = arg_turns - torch.floor(arg_turns)                 # [0,1)
+    out = torch.sin(two_pi * arg_turns)                    # 0 = sine
+    tri_t = p + 0.25; tri_t = tri_t - torch.floor(tri_t)
+    tri = 1.0 - 4.0 * (tri_t - 0.5).abs()
+    saw = 2.0 * p - 1.0
+    sq = torch.where(p < 0.5, 1.0, -1.0)
+    out = torch.where(wcode == 1, tri, out)
+    out = torch.where(wcode == 2, saw, out)
+    out = torch.where(wcode == 3, sq, out)
+    return out
+
+
 def render_batch(log_ratio: torch.Tensor, depth: torch.Tensor,
                  detune_cents: torch.Tensor, t: torch.Tensor,
                  f_carrier: float = F_CARRIER,
                  feedback: torch.Tensor | None = None,
-                 fb_iters: int = 4) -> torch.Tensor:
+                 fb_iters: int = 4,
+                 waves: torch.Tensor | None = None) -> torch.Tensor:
     """Batched sine-FM render. Shapes: params (B, K), t (T,) → (B, T).
     K-loop accumulation keeps memory at O(B·T) (no B·K·T tensor).
 
-    `feedback` (B,), if given, is op 0's self-PM index in radians: op 0
-    modulates itself (fixed-point unroll) before contributing to the carrier,
-    matching the engine's single-op feedback. Default None ⇒ pure parallel FM
-    (unchanged for every existing caller)."""
+    `feedback` (B,), if given, is op 0's self-PM index in radians (matches the
+    engine's single-op feedback). `waves` (B, K), if given, selects each op's
+    waveform (0=sine,1=tri,2=saw,3=square) — a non-sine modulator reshapes the
+    sidebands. Both default None ⇒ pure parallel sine FM (unchanged callers)."""
     B, K = log_ratio.shape
     two_pi = 2.0 * np.pi
     ratio = torch.exp(log_ratio) * torch.pow(2.0, detune_cents / 1200.0)  # (B,K)
     phase = two_pi * f_carrier * t.unsqueeze(0).expand(B, -1).clone()      # (B,T)
     for k in range(K):
         fmod = (f_carrier * ratio[:, k]).unsqueeze(1)                      # (B,1)
-        base = two_pi * fmod * t                                          # (B,T)
+        turns = fmod * t                                                  # (B,T), arg/2π
+        wk = waves[:, k].unsqueeze(1) if waves is not None else None       # (B,1)
         if k == 0 and feedback is not None:
-            beta = feedback.unsqueeze(1)                                   # (B,1)
-            y = torch.sin(base)
+            beta = feedback.unsqueeze(1) * (1.0 / two_pi)                 # rad→turns
+            y = _wave(turns, wk)
             for _ in range(fb_iters):
-                y = torch.sin(base + beta * y)                            # self-PM
+                y = _wave(turns + beta * y, wk)                          # self-PM
             phase = phase + depth[:, 0].unsqueeze(1) * y
         else:
-            phase = phase + depth[:, k].unsqueeze(1) * torch.sin(base)
+            phase = phase + depth[:, k].unsqueeze(1) * _wave(turns, wk)
     return torch.sin(phase)
 
 

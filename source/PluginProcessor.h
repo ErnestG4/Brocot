@@ -74,6 +74,7 @@ public:
     const Landscape& getLandscape() const noexcept;
     int  getMapCount() const noexcept { return (int) maps.size(); }
     int  getMapDepth (int i) const noexcept;
+    juce::String getMapName (int i) const;
     int  getActiveMap() const noexcept { return activeMap; }
     void setActiveMap (int i) noexcept { if (i >= 0 && i < (int) maps.size()) activeMap = i; }
 

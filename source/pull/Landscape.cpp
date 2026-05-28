@@ -19,9 +19,10 @@ namespace
         PullIndex::OpState o;
         if (auto* obj = asObject (v))
         {
-            o.path    = obj->getProperty ("path").toString();
-            o.depth   = (float) (double) obj->getProperty ("depth");
-            o.enabled = (bool) obj->getProperty ("enabled");
+            o.path     = obj->getProperty ("path").toString();
+            o.depth    = (float) (double) obj->getProperty ("depth");
+            o.enabled  = (bool) obj->getProperty ("enabled");
+            o.waveform = (int) obj->getProperty ("wave");   // absent ⇒ 0 (sine)
         }
         return o;
     }
@@ -98,6 +99,8 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
 
     nOps = (int) root->getProperty ("n_ops");
     if (nOps <= 0) nOps = 6;          // older graphs without the field
+    mapName = root->getProperty ("name").toString();
+    if (mapName.isEmpty()) mapName = juce::String (nOps) + "-op";
 
     if (auto* fnArr = root->getProperty ("family_names").getArray())
         for (const auto& v : *fnArr)

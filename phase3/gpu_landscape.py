@@ -173,9 +173,13 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("classify")
     c.add_argument("--n-ops", type=int, default=6, help="derives bank/labels paths")
+    c.add_argument("--bank", type=str, default=None, help="explicit bank .npz")
+    c.add_argument("--out", type=str, default=None, help="explicit labels .npz")
     a = ap.parse_args()
     if a.cmd == "classify":
-        classify(bank_npz=bank_path(a.n_ops), out=labels_path(a.n_ops))
+        from pathlib import Path as _P
+        classify(bank_npz=(_P(a.bank) if a.bank else bank_path(a.n_ops)),
+                 out=(_P(a.out) if a.out else labels_path(a.n_ops)))
 
 
 if __name__ == "__main__":

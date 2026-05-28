@@ -146,8 +146,11 @@ def _subsample(n_nodes: int, seed: int = 0, bank_npz=BANK_NPZ, labels_npz=LABELS
     # op-0 feedback per node (radians 0..π); absent in older banks → zeros.
     fb = (bank["feedback"][chosen].astype(np.float32)
           if "feedback" in bank.files else np.zeros(len(chosen), np.float32))
+    # per-op waveform code; absent in older banks → all sine (0).
+    wv = (bank["waves"][chosen] if "waves" in bank.files
+          else np.zeros_like(bank["ridx"][chosen]))
     return (chosen, amps, labels[chosen], bank["ridx"][chosen],
-            bank["depths"][chosen], fb, fam_names)
+            bank["depths"][chosen], fb, wv, fam_names)
 
 
 def _knn_graph(amps: torch.Tensor, k: int = 12, chunk: int = 2000):
@@ -223,22 +226,26 @@ def _thin(seq, amps, m: int):
     return [seq[i] for i in keep]
 
 
-def _reconstruct(node: int, ridx, depths, paths):
-    """One bank node → OpState list (path / depth / enabled), the shape
-    PullIndex::morph consumes. Disabled slots (depth 0) are emitted too so the
-    op count is explicit."""
+def _reconstruct(node: int, ridx, depths, paths, waves=None):
+    """One bank node → OpState list (path / depth / enabled / wave), the shape
+    the runtime applies. Disabled slots (depth 0) are emitted too so the op
+    count is explicit. `wave` (0=sine..3=square) is omitted when 0 to keep the
+    JSON lean."""
     ops = []
     for slot in range(ridx.shape[1]):
         d = float(depths[node, slot])
         ri = int(ridx[node, slot])
-        ops.append({"path": paths[ri], "depth": round(d, 4), "enabled": d > 1e-4})
+        op = {"path": paths[ri], "depth": round(d, 4), "enabled": d > 1e-4}
+        if waves is not None and int(waves[node, slot]) != 0:
+            op["wave"] = int(waves[node, slot])
+        ops.append(op)
     return ops
 
 
 def demo(n_nodes: int, k: int, targets_fam: list[str]):
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes (stratified by family) ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, fam_names = _subsample(n_nodes)
     print(f"  {amps.shape[0]:,} nodes ({time.time()-t0:.1f}s)")
 
     print(f"Building {k}-NN graph on GPU ...")
@@ -286,7 +293,7 @@ def export(n_nodes: int, k: int, k_paths: int, waypoints: int,
     import json as _json
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, fam_names = _subsample(n_nodes)
     print(f"Building {k}-NN graph ...")
     g = _knn_graph(amps, k=k)
     cur_paths = _curated_paths()
@@ -337,7 +344,7 @@ def graph_path(n_ops: int = 6) -> Path:
 
 def gradients(n_nodes: int, k: int, min_family: int = 30,
               out: Path = Path("resources/landscape_graph.json.gz"),
-              bank_npz=BANK_NPZ, labels_npz=LABELS_NPZ):
+              bank_npz=BANK_NPZ, labels_npz=LABELS_NPZ, name: str = None):
     """Export the runtime graph + per-family gradient fields ("vector LUTs").
 
     For each family we run a multi-source Dijkstra INTO the family (a virtual
@@ -351,7 +358,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     from scipy.sparse import vstack, hstack
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, fam_names = _subsample(
         n_nodes, bank_npz=bank_npz, labels_npz=labels_npz)
     n = amps.shape[0]
     n_ops = int(ridx.shape[1])           # the map's operator depth (nested prefix)
@@ -409,7 +416,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
               "odd":    round(float(feat["odd_frac"][i]), 4),
               "tonal":  round(1.0 - float(feat["flatness"][i]) / fmax, 4),  # 1=musical
               "crit":   round(float(struct[i]), 4),   # lines/junctions/void rims
-              "ops": _reconstruct(i, ridx, depths, cur_paths)} for i in range(n)]
+              "ops": _reconstruct(i, ridx, depths, cur_paths, node_wv)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.
     print("Computing per-family gradient fields ...")
@@ -450,6 +457,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     doc = {
         "version": "1.0",
         "f_carrier_ref": F_CARRIER,
+        "name": name or f"{n_ops}-op",   # display label in the map selector
         "n_ops": n_ops,                # map depth: edits ops 0..n_ops-1 (nested prefix)
         "n_nodes": n,
         "n_families": len(fields),
@@ -495,6 +503,10 @@ def main():
     gr.add_argument("--nodes", type=int, default=16_000)
     gr.add_argument("--k", type=int, default=12)
     gr.add_argument("--n-ops", type=int, default=6, help="derives bank/labels/graph paths")
+    gr.add_argument("--bank", type=str, default=None)
+    gr.add_argument("--labels", type=str, default=None)
+    gr.add_argument("--out", type=str, default=None)
+    gr.add_argument("--name", type=str, default=None, help="map selector label")
     a = ap.parse_args()
     if a.cmd == "demo":
         demo(a.nodes, a.k, a.targets)
@@ -503,8 +515,10 @@ def main():
     elif a.cmd == "gradients":
         from phase3.gpu_bank import bank_path
         from phase3.gpu_landscape import labels_path
-        gradients(a.nodes, a.k, bank_npz=bank_path(a.n_ops),
-                  labels_npz=labels_path(a.n_ops), out=graph_path(a.n_ops))
+        gradients(a.nodes, a.k, name=a.name,
+                  bank_npz=(Path(a.bank) if a.bank else bank_path(a.n_ops)),
+                  labels_npz=(Path(a.labels) if a.labels else labels_path(a.n_ops)),
+                  out=(Path(a.out) if a.out else graph_path(a.n_ops)))
 
 
 if __name__ == "__main__":

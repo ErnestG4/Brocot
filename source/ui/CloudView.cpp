@@ -42,7 +42,7 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     // prefix), preserving the rest of the patch's timbre. Switching re-locates
     // the dot to the current patch on the new map.
     for (int i = 0; i < proc.getMapCount(); ++i)
-        mapCombo.addItem (juce::String (proc.getMapDepth (i)) + "-op map", i + 1);
+        mapCombo.addItem (proc.getMapName (i), i + 1);
     mapCombo.setSelectedId (proc.getActiveMap() + 1, juce::dontSendNotification);
     mapCombo.onChange = [this]
     {

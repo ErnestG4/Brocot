@@ -250,6 +250,10 @@ PullIndex::morph (const std::vector<OpState>& current,
         // audio-thread smoother absorbs.
         o.path = pathWalk (cur.path, tgt.path, alpha);
 
+        // Waveform is discrete — can't lerp sine→saw — so snap at the midpoint
+        // (the half nearer the destination wins).
+        o.waveform = (alpha < 0.5f ? cur : tgt).waveform;
+
         out.push_back (std::move (o));
     }
     return out;

@@ -30,6 +30,7 @@ public:
         juce::String path     {};
         float        depth    { 0.0f };
         bool         enabled  { false };
+        int          waveform { 0 };   // 0=sine,1=tri,2=saw,3=square
     };
 
     struct Exemplar
