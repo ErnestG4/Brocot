@@ -176,6 +176,8 @@ juce::var serialise (const BrocotAudioProcessor& proc)
             op->setProperty ("detune", (double) dt);
         if (const float ks = paramValue (apvts, params::opId (i, "keyScale")); ks != 0.0f)
             op->setProperty ("keyScale", (double) ks);
+        if (const int wf = (int) std::lround (paramValue (apvts, params::opId (i, "waveform"))); wf != 0)
+            op->setProperty ("waveform", wf);
         // Self-feedback exists on op 1 (index 0) only; written when non-zero.
         if (i == 0)
             if (const float fb = paramValue (apvts, params::opId (0, "feedback")); fb != 0.0f)
@@ -300,6 +302,9 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "keyScale"),
                           op->hasProperty ("keyScale")
                               ? (float) (double) op->getProperty ("keyScale") : 0.0f, false);
+                setParam (apvts, params::opId (i, "waveform"),
+                          op->hasProperty ("waveform")
+                              ? (float) (int) op->getProperty ("waveform") : 0.0f, false);
                 // Self-feedback (op 1 / index 0 only) — absent ⇒ 0 (clean sine).
                 if (i == 0)
                     setParam (apvts, params::opId (0, "feedback"),
@@ -323,6 +328,7 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "position"), 0.0f, false);
                 setParam (apvts, params::opId (i, "detune"),   0.0f, false);
                 setParam (apvts, params::opId (i, "keyScale"), 0.0f, false);
+                setParam (apvts, params::opId (i, "waveform"), 0.0f, false);
                 if (i == 0)
                     setParam (apvts, params::opId (0, "feedback"), 0.0f, false);
                 if (! sharedMode)

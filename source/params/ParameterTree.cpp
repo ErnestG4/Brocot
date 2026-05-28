@@ -105,6 +105,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             juce::ParameterID (opId (i, "keyScale"), 1),
             "Op " + juce::String (i + 1) + " Key Scale",
             juce::NormalisableRange<float> (-1.0f, 1.0f), 0.0f));
+
+        // Operator waveform — a non-sine modulator reshapes the FM sidebands
+        // (more timbre per op). Default sine = pre-existing behaviour.
+        layout.add (std::make_unique<ChoiceParam> (
+            juce::ParameterID (opId (i, "waveform"), 1),
+            "Op " + juce::String (i + 1) + " Waveform",
+            juce::StringArray { "sine", "triangle", "saw", "square" }, 0));
     }
 
     // Single-op self-feedback on op 1 (index 0) only — the one topology the

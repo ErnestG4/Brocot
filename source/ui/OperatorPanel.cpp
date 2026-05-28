@@ -85,6 +85,17 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     }
 
     auto& apvts = proc.getAPVTS();
+    // Operator waveform — compact combo (short labels for the dense grid).
+    addAndMakeVisible (waveformCombo);
+    waveformCombo.addItem ("sin", 1);
+    waveformCombo.addItem ("tri", 2);
+    waveformCombo.addItem ("saw", 3);
+    waveformCombo.addItem ("sqr", 4);
+    waveformCombo.setTooltip ("Operator waveform — non-sine modulators reshape "
+                              "the FM sidebands (more timbre per op).");
+    waveformAttach = std::make_unique<ComboAttach> (
+        apvts, params::opId (opIndex, "waveform"), waveformCombo);
+
     enabledAttach  = std::make_unique<ButtonAttach> (
         apvts, params::opId (opIndex, "enabled"), enabledToggle);
     depthAttach    = std::make_unique<SliderAttach> (
@@ -203,7 +214,11 @@ void OperatorPanel::resized()
     auto tuneRow = r.removeFromBottom (16);
     r.removeFromBottom (3);
 
-    enabledToggle.setBounds (r.removeFromTop (18));
+    {
+        auto topRow = r.removeFromTop (18);
+        waveformCombo.setBounds (topRow.removeFromRight (46));   // right of the toggle
+        enabledToggle.setBounds (topRow);
+    }
     r.removeFromTop (4);
 
     ratioDisplay.setBounds (r.removeFromTop (36));

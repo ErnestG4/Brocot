@@ -60,15 +60,19 @@ private:
     juce::Slider keyScaleSlider;
     // Self-feedback — created only on op 1 (index 0); shares the bottom row.
     juce::Slider feedbackSlider;
+    // Operator waveform — compact combo on the top row.
+    juce::ComboBox waveformCombo;
 
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using ComboAttach  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     std::unique_ptr<SliderAttach> depthAttach;
     std::unique_ptr<SliderAttach> positionAttach;
     std::unique_ptr<SliderAttach> detuneAttach;
     std::unique_ptr<SliderAttach> keyScaleAttach;
     std::unique_ptr<SliderAttach> feedbackAttach;  // op 1 (index 0) only
     std::unique_ptr<ButtonAttach> enabledAttach;
+    std::unique_ptr<ComboAttach>  waveformAttach;
 
     void setFreeModeWidgetsVisible (bool freeMode);
 

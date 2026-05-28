@@ -154,6 +154,25 @@ TEST_CASE ("feedback output stays bounded (2-sample averaging tames the loop)")
     REQUIRE (std::isfinite (peak));
 }
 
+TEST_CASE ("operator waveform reshapes the oscillator spectrum")
+{
+    auto make = [] (int wf)
+    {
+        auto op = std::make_unique<Operator>();
+        op->prepare (kSampleRate);
+        op->setEnabled (true);
+        op->snapRatio (1.0f);
+        op->setDepth (1.0f);
+        op->setWaveform (wf);
+        return op;
+    };
+    // Sine (0) has ~no 3rd harmonic; square (3) is rich in odd harmonics.
+    REQUIRE (harmonicMag (*make (0), 220.0f, 1.0f, 3) < 0.02f);
+    REQUIRE (harmonicMag (*make (3), 220.0f, 1.0f, 3) > 0.1f);
+    // Saw (2) carries a 2nd harmonic that the sine lacks.
+    REQUIRE (harmonicMag (*make (2), 220.0f, 1.0f, 2) > 0.1f);
+}
+
 TEST_CASE ("feedback=0 reproduces the pure-sine path exactly")
 {
     Operator clean, fbZero;

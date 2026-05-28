@@ -239,6 +239,10 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
                 if (auto* p = apvts.getRawParameterValue (params::opId (i, "keyScale")))
                     keyScale = p->load();
                 op.setKeyScale (keyScale);
+
+                // Operator waveform (sine/triangle/saw/square).
+                if (auto* p = apvts.getRawParameterValue (params::opId (i, "waveform")))
+                    op.setWaveform ((int) std::lround (p->load()));
             }
         }
 

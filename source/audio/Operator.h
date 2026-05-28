@@ -39,6 +39,39 @@ public:
 
     void reset() noexcept { phase = 0.0f; fbPrev1 = 0.0f; fbPrev2 = 0.0f; }
 
+    /** Operator oscillator waveform. A non-sine MODULATOR reshapes the FM
+        sidebands — far more timbre per op than a sine (the "full FM program"
+        move), at low op count. Order matches the `waveform` choice param. */
+    enum class Wave { Sine = 0, Triangle, Saw, Square };
+
+    /** Unit-amplitude waveform sample for a phase given in TURNS (the argument
+        to 2π). Sine is exact; the others wrap to [0,1). Naive shapes — fine for
+        the modulator role (their aliasing barely reaches the output, unlike a
+        non-sine carrier). */
+    static inline float wave (Wave w, float turns) noexcept
+    {
+        constexpr float twoPi = 6.2831853071795864769f;
+        if (w == Wave::Sine) return std::sin (twoPi * turns);
+        const float p = turns - std::floor (turns);          // [0,1)
+        switch (w)
+        {
+            case Wave::Saw:    return 2.0f * p - 1.0f;
+            case Wave::Square: return p < 0.5f ? 1.0f : -1.0f;
+            case Wave::Triangle:
+            {
+                float t = p + 0.25f; t -= std::floor (t);    // start at 0, rising
+                return 1.0f - 4.0f * std::abs (t - 0.5f);
+            }
+            default: return std::sin (twoPi * turns);
+        }
+    }
+
+    /** Set the operator waveform (0=Sine,1=Triangle,2=Saw,3=Square). */
+    void setWaveform (int idx) noexcept
+    {
+        waveform = (Wave) juce::jlimit (0, 3, idx);
+    }
+
     void setPath (const Path& p) { setRatio ((float) p.ratio()); }
     /** Set the *base* (Stern-Brocot, exact-rational) ratio. The effective
         ratio glided to by the smoother is base × detune (see setDetuneCents). */
@@ -137,13 +170,14 @@ public:
         if (feedbackBeta > 0.0f)
         {
             const float fb = 0.5f * (fbPrev1 + fbPrev2);
-            osc = std::sin (twoPi * phase + feedbackBeta * fb);
+            // feedback term is in radians → convert to turns for wave().
+            osc = wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi));
             fbPrev2 = fbPrev1;
             fbPrev1 = osc;
         }
         else
         {
-            osc = std::sin (twoPi * phase);
+            osc = wave (waveform, phase);
         }
         const float delta = currentDepth * fMod * osc;
 
@@ -159,6 +193,7 @@ private:
         depthScale = std::exp2 (-keyScaleAmount * noteOctaves);  // exp2(0)==1
     }
 
+    Wave  waveform    { Wave::Sine };  // operator oscillator shape
     float phase       { 0.0f };  // normalized [0,1)
     float targetDepth { 0.0f };  // the depth requested by the user / preset
     bool  enabled     { false };
