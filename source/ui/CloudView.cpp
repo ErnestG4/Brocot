@@ -38,6 +38,22 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     };
     addAndMakeVisible (colourModeCombo);
 
+    // Operator-depth map selector: each map navigates ops 0..depth-1 (nested
+    // prefix), preserving the rest of the patch's timbre. Switching re-locates
+    // the dot to the current patch on the new map.
+    for (int i = 0; i < proc.getMapCount(); ++i)
+        mapCombo.addItem (juce::String (proc.getMapDepth (i)) + "-op map", i + 1);
+    mapCombo.setSelectedId (proc.getActiveMap() + 1, juce::dontSendNotification);
+    mapCombo.onChange = [this]
+    {
+        proc.setActiveMap (mapCombo.getSelectedId() - 1);
+        dotDriving = false;        // re-sync the dot to the patch on the new map
+        currentNode = -1;
+        rebuildImage();
+        repaint();
+    };
+    addAndMakeVisible (mapCombo);
+
     startTimerHz (30);
 }
 
@@ -112,7 +128,8 @@ void CloudView::resized()
 {
     plot = getLocalBounds().toFloat().reduced (16.0f);
     seekRateKnob.setBounds (getWidth() - 70, 8, 60, 60);
-    colourModeCombo.setBounds (10, 8, 120, 22);
+    mapCombo.setBounds (10, 8, 96, 22);
+    colourModeCombo.setBounds (112, 8, 120, 22);
     rebuildImage();
 }
 

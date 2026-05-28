@@ -67,6 +67,7 @@ private:
 
     ColourMode colourMode { ColourMode::Family };
     juce::ComboBox colourModeCombo;
+    juce::ComboBox mapCombo;        // pick the operator-depth map to navigate
     int hoverNode { -1 };           // node nearest the mouse (inspect readout)
     bool hovering { false };        // mouse moving without a button (idle inspect)
 

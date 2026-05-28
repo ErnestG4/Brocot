@@ -78,12 +78,18 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     if (auto idxFile = PullIndex::findIndexFile(); idxFile.existsAsFile())
         pullIndex.load (idxFile);
 
-    // FM-soundspace graph + per-family gradient fields for SteerTab's
-    // "track smoothly across the landscape" steering. Best-effort, like the
-    // pull index — if it isn't on disk the steer tab falls back to the
-    // best-exemplar morph.
-    if (auto gFile = Landscape::findFile(); gFile.existsAsFile())
-        landscape.load (gFile);
+    // FM-soundspace maps (one per operator depth + the 6-op default). Loaded
+    // sorted by depth; the active one drives navigation/steering. Best-effort —
+    // missing maps just shrink the selector.
+    for (const auto& gFile : Landscape::findAllFiles())
+    {
+        auto ls = std::make_unique<Landscape>();
+        if (ls->load (gFile))
+            maps.push_back (std::move (ls));
+    }
+    // Default to the 6-op map (the original) if present, else the first.
+    for (int i = 0; i < (int) maps.size(); ++i)
+        if (maps[(size_t) i]->getNOps() == 6) { activeMap = i; break; }
 
     // P3.12: default initial patch is the absolute-best 64-op
     // textured-smooth carpet — obj 0.334, H≈7.81, ~4370 partials —
@@ -660,6 +666,19 @@ void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& stat
     }
 
     rebuildOpPositionLUTs();
+}
+
+const Landscape& BrocotAudioProcessor::getLandscape() const noexcept
+{
+    static const Landscape empty;     // fallback when no maps loaded
+    if (activeMap >= 0 && activeMap < (int) maps.size())
+        return *maps[(size_t) activeMap];
+    return empty;
+}
+
+int BrocotAudioProcessor::getMapDepth (int i) const noexcept
+{
+    return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i]->getNOps() : 0;
 }
 
 float BrocotAudioProcessor::getOp0Feedback() const

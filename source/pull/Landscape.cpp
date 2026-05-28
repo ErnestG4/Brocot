@@ -96,6 +96,9 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
     familyNames.clear();
     nextHop.clear();
 
+    nOps = (int) root->getProperty ("n_ops");
+    if (nOps <= 0) nOps = 6;          // older graphs without the field
+
     if (auto* fnArr = root->getProperty ("family_names").getArray())
         for (const auto& v : *fnArr)
             familyNames.add (v.toString());
@@ -168,7 +171,11 @@ int Landscape::nearestNode (const std::vector<PullIndex::OpState>& current) cons
 {
     if (nodes.empty())
         return -1;
-    const auto q = ratioHistogram (current);
+    // Locate on this map's slice only — the first nOps ops (the gross tone the
+    // map governs) — so the depth-N map ignores the patch's higher texture ops.
+    const int sliceN = juce::jmin ((int) current.size(), nOps);
+    const std::vector<PullIndex::OpState> slice (current.begin(), current.begin() + sliceN);
+    const auto q = ratioHistogram (slice);
     int best = 0;
     float bestD = std::numeric_limits<float>::max();
     for (size_t i = 0; i < nodes.size(); ++i)
@@ -241,6 +248,28 @@ juce::File Landscape::findFile()
              })
             if (c.existsAsFile()) return c;
     return {};
+}
+
+juce::Array<juce::File> Landscape::findAllFiles()
+{
+    // Resolve the resources dir from the first place a graph exists, then list
+    // every per-depth map there, sorted by depth (the _N suffix; bare = 6).
+    auto anchor = findFile();
+    juce::Array<juce::File> files;
+    if (anchor == juce::File()) return files;
+
+    anchor.getParentDirectory()
+        .findChildFiles (files, juce::File::findFiles, false, "landscape_graph*.json.gz");
+
+    auto depthOf = [] (const juce::File& f)
+    {
+        auto s = f.getFileName().fromFirstOccurrenceOf ("landscape_graph", false, false)
+                                .upToFirstOccurrenceOf (".json", false, false);   // "" or "_N"
+        return s.isEmpty() ? 6 : s.trimCharactersAtStart ("_").getIntValue();
+    };
+    std::sort (files.begin(), files.end(),
+               [&] (const juce::File& a, const juce::File& b) { return depthOf (a) < depthOf (b); });
+    return files;
 }
 
 } // namespace brocot

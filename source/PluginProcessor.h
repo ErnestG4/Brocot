@@ -67,7 +67,15 @@ public:
         found (the steer-tab UI shows a "rebuild the index" hint in
         that case). */
     const PullIndex& getPullIndex() const noexcept { return pullIndex; }
-    const Landscape& getLandscape() const noexcept { return landscape; }
+
+    // Per-depth landscape maps (4/8/16/32/64 + the 6-op default). getLandscape()
+    // returns the ACTIVE map, so SteerTab + CloudView steer/navigate whichever
+    // map is selected.
+    const Landscape& getLandscape() const noexcept;
+    int  getMapCount() const noexcept { return (int) maps.size(); }
+    int  getMapDepth (int i) const noexcept;
+    int  getActiveMap() const noexcept { return activeMap; }
+    void setActiveMap (int i) noexcept { if (i >= 0 && i < (int) maps.size()) activeMap = i; }
 
     /** Snapshot the current operator bank as `OpState`s the PullIndex
         morph helper can consume. Length is always `kNumOperators`. */
@@ -207,7 +215,8 @@ private:
     // resources/pull_index.json; stays empty (and the steer-tab UI
     // hides itself) if the file isn't on disk.
     PullIndex pullIndex;
-    Landscape landscape;
+    std::vector<std::unique_ptr<Landscape>> maps;   // per-depth, sorted by depth
+    int activeMap { 0 };
 
     // Continuous per-op ratio override for groove steering (<=0 = inactive).
     // Written from the message thread (SteerTab timer), read on the audio

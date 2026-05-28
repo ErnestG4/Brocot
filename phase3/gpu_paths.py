@@ -114,12 +114,12 @@ def _embed2d(amps_np: np.ndarray) -> np.ndarray:
     return (xy / span) * 2.0 - 1.0      # → [-1, 1] per axis
 
 
-def _subsample(n_nodes: int, seed: int = 0):
+def _subsample(n_nodes: int, seed: int = 0, bank_npz=BANK_NPZ, labels_npz=LABELS_NPZ):
     """Stratified subsample of the bank: keep every family represented so rare
     basins (Square, Glass, ...) are still reachable. Returns node indices into
     the bank + their fingerprints/labels/params."""
-    bank = np.load(BANK_NPZ)
-    lab = np.load(LABELS_NPZ, allow_pickle=True)
+    bank = np.load(bank_npz)
+    lab = np.load(labels_npz, allow_pickle=True)
     labels = lab["labels"]
     fam_names = list(lab["family_names"])
     N = labels.shape[0]
@@ -228,7 +228,7 @@ def _reconstruct(node: int, ridx, depths, paths):
     PullIndex::morph consumes. Disabled slots (depth 0) are emitted too so the
     op count is explicit."""
     ops = []
-    for slot in range(N_OPS):
+    for slot in range(ridx.shape[1]):
         d = float(depths[node, slot])
         ri = int(ridx[node, slot])
         ops.append({"path": paths[ri], "depth": round(d, 4), "enabled": d > 1e-4})
@@ -329,8 +329,15 @@ def export(n_nodes: int, k: int, k_paths: int, waypoints: int,
           f"(<= {waypoints} waypoints each) in {time.time()-t0:.0f}s")
 
 
+def graph_path(n_ops: int = 6) -> Path:
+    """Per-depth runtime graph (n_ops=6 keeps the original unsuffixed path)."""
+    return (Path("resources/landscape_graph.json.gz") if n_ops == 6
+            else Path(f"resources/landscape_graph_{n_ops}.json.gz"))
+
+
 def gradients(n_nodes: int, k: int, min_family: int = 30,
-              out: Path = Path("resources/landscape_graph.json.gz")):
+              out: Path = Path("resources/landscape_graph.json.gz"),
+              bank_npz=BANK_NPZ, labels_npz=LABELS_NPZ):
     """Export the runtime graph + per-family gradient fields ("vector LUTs").
 
     For each family we run a multi-source Dijkstra INTO the family (a virtual
@@ -344,8 +351,10 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     from scipy.sparse import vstack, hstack
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, fam_names = _subsample(
+        n_nodes, bank_npz=bank_npz, labels_npz=labels_npz)
     n = amps.shape[0]
+    n_ops = int(ridx.shape[1])           # the map's operator depth (nested prefix)
     print(f"Building {k}-NN graph ...")
     g = _knn_graph(amps, k=k).tocsr()
     cur_paths = _curated_paths()
@@ -355,7 +364,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     # canonical waveform (nearest the centroid), not whichever chaotic member is
     # graph-closest. Anchoring at the top-K-closest-to-centroid keeps route
     # diversity (many starts converge) while fixing the destination to be clean.
-    lab = np.load(LABELS_NPZ, allow_pickle=True)
+    lab = np.load(labels_npz, allow_pickle=True)
     centroids = torch.from_numpy(lab["centroids"]).to(DEVICE).float()   # (F, Q)
     # Small anchor set: routes from many starts converge on the same few clean
     # canonical members (the destination is one SOUND; the journey is where the
@@ -441,6 +450,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     doc = {
         "version": "1.0",
         "f_carrier_ref": F_CARRIER,
+        "n_ops": n_ops,                # map depth: edits ops 0..n_ops-1 (nested prefix)
         "n_nodes": n,
         "n_families": len(fields),
         "family_names": list(fields.keys()),
@@ -484,13 +494,17 @@ def main():
     gr = sub.add_parser("gradients")
     gr.add_argument("--nodes", type=int, default=16_000)
     gr.add_argument("--k", type=int, default=12)
+    gr.add_argument("--n-ops", type=int, default=6, help="derives bank/labels/graph paths")
     a = ap.parse_args()
     if a.cmd == "demo":
         demo(a.nodes, a.k, a.targets)
     elif a.cmd == "export":
         export(a.nodes, a.k, a.k_paths, a.waypoints)
     elif a.cmd == "gradients":
-        gradients(a.nodes, a.k)
+        from phase3.gpu_bank import bank_path
+        from phase3.gpu_landscape import labels_path
+        gradients(a.nodes, a.k, bank_npz=bank_path(a.n_ops),
+                  labels_npz=labels_path(a.n_ops), out=graph_path(a.n_ops))
 
 
 if __name__ == "__main__":

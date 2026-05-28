@@ -99,7 +99,12 @@ def _fingerprint(ratios, depths, detunes, W, t, win, chunk=400):
     return torch.cat(out).to(DEVICE)
 
 
-def classify():
+def labels_path(n_ops: int = 6) -> Path:
+    """Per-depth labels file (n_ops=6 keeps the original unsuffixed path)."""
+    return OUT if n_ops == 6 else Path(f"phase3/derived/landscape_labels_{n_ops}.npz")
+
+
+def classify(bank_npz=BANK_NPZ, out=OUT):
     t0 = time.time()
     t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
     win = torch.hann_window(N_FFT, device=DEVICE)
@@ -126,7 +131,7 @@ def classify():
     # CPU (f16); only one chunk is uploaded+upcast at a time, so this scales to
     # tens of millions of rows without OOM (loading all 40M as GPU float is
     # ~10 GB and fragments the card).
-    d = np.load(BANK_NPZ, mmap_mode="r")
+    d = np.load(bank_npz, mmap_mode="r")
     amps_cpu = d["amps"]
     N = amps_cpu.shape[0]
     print(f"Classifying {N:,} bank rows to nearest family centroid ...")
@@ -153,22 +158,24 @@ def classify():
         med = float(np.median(dists[sel])) if n else 0.0
         print(f"  {fam_names[i]:<34s}{n:>13,d}{100*n/N:>6.1f}%{med:>8.3f}")
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(OUT, labels=labels, dists=dists,
+    out.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(out, labels=labels, dists=dists,
              family_names=np.array(fam_names),
              centroids=centroids.cpu().numpy())
-    print(f"\nWrote {OUT} ({OUT.stat().st_size/1e6:.1f} MB)")
+    print(f"\nWrote {out} ({out.stat().st_size/1e6:.1f} MB)")
     print(f"overall median nearest-centroid L1: {np.median(dists):.3f}  "
           f"p90 {np.percentile(dists,90):.3f}")
 
 
 def main():
+    from phase3.gpu_bank import bank_path
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("classify")
+    c = sub.add_parser("classify")
+    c.add_argument("--n-ops", type=int, default=6, help="derives bank/labels paths")
     a = ap.parse_args()
     if a.cmd == "classify":
-        classify()
+        classify(bank_npz=bank_path(a.n_ops), out=labels_path(a.n_ops))
 
 
 if __name__ == "__main__":

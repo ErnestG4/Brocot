@@ -60,8 +60,13 @@ public:
     /** Dev-source dir then app-relative fallbacks (same pattern as PullIndex). */
     static juce::File findFile();
 
+    /** All per-depth map files (landscape_graph*.json.gz), sorted by depth. */
+    static juce::Array<juce::File> findAllFiles();
+
     bool isEmpty()       const noexcept { return nodes.empty(); }
     int  getNodeCount()  const noexcept { return (int) nodes.size(); }
+    /** This map's operator depth: it edits ops 0..nOps-1 (nested prefix). */
+    int  getNOps()       const noexcept { return nOps; }
     juce::StringArray getFamilyNames() const;
     int  getFamilyCount() const noexcept { return familyNames.size(); }
     bool hasFamily (const juce::String& name) const;
@@ -94,6 +99,7 @@ public:
 
 private:
     std::vector<Node>             nodes;
+    int                           nOps { 6 };   // map depth (nested prefix)
     juce::StringArray             familyNames;
     std::vector<std::vector<int>> nextHop;   // [familyIdx][node] → next node
                                              // (-1 = arrived, -2 = unreachable)
