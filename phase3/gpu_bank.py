@@ -42,7 +42,7 @@ def bank_path(n_ops: int = 6) -> Path:
 
 
 def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
-          n_ops: int = 6, out: Path = None):
+          n_ops: int = 6, out: Path = None, mod_budget: float = 12.0):
     out = out or bank_path(n_ops)
     paths, rv = _ratio_values()
     rvt = torch.from_numpy(rv).to(DEVICE)
@@ -66,7 +66,13 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
         keepn = torch.randint(1, n_ops + 1, (b, 1), generator=g, device=DEVICE)
         slot = torch.arange(n_ops, device=DEVICE).unsqueeze(0)
         active = (slot < keepn).float()
-        dp = torch.empty(b, n_ops, device=DEVICE).uniform_(0.1, 5.0, generator=g) * active
+        # Modulation budget: per-op depth max scales as 2*B/active_count, capped
+        # at 5. So TOTAL modulation ≈ min(active*2.5, B) — sparse configs stay
+        # punchy, dense ones (32/64 ops) stay musical instead of saturating into
+        # white noise (the carrier's instantaneous freq sum no longer runs away).
+        dmax = torch.clamp(2.0 * mod_budget / keepn.float(), max=5.0)        # (b,1)
+        dp = (torch.empty(b, n_ops, device=DEVICE).uniform_(0.0, 1.0, generator=g)
+              * dmax) * active
         # Half the configs get op-0 self-feedback in (0, π) — the dimension
         # parallel FM can't reach (Square/Glass/Reed/Bell); rest stay parallel.
         fb = torch.empty(b, device=DEVICE).uniform_(0.0, float(np.pi), generator=g)
@@ -149,10 +155,12 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build"); b.add_argument("--n", type=int, default=5_000_000)
     b.add_argument("--n-ops", type=int, default=6)
+    b.add_argument("--mod-budget", type=float, default=12.0,
+                   help="total modulation budget — lower = more tonal dense maps")
     c = sub.add_parser("coverage"); c.add_argument("--n-probe", type=int, default=1000)
     a = ap.parse_args()
     if a.cmd == "build":
-        build(n_total=a.n, n_ops=a.n_ops)
+        build(n_total=a.n, n_ops=a.n_ops, mod_budget=a.mod_budget)
     else:
         coverage(n_probe=a.n_probe)
 
