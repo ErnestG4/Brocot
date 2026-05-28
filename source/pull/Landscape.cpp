@@ -63,7 +63,28 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
         return false;
     }
 
-    const auto json = juce::JSON::parse (file);
+    // The graph ships gzipped (.json.gz) to keep the artifact under control as
+    // we add per-depth maps. Decompress on the fly, then parse. Raw .json still
+    // loads (no .gz extension) for ad-hoc debugging.
+    juce::String text;
+    if (file.getFileExtension() == ".gz")
+    {
+        juce::FileInputStream raw (file);
+        if (! raw.openedOk())
+        {
+            if (outError) *outError = "Could not open landscape graph: " + file.getFullPathName();
+            return false;
+        }
+        juce::GZIPDecompressorInputStream gz (
+            &raw, false, juce::GZIPDecompressorInputStream::gzipFormat);
+        text = gz.readEntireStreamAsString();
+    }
+    else
+    {
+        text = file.loadFileAsString();
+    }
+
+    const auto json = juce::JSON::parse (text);
     auto* root = asObject (json);
     if (root == nullptr)
     {
@@ -199,21 +220,26 @@ Landscape::waypoints (int startNode, const juce::String& family) const
 
 juce::File Landscape::findFile()
 {
+    // Prefer the gzipped artifact; fall back to raw JSON if someone left one
+    // around for debugging. Same dev-source-then-app-relative search as PullIndex.
+    static const char* kNames[] = { "landscape_graph.json.gz",
+                                    "landscape_graph.json" };
    #if defined (BROCOT_SOURCE_DIR)
+    for (const char* name : kNames)
     {
-        juce::File devFile (juce::String (BROCOT_SOURCE_DIR)
-                            + "/resources/landscape_graph.json");
+        juce::File devFile (juce::String (BROCOT_SOURCE_DIR) + "/resources/" + name);
         if (devFile.existsAsFile()) return devFile;
     }
    #endif
 
     auto app = juce::File::getSpecialLocation (juce::File::currentApplicationFile);
-    for (const auto& c : {
-             app.getParentDirectory().getChildFile ("../../../resources/landscape_graph.json"),
-             app.getParentDirectory().getChildFile ("resources/landscape_graph.json"),
-             juce::File::getCurrentWorkingDirectory().getChildFile ("resources/landscape_graph.json")
-         })
-        if (c.existsAsFile()) return c;
+    for (const char* name : kNames)
+        for (const auto& c : {
+                 app.getParentDirectory().getChildFile ("../../../resources/" + juce::String (name)),
+                 app.getParentDirectory().getChildFile ("resources/" + juce::String (name)),
+                 juce::File::getCurrentWorkingDirectory().getChildFile ("resources/" + juce::String (name))
+             })
+            if (c.existsAsFile()) return c;
     return {};
 }
 

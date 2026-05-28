@@ -330,7 +330,7 @@ def export(n_nodes: int, k: int, k_paths: int, waypoints: int,
 
 
 def gradients(n_nodes: int, k: int, min_family: int = 30,
-              out: Path = Path("resources/landscape_graph.json")):
+              out: Path = Path("resources/landscape_graph.json.gz")):
     """Export the runtime graph + per-family gradient fields ("vector LUTs").
 
     For each family we run a multi-source Dijkstra INTO the family (a virtual
@@ -448,7 +448,13 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
         "next_hop": fields,            # family -> [next-hop node per node]
     }
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(_json.dumps(doc, ensure_ascii=False) + "\n")
+    payload = (_json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
+    if out.suffix == ".gz":
+        import gzip as _gz
+        with _gz.open(out, "wb", compresslevel=6) as f:
+            f.write(payload)
+    else:
+        out.write_bytes(payload)
     print(f"\nWrote {out} ({out.stat().st_size/1e6:.1f} MB): {n:,} nodes, "
           f"{len(fields)} family gradient fields in {time.time()-t0:.0f}s")
 

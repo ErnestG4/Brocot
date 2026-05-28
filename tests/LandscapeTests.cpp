@@ -9,6 +9,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
+#include <cstring>
+
 #include "../source/pull/Landscape.cpp"   // unity-include, matches PullIndexTests
 
 using brocot::Landscape;
@@ -38,6 +40,29 @@ namespace
         f.replaceWithText (json);
         return f;
     }
+}
+
+TEST_CASE ("Landscape loads a gzipped graph (.json.gz)", "[Landscape]")
+{
+    // Write the same JSON gzip-compressed to a .json.gz temp file and confirm
+    // the decompress-on-load path produces an identical result.
+    auto f = juce::File::createTempFile (".json.gz");
+    {
+        auto raw = f.createOutputStream();
+        REQUIRE (raw != nullptr);
+        // windowBits 31 (MAX_WBITS|16) = gzip format, matching the reader and
+        // the Python-gzip artifact (default 15 would be zlib).
+        juce::GZIPCompressorOutputStream gz (*raw, 6, 31);
+        gz.write (kJson, std::strlen (kJson));
+        gz.flush();
+    }
+
+    Landscape ls;
+    juce::String err;
+    REQUIRE (ls.load (f, &err));
+    REQUIRE (ls.getNodeCount() == 3);
+    REQUIRE (ls.route (0, "Bright") == std::vector<int> { 0, 1, 2 });
+    f.deleteFile();
 }
 
 TEST_CASE ("Landscape loads nodes + family fields", "[Landscape]")
