@@ -99,8 +99,17 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
 
     nOps = (int) root->getProperty ("n_ops");
     if (nOps <= 0) nOps = 6;          // older graphs without the field
-    mapName = root->getProperty ("name").toString();
-    if (mapName.isEmpty()) mapName = juce::String (nOps) + "-op";
+    // Normalize to a uniform "<N>-op[ <descriptor>]" label. Embedded names use
+    // a "<N>op <desc>" form ("6op sine", "4op mix"); strip that leading
+    // op-count token and re-prefix with the real depth so every map reads the
+    // same way ("6-op sine", "4-op mix"). Maps with no embedded name (the plain
+    // per-depth maps) become just "<N>-op".
+    const auto rawName    = root->getProperty ("name").toString();
+    const auto descriptor = rawName.isEmpty()
+                                ? juce::String()
+                                : rawName.fromFirstOccurrenceOf ("op", false, false).trim();
+    mapName = juce::String (nOps) + "-op"
+                  + (descriptor.isNotEmpty() ? " " + descriptor : juce::String());
 
     if (auto* fnArr = root->getProperty ("family_names").getArray())
         for (const auto& v : *fnArr)
@@ -271,7 +280,15 @@ juce::Array<juce::File> Landscape::findAllFiles()
         return s.isEmpty() ? 6 : s.trimCharactersAtStart ("_").getIntValue();
     };
     std::sort (files.begin(), files.end(),
-               [&] (const juce::File& a, const juce::File& b) { return depthOf (a) < depthOf (b); });
+               [&] (const juce::File& a, const juce::File& b)
+               {
+                   const int da = depthOf (a), db = depthOf (b);
+                   if (da != db) return da < db;
+                   // Deterministic order within a depth (e.g. the six 6-op
+                   // maps): fall back to filename. The bare map sorts first
+                   // since '.' < '_'.
+                   return a.getFileName().compare (b.getFileName()) < 0;
+               });
     return files;
 }
 
