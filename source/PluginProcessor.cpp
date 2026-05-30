@@ -636,6 +636,8 @@ std::vector<PullIndex::OpState> BrocotAudioProcessor::getCurrentOps() const
             s.depth = v->load();
         if (auto* v = apvts.getRawParameterValue (params::opId (i, "enabled")))
             s.enabled = v->load() > 0.5f;
+        if (auto* v = apvts.getRawParameterValue (params::opId (i, "waveform")))
+            s.waveform = (int) std::lround (v->load());
         out.push_back (std::move (s));
     }
     return out;

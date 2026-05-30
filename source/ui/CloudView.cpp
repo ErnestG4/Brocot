@@ -128,8 +128,8 @@ void CloudView::resized()
 {
     plot = getLocalBounds().toFloat().reduced (16.0f);
     seekRateKnob.setBounds (getWidth() - 70, 8, 60, 60);
-    mapCombo.setBounds (10, 8, 96, 22);
-    colourModeCombo.setBounds (112, 8, 120, 22);
+    mapCombo.setBounds (10, 8, 124, 22);   // wide enough for "16-op mix" etc.
+    colourModeCombo.setBounds (140, 8, 120, 22);
     rebuildImage();
 }
 
