@@ -86,13 +86,18 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     // missing maps just shrink the selector.
     for (const auto& gFile : Landscape::findAllFiles())
     {
-        auto ls = std::make_unique<Landscape>();
-        if (ls->load (gFile))
-            maps.push_back (std::move (ls));
+        MapSlot slot;
+        slot.file = gFile;
+        // Cheap header peek populates the selector label + depth without
+        // parsing the node array; the full load is deferred to ensureMapLoaded.
+        if (Landscape::peekHeader (gFile, slot.nOps, slot.name))
+            maps.push_back (std::move (slot));
     }
-    // Default to the 6-op map (the original) if present, else the first.
+    // Default to the 6-op map (the original) if present, else the first, then
+    // eagerly load just that one so the cloud is ready on first paint.
     for (int i = 0; i < (int) maps.size(); ++i)
-        if (maps[(size_t) i]->getNOps() == 6) { activeMap = i; break; }
+        if (maps[(size_t) i].nOps == 6) { activeMap = i; break; }
+    ensureMapLoaded (activeMap);
 
     // P3.12: default initial patch is the absolute-best 64-op
     // textured-smooth carpet — obj 0.334, H≈7.81, ~4370 partials —
@@ -699,22 +704,43 @@ void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& stat
     rebuildOpPositionLUTs();
 }
 
+void BrocotAudioProcessor::ensureMapLoaded (int i)
+{
+    if (i < 0 || i >= (int) maps.size())
+        return;
+    auto& slot = maps[(size_t) i];
+    if (slot.map != nullptr)            // already parsed
+        return;
+    auto ls = std::make_unique<Landscape>();
+    if (ls->load (slot.file))
+        slot.map = std::move (ls);
+}
+
 const Landscape& BrocotAudioProcessor::getLandscape() const noexcept
 {
     static const Landscape empty;     // fallback when no maps loaded
     if (activeMap >= 0 && activeMap < (int) maps.size())
-        return *maps[(size_t) activeMap];
-    return empty;
+        if (const auto& m = maps[(size_t) activeMap].map)
+            return *m;
+    return empty;                     // active map not yet loaded / none present
+}
+
+void BrocotAudioProcessor::setActiveMap (int i)
+{
+    if (i < 0 || i >= (int) maps.size())
+        return;
+    ensureMapLoaded (i);              // parse on demand the first time it's used
+    activeMap = i;
 }
 
 int BrocotAudioProcessor::getMapDepth (int i) const noexcept
 {
-    return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i]->getNOps() : 0;
+    return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i].nOps : 0;
 }
 
 juce::String BrocotAudioProcessor::getMapName (int i) const
 {
-    return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i]->getName() : juce::String();
+    return (i >= 0 && i < (int) maps.size()) ? maps[(size_t) i].name : juce::String();
 }
 
 float BrocotAudioProcessor::getOp0Feedback() const

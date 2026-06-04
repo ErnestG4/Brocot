@@ -56,6 +56,76 @@ std::vector<float> Landscape::ratioHistogram (const std::vector<PullIndex::OpSta
     return h;
 }
 
+juce::String Landscape::makeMapName (int nOps, const juce::String& rawName)
+{
+    // Normalize to a uniform "<N>-op[ <descriptor>]" label. Embedded names use
+    // a "<N>op <desc>" form ("6op sine", "4op mix"); strip that leading
+    // op-count token and re-prefix with the real depth so every map reads the
+    // same way ("6-op sine", "4-op mix"). Maps with no embedded name (the plain
+    // per-depth maps) become just "<N>-op".
+    const auto descriptor = rawName.isEmpty()
+                                ? juce::String()
+                                : rawName.fromFirstOccurrenceOf ("op", false, false).trim();
+    return juce::String (nOps) + "-op"
+               + (descriptor.isNotEmpty() ? " " + descriptor : juce::String());
+}
+
+bool Landscape::peekHeader (const juce::File& file, int& nOpsOut,
+                            juce::String& nameOut)
+{
+    if (! file.existsAsFile())
+        return false;
+
+    // Read only the file's preamble — the header fields (name, n_ops,
+    // family_names) all precede the large "nodes" array — and scan it as text
+    // rather than JSON-parsing (a truncated head isn't valid JSON anyway).
+    juce::String head;
+    if (file.getFileExtension() == ".gz")
+    {
+        juce::FileInputStream raw (file);
+        if (raw.failedToOpen())
+            return false;
+        juce::GZIPDecompressorInputStream gz (
+            &raw, false, juce::GZIPDecompressorInputStream::gzipFormat);
+        char buf[16384];
+        const int n = gz.read (buf, (int) sizeof buf);
+        if (n <= 0)
+            return false;
+        head = juce::String::fromUTF8 (buf, n);
+    }
+    else
+    {
+        head = file.loadFileAsString().substring (0, 16384);
+    }
+
+    // Belt-and-braces: never scan into the node array (a node could in
+    // principle hold a string that looks like a header key).
+    const int nodesAt = head.indexOf ("\"nodes\"");
+    if (nodesAt > 0)
+        head = head.substring (0, nodesAt);
+
+    int nOps = 6;                                  // matches load()'s fallback
+    if (const int k = head.indexOf ("\"n_ops\""); k >= 0)
+        if (const int colon = head.indexOfChar (k, ':'); colon >= 0)
+            nOps = head.substring (colon + 1).trimStart().getIntValue();
+    if (nOps <= 0)
+        nOps = 6;
+
+    juce::String rawName;
+    if (const int k = head.indexOf ("\"name\""); k >= 0)
+        if (const int colon = head.indexOfChar (k, ':'); colon >= 0)
+        {
+            const int q1 = head.indexOfChar (colon, '"');
+            const int q2 = q1 >= 0 ? head.indexOfChar (q1 + 1, '"') : -1;
+            if (q1 >= 0 && q2 > q1)
+                rawName = head.substring (q1 + 1, q2);
+        }
+
+    nOpsOut = nOps;
+    nameOut = makeMapName (nOps, rawName);
+    return true;
+}
+
 bool Landscape::load (const juce::File& file, juce::String* outError)
 {
     if (! file.existsAsFile())
@@ -99,17 +169,7 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
 
     nOps = (int) root->getProperty ("n_ops");
     if (nOps <= 0) nOps = 6;          // older graphs without the field
-    // Normalize to a uniform "<N>-op[ <descriptor>]" label. Embedded names use
-    // a "<N>op <desc>" form ("6op sine", "4op mix"); strip that leading
-    // op-count token and re-prefix with the real depth so every map reads the
-    // same way ("6-op sine", "4-op mix"). Maps with no embedded name (the plain
-    // per-depth maps) become just "<N>-op".
-    const auto rawName    = root->getProperty ("name").toString();
-    const auto descriptor = rawName.isEmpty()
-                                ? juce::String()
-                                : rawName.fromFirstOccurrenceOf ("op", false, false).trim();
-    mapName = juce::String (nOps) + "-op"
-                  + (descriptor.isNotEmpty() ? " " + descriptor : juce::String());
+    mapName = makeMapName (nOps, root->getProperty ("name").toString());
 
     if (auto* fnArr = root->getProperty ("family_names").getArray())
         for (const auto& v : *fnArr)

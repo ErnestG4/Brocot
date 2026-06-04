@@ -63,6 +63,18 @@ public:
     /** All per-depth map files (landscape_graph*.json.gz), sorted by depth. */
     static juce::Array<juce::File> findAllFiles();
 
+    /** Cheap header-only read: pull the map depth (n_ops, default 6) and the
+        normalised selector name out of a graph file WITHOUT parsing its (huge)
+        node array. Lets the selector show every map's label while the full
+        node load is deferred until the map is actually navigated. Decompresses
+        only the file's preamble. Returns false if the file can't be opened. */
+    static bool peekHeader (const juce::File& file, int& nOpsOut,
+                            juce::String& nameOut);
+
+    /** Normalise an embedded "<N>op <desc>" graph name to the uniform
+        "<N>-op[ <desc>]" selector label. Shared by load() and peekHeader(). */
+    static juce::String makeMapName (int nOps, const juce::String& rawName);
+
     bool isEmpty()       const noexcept { return nodes.empty(); }
     int  getNodeCount()  const noexcept { return (int) nodes.size(); }
     /** This map's operator depth: it edits ops 0..nOps-1 (nested prefix). */

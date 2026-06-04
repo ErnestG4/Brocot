@@ -78,6 +78,41 @@ TEST_CASE ("Landscape loads nodes + family fields", "[Landscape]")
     f.deleteFile();
 }
 
+TEST_CASE ("peekHeader reads name + depth without parsing nodes", "[Landscape]")
+{
+    // A header with a name + n_ops, followed by a big node array. peekHeader
+    // must return the normalised label and depth WITHOUT touching the nodes
+    // (write it gzipped to exercise the streamed-decompress path).
+    const char* named = R"JSON(
+    {
+      "version": "1.0", "name": "8op mix", "n_ops": 8,
+      "n_nodes": 1, "n_families": 1, "family_names": ["Bright"],
+      "nodes": [ {"family": 0, "feedback": 0.0,
+                  "ops": [{"path": "R", "depth": 1.0, "enabled": true, "wave": 2}]} ]
+    })JSON";
+    auto f = juce::File::createTempFile (".json.gz");
+    {
+        auto raw = f.createOutputStream();
+        REQUIRE (raw != nullptr);
+        juce::GZIPCompressorOutputStream gz (*raw, 6, 31);
+        gz.write (named, std::strlen (named));
+        gz.flush();
+    }
+    int nOps = -1; juce::String name;
+    REQUIRE (Landscape::peekHeader (f, nOps, name));
+    REQUIRE (nOps == 8);
+    REQUIRE (name == "8-op mix");
+    f.deleteFile();
+
+    // A header with no name field → plain "<N>-op".
+    int n2 = -1; juce::String name2;
+    auto g = writeTemp (kJson);   // kJson has no name / no n_ops
+    REQUIRE (Landscape::peekHeader (g, n2, name2));
+    REQUIRE (n2 == 6);            // default when n_ops absent
+    REQUIRE (name2 == "6-op");
+    g.deleteFile();
+}
+
 TEST_CASE ("map name normalises '<N>op <desc>' to '<N>-op <desc>'", "[Landscape]")
 {
     const char* named = R"JSON(

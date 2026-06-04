@@ -76,7 +76,7 @@ public:
     int  getMapDepth (int i) const noexcept;
     juce::String getMapName (int i) const;
     int  getActiveMap() const noexcept { return activeMap; }
-    void setActiveMap (int i) noexcept { if (i >= 0 && i < (int) maps.size()) activeMap = i; }
+    void setActiveMap (int i);
 
     /** Snapshot the current operator bank as `OpState`s the PullIndex
         morph helper can consume. Length is always `kNumOperators`. */
@@ -234,8 +234,23 @@ private:
     // resources/pull_index.json; stays empty (and the steer-tab UI
     // hides itself) if the file isn't on disk.
     PullIndex pullIndex;
-    std::vector<std::unique_ptr<Landscape>> maps;   // per-depth, sorted by depth
+
+    // Per-depth landscape maps, sorted by depth. Headers (name/depth) are
+    // peeked cheaply at startup so the selector is fully populated up front,
+    // but each map's heavy node array is parsed lazily the first time the map
+    // is activated — loading all 13 eagerly was ~9 s on the message thread.
+    // All map state is touched on the message thread ONLY; the audio thread
+    // never reads maps, so no locking is needed.
+    struct MapSlot
+    {
+        juce::File                 file;
+        int                        nOps { 6 };
+        juce::String               name;
+        std::unique_ptr<Landscape> map;     // null until first activated
+    };
+    std::vector<MapSlot> maps;
     int activeMap { 0 };
+    void ensureMapLoaded (int i);   // parse slot i's nodes if not already loaded
 
     // Continuous per-op ratio override for groove steering (<=0 = inactive).
     // Written from the message thread (SteerTab timer), read on the audio
