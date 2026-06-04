@@ -78,6 +78,25 @@ TEST_CASE ("Landscape loads nodes + family fields", "[Landscape]")
     f.deleteFile();
 }
 
+TEST_CASE ("map name normalises '<N>op <desc>' to '<N>-op <desc>'", "[Landscape]")
+{
+    const char* named = R"JSON(
+    {
+      "version": "1.0", "name": "6op sine", "n_ops": 6,
+      "n_nodes": 1, "n_families": 1, "family_names": ["Bright"],
+      "nodes": [ {"family": 0, "feedback": 0.0,
+                  "ops": [{"path": "R", "depth": 1.0, "enabled": true, "wave": 2}]} ]
+    })JSON";
+    auto f = writeTemp (named);
+    Landscape ls; juce::String err;
+    REQUIRE (ls.load (f, &err));
+    REQUIRE (ls.getName() == "6-op sine");
+    // per-op waveform survives the parse into the node (saw == 2)
+    REQUIRE (ls.getNodeCount() == 1);
+    REQUIRE (ls.getNodes().front().ops.front().waveform == 2);
+    f.deleteFile();
+}
+
 TEST_CASE ("ratioHistogram is depth-weighted, L1-normalised, ratio-placed",
            "[Landscape]")
 {
