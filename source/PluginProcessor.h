@@ -134,6 +134,24 @@ public:
 private:
     juce::AudioProcessorValueTreeState apvts;
 
+    // Cached APVTS atomic pointers for the per-block hot path. Resolving the
+    // "opN.suffix" ids by string on every block (× kMaxVoices × kNumOperators)
+    // built and hashed millions of juce::Strings/sec ON THE AUDIO THREAD — a
+    // CPU cost and a real-time-safety hazard (heap alloc in processBlock).
+    // These pointers are stable for the APVTS's lifetime, so we resolve them
+    // once (cacheParameterPointers) and read through them in the audio loop.
+    struct OpParamPtrs
+    {
+        std::atomic<float>* enabled  { nullptr };
+        std::atomic<float>* depth    { nullptr };
+        std::atomic<float>* detune   { nullptr };
+        std::atomic<float>* keyScale { nullptr };
+        std::atomic<float>* waveform { nullptr };
+    };
+    std::array<OpParamPtrs, params::kNumOperators> opParams {};
+    std::atomic<float>* op0FeedbackParam { nullptr };
+    void cacheParameterPointers();
+
     // Compile-time max voice pool. "poly" mode runs up to the maxVoices param
     // (clamped to this); mono uses 1, duo uses 2. Must match the maxVoices
     // parameter's upper bound in ParameterTree.
