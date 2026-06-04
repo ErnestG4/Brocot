@@ -529,10 +529,15 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         // Clamp carrier AM so heavy modulation doesn't go negative.
         psm.carrierAmGain = juce::jlimit (0.0f, 4.0f, psm.carrierAmGain);
 
-        // 4. Render the voices into a mono sum.
+        // 4. Render the voices into a mono sum. Idle voices (envelope fully
+        //    decayed to silence) contribute exactly 0 — skip the 64-op inner
+        //    loop for them. In poly mode most allocated voices usually hold no
+        //    note, so this avoids a large amount of per-sample work with no
+        //    audible change (an inactive voice's ADSR yields 0.0 either way).
         float mono = 0.0f;
         for (int v = 0; v < activeVoiceCount; ++v)
-            mono += voices[(size_t) v].renderSample (psm);
+            if (voices[(size_t) v].isActive())
+                mono += voices[(size_t) v].renderSample (psm);
 
         // 5. Apply filter with modulated cutoff.
         const float cutoff01 = juce::jlimit (0.0f, 1.0f, baseCutoff01 + cutoffMod01);
