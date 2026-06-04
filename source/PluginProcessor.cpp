@@ -14,6 +14,9 @@ BrocotAudioProcessor::BrocotAudioProcessor()
         .withInput  ("Sidechain", juce::AudioChannelSet::stereo(), false))
     , apvts (*this, nullptr, "Brocot", params::createLayout())
 {
+    // Resolve the audio-thread parameter pointers once, up front (see header).
+    cacheParameterPointers();
+
     // Seed the path data with the Avatar·1 configuration (BROCOT-SPEC.md §10
     // preset #9). Slice 13 swaps this out for preset-driven init.
     setOpPath (0, Path (sharedPath).prefix (1).toString());  // R    → 2/1
@@ -167,6 +170,20 @@ bool BrocotAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
     return true;
 }
 
+void BrocotAudioProcessor::cacheParameterPointers()
+{
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        auto& pp = opParams[(size_t) i];
+        pp.enabled  = apvts.getRawParameterValue (params::opId (i, "enabled"));
+        pp.depth    = apvts.getRawParameterValue (params::opId (i, "depth"));
+        pp.detune   = apvts.getRawParameterValue (params::opId (i, "detune"));
+        pp.keyScale = apvts.getRawParameterValue (params::opId (i, "keyScale"));
+        pp.waveform = apvts.getRawParameterValue (params::opId (i, "waveform"));
+    }
+    op0FeedbackParam = apvts.getRawParameterValue (params::opId (0, "feedback"));
+}
+
 void BrocotAudioProcessor::applyParametersToAllVoices()
 {
     float masterLevel = 0.5f;
@@ -192,6 +209,46 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
         apvts.getRawParameterValue (params::ids::envRelease)->load(),
     };
 
+    // The per-op parameter values are GLOBAL (identical for every voice), so
+    // resolve the whole snapshot ONCE through the cached pointers rather than
+    // re-reading it per voice. This also keeps the read off the id-string path
+    // entirely — no allocation on the audio thread.
+    struct OpSnap { bool enabled; float ratio; float detune; float depth;
+                    float keyScale; int waveform; };
+    std::array<OpSnap, params::kNumOperators> snap {};
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        const auto& pp = opParams[(size_t) i];
+        auto&       s  = snap[(size_t) i];
+
+        s.enabled = (pp.enabled != nullptr) && (pp.enabled->load() > 0.5f);
+
+        // Groove steering: a positive steered-ratio override replaces the path
+        // rational + detune with an exact continuous ratio (the glide already
+        // incorporates any offset from a rational).
+        const float steer = steeredRatios[(size_t) i].load (std::memory_order_acquire);
+        if (steer > 0.0f)
+        {
+            s.ratio  = steer;
+            s.detune = 0.0f;
+        }
+        else
+        {
+            s.ratio  = opRatios[(size_t) i].load (std::memory_order_acquire);
+            s.detune = (pp.detune != nullptr) ? pp.detune->load() : 0.0f;
+        }
+
+        s.depth    = (pp.depth    != nullptr) ? pp.depth->load() : 0.0f;
+        s.keyScale = (pp.keyScale != nullptr) ? pp.keyScale->load() : 0.0f;
+        s.waveform = (pp.waveform != nullptr)
+                         ? (int) std::lround (pp.waveform->load()) : 0;
+    }
+
+    // Single-op self-feedback lives on op 1 (index 0) only — the topology the
+    // parallel model can't reach. Applied even when op0 is disabled so its
+    // history stays warm; it contributes nothing unless op0 has depth.
+    const float feedback = (op0FeedbackParam != nullptr) ? op0FeedbackParam->load() : 0.0f;
+
     for (auto& v : voices)
     {
         v.setLevel (perVoiceLevel);
@@ -199,59 +256,20 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
 
         for (int i = 0; i < params::kNumOperators; ++i)
         {
-            auto& op = v.op (i);
+            auto&       op = v.op (i);
+            const auto& s  = snap[(size_t) i];
 
-            bool enabled = false;
-            if (auto* p = apvts.getRawParameterValue (params::opId (i, "enabled")))
-                enabled = (p->load() > 0.5f);
-            op.setEnabled (enabled);
-
-            if (enabled)
+            op.setEnabled (s.enabled);
+            if (s.enabled)
             {
-                // Groove steering: a positive steered-ratio override replaces
-                // the path rational + detune with an exact continuous ratio
-                // (the glide already incorporates any offset from a rational).
-                const float steer = steeredRatios[(size_t) i].load (std::memory_order_acquire);
-                if (steer > 0.0f)
-                {
-                    op.setRatio (steer);
-                    op.setDetuneCents (0.0f);
-                }
-                else
-                {
-                    op.setRatio (opRatios[(size_t) i].load (std::memory_order_acquire));
-
-                    // Per-op detune (cents off the exact SB ratio) — applied
-                    // after setRatio so it multiplies the freshly-set base.
-                    float detune = 0.0f;
-                    if (auto* p = apvts.getRawParameterValue (params::opId (i, "detune")))
-                        detune = p->load();
-                    op.setDetuneCents (detune);
-                }
-
-                float depth = 0.0f;
-                if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
-                    depth = p->load();
-                op.setDepth (depth);
-
-                // Per-op key-scaling (modulation index vs pitch).
-                float keyScale = 0.0f;
-                if (auto* p = apvts.getRawParameterValue (params::opId (i, "keyScale")))
-                    keyScale = p->load();
-                op.setKeyScale (keyScale);
-
-                // Operator waveform (sine/triangle/saw/square).
-                if (auto* p = apvts.getRawParameterValue (params::opId (i, "waveform")))
-                    op.setWaveform ((int) std::lround (p->load()));
+                op.setRatio (s.ratio);
+                op.setDetuneCents (s.detune);   // multiplies the freshly-set base
+                op.setDepth (s.depth);
+                op.setKeyScale (s.keyScale);
+                op.setWaveform (s.waveform);
             }
         }
 
-        // Single-op self-feedback lives on op 1 (index 0) only — the topology
-        // the parallel model can't reach. Applied even when op0 is disabled so
-        // its history stays warm; it contributes nothing unless op0 has depth.
-        float feedback = 0.0f;
-        if (auto* p = apvts.getRawParameterValue (params::opId (0, "feedback")))
-            feedback = p->load();
         v.op (0).setFeedback (feedback);
     }
 
