@@ -94,7 +94,8 @@ public:
 
     /** Node-index route from `startNode` following `family`'s next-hop field
         to the family (inclusive of start and the arriving family node). Empty
-        if the family is unknown or the node can't reach it. */
+        if the family is unknown or the walk never arrives (start unreachable,
+        corrupt field, or a cycle) — never a partial route to the wrong place. */
     std::vector<int> route (int startNode, const juce::String& family) const;
 
     /** The OpState waypoint sequence for `route()` — what SteerTab morphs
