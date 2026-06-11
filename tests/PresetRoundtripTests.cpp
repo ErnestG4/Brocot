@@ -134,10 +134,12 @@ TEST_CASE ("All factory .brocot files are v2 with provenance", "[Preset]")
         REQUIRE (engine != nullptr);
         REQUIRE (engine->getProperty ("operators").isArray());
         const auto* ops = engine->getProperty ("operators").getArray();
-        // Hand-authored / P3.6 / P3.7 ship 8 ops; P3.8/P3.8b/c ship 16;
-        // P3.12 ships 64. The loader pads any form to kNumOperators (64)
-        // — all three are valid on disk.
-        REQUIRE ((ops->size() == 8 || ops->size() == 16 || ops->size() == 64));
+        // Writers ship different op-array lengths (hand-authored/P3.6/P3.7 = 8,
+        // P3.8 = 16, P3.12 = 64, atlas/flavours = compact enabled-only lists).
+        // The loader pads any length to kNumOperators (64), so the on-disk
+        // invariant is just "at least one op, never more than the engine".
+        REQUIRE (ops->size() >= 1);
+        REQUIRE (ops->size() <= 64);
     }
 }
 
