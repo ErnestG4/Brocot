@@ -19,29 +19,24 @@ namespace brocot
 
     Each row carries a **rate-of-change scrub slider** centred at 0.
 
-    - Drag right (positive) → set a positive *rate* of morph toward
-                              this row's category target. Holding at
-                              +0.5 morphs at half speed for as long as
-                              you hold; holding at +1.0 morphs at full
-                              speed.
-    - Drag left  (negative) → set a negative rate; the patch morphs
-                              back toward the captured "home" state at
-                              that speed.
-    - Release the slider    → it snaps to 0, the morph stops, the patch
-                              stays where you left it.
+    - Drag right (positive) → drive a *velocity cursor* along the row's
+                              route toward the category target. Holding
+                              at +0.5 travels at half speed; +1.0 at
+                              full speed.
+    - Drag left  (negative) → drive the cursor backward: past the grab
+                              point and on toward the Reset-anchored
+                              "home" state (route waypoint 0).
+    - Release the slider    → it snaps to 0, the travel stops, the
+                              patch stays where you left it.
 
-    Slider position is rate (`α / second`), not a one-shot step. A
-    30 Hz timer accumulates progress per row; each row's morph runs
-    from its session-start snapshot toward either its category target
-    (positive progress) or home (negative progress). New `mouseDown`
-    captures the current patch as a new session-start so a fresh drag
-    starts a fresh morph from wherever you currently are.
-
-    Slow scrubs (small slider deflection) still advance Stern-Brocot
-    paths because progress is *accumulated* across timer ticks before
-    being passed to `morph()` — each tick's tiny α adds to a stored
-    fraction, and `morph()` walks the path whenever the fraction
-    crosses a per-step boundary.
+    The route is resolved once per grab:
+    `[home, grab-point, ...landscape gradient toward the family]`,
+    with the cursor starting at the grab-point waypoint. Slider
+    position is a rate in waypoint-hops per second, accumulated by a
+    30 Hz timer; fractional positions blend the two bracketing
+    waypoints via `PullIndex::morph`, so slow scrubs still advance
+    Stern-Brocot paths as the accumulated fraction crosses each
+    per-step boundary.
 
     The Textured-Smooth row's category is resolved dynamically from
     the op-count spinner: nearest available `Textured-Smooth · N ops`
@@ -100,13 +95,15 @@ private:
                                 juce::Slider::NoTextBox };
         bool          dragging { false };
 
-        // Route resolved once at drag-start: waypoint[0] = where we grabbed
-        // (current patch), then the smooth path across the landscape toward
-        // this row's family (or a single best-exemplar waypoint as fallback).
-        // The slider drives `pos` — a *velocity cursor* along this route — so
-        // the patch travels in a direction at a rate, never an anchored
-        // 0→100 morph (Will). pos is in WAYPOINT units (hops), so a distant
-        // family is traversed at the same timbral pace as a near one.
+        // Route resolved once at drag-start: waypoint[0] = the Reset-anchored
+        // home, waypoint[1] = where we grabbed (current patch), then the
+        // smooth path across the landscape toward this row's family (or a
+        // single best-exemplar waypoint as fallback). The slider drives `pos`
+        // — a *velocity cursor* along this route, starting at the grab
+        // waypoint — so the patch travels in a direction at a rate, never an
+        // anchored 0→100 morph (Will), and leftward drag pulls back through
+        // the grab point to home. pos is in WAYPOINT units (hops), so a
+        // distant family is traversed at the same timbral pace as a near one.
         std::vector<Landscape::Waypoint> routeWaypoints;
         float pos { 0.0f };               // [0, routeWaypoints.size()-1]
     };
@@ -124,9 +121,10 @@ private:
                                     juce::Slider::TextBoxLeft };
     juce::SortedSet<int> textureAvailableOps;  // op-counts present in pull index
 
-    // Re-anchor reference for the Reset button (returns the patch home).
-    std::vector<PullIndex::OpState> captured;
-    bool capturedValid { false };
+    // Reset-anchored "home" (ops + op-0 feedback) — route waypoint 0, the
+    // state a leftward drag ultimately pulls back to.
+    Landscape::Waypoint homeWp;
+    bool homeValid { false };
 
     // Timer: 30 Hz polling of slider deflections.
     static constexpr int kTimerHz = 30;
