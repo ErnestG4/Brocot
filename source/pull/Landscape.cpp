@@ -248,6 +248,13 @@ int Landscape::nearestNode (const std::vector<PullIndex::OpState>& current) cons
     const int sliceN = juce::jmin ((int) current.size(), nOps);
     const std::vector<PullIndex::OpState> slice (current.begin(), current.begin() + sliceN);
     const auto q = ratioHistogram (slice);
+    // No active op in the slice → an all-zero signature that is equidistant
+    // from every node; "nearest" would be whichever node comes first. Report
+    // "nowhere" instead and let callers keep their current position.
+    float qSum = 0.0f;
+    for (float v : q) qSum += v;
+    if (qSum <= 0.0f)
+        return -1;
     int best = 0;
     float bestD = std::numeric_limits<float>::max();
     for (size_t i = 0; i < nodes.size(); ++i)

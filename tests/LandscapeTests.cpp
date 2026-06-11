@@ -161,6 +161,11 @@ TEST_CASE ("nearestNode matches the closest config by params", "[Landscape]")
 
     // A patch at "R" locates to node 0.
     REQUIRE (ls.nearestNode ({ { "R", 1.0f, true } }) == 0);
+
+    // No active ops → all-zero signature → locates nowhere (-1), not node 0.
+    REQUIRE (ls.nearestNode ({ { "R", 1.0f, false } }) == -1);
+    REQUIRE (ls.nearestNode ({ { "R", 0.0f, true } }) == -1);
+    REQUIRE (ls.nearestNode ({}) == -1);
     f.deleteFile();
 }
 

@@ -89,7 +89,8 @@ public:
     const std::vector<Node>& getNodes() const noexcept { return nodes; }
 
     /** Nearest node to a current patch, by depth-weighted ratio-histogram L1.
-        Returns -1 if the landscape is empty. */
+        Returns -1 if the landscape is empty or the patch's map slice has no
+        active ops (an all-zero signature locates nowhere). */
     int nearestNode (const std::vector<PullIndex::OpState>& current) const;
 
     /** Node-index route from `startNode` following `family`'s next-hop field
