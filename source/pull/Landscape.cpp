@@ -273,17 +273,22 @@ std::vector<int> Landscape::route (int startNode, const juce::String& family) co
 
     int node = startNode;
     int guard = (int) nodes.size() + 1;          // cycle / runaway guard
+    bool arrived = false;
     path.push_back (node);
     while (guard-- > 0)
     {
         const int nh = field[(size_t) node];
-        if (nh < 0)                               // -1 arrived, -2 unreachable
-            break;
-        if (nh >= (int) nodes.size())
+        if (nh == -1) { arrived = true; break; }  // at the family
+        if (nh < 0 || nh >= (int) nodes.size())   // -2 unreachable / corrupt
             break;
         node = nh;
         path.push_back (node);
     }
+    // A walk that never arrives (-2 unreachable, corrupt index, or a cycle
+    // exhausting the guard) is no route at all — callers fall back rather
+    // than steer toward a node of some unrelated family.
+    if (! arrived)
+        path.clear();
     return path;
 }
 

@@ -191,3 +191,31 @@ TEST_CASE ("route follows next-hop pointers to the family", "[Landscape]")
     REQUIRE (wp.back().feedback == Catch::Approx (0.5f));  // node 2's feedback
     f.deleteFile();
 }
+
+TEST_CASE ("route that never arrives is empty, not partial", "[Landscape]")
+{
+    // node 0 is unreachable (-2); nodes 1 and 2 form a cycle that never hits
+    // the family (-1). Both walks must yield NO route — a partial path would
+    // steer toward a node of some unrelated family.
+    const char* json = R"JSON(
+    {
+      "version": "1.0",
+      "f_carrier_ref": 220.0,
+      "n_nodes": 3,
+      "n_families": 1,
+      "family_names": ["Bright"],
+      "nodes": [
+        {"family": 0, "feedback": 0.0, "ops": [{"path": "R",   "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.0, "ops": [{"path": "RR",  "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.0, "ops": [{"path": "RRR", "depth": 1.0, "enabled": true}]}
+      ],
+      "next_hop": { "Bright": [-2, 2, 1] }
+    })JSON";
+    auto f = writeTemp (json);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+    REQUIRE (ls.route (0, "Bright").empty());   // -2 unreachable
+    REQUIRE (ls.route (1, "Bright").empty());   // 1↔2 cycle, guard exhausts
+    REQUIRE (ls.waypoints (1, "Bright").empty());
+    f.deleteFile();
+}
