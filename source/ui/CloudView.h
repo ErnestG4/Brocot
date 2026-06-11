@@ -53,6 +53,8 @@ private:
     BrocotAudioProcessor& proc;
     juce::Image cloud;              // baked static dots + labels
     int  currentNode { -1 };        // node nearest the dot (drives the patch)
+    juce::int64 locatedSig { 0 };   // ops signature at the last passive locate
+                                    // (skips the full-cloud scan when unchanged)
     juce::Rectangle<float> plot;    // drawing area inside the margin
 
     // Direct-manipulation steering across the map. The dot is the cursor: it
