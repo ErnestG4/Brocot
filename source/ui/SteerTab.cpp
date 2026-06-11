@@ -144,11 +144,13 @@ void SteerTab::wireSlider (ScrubRow& row)
         rowPtr->dragging = true;
         rowPtr->pos      = 0.0f;     // start the cursor at where we are now
 
-        // Resolve the route once per grab. Waypoint 0 is the live patch (so the
-        // glide departs smoothly from here); the rest is the landscape gradient
-        // toward this row's family, or — when no gradient field covers it — a
-        // single best-exemplar destination waypoint as fallback. The slider
-        // then drives `pos` along this route as a velocity cursor.
+        // Resolve the route once per grab: [home, grab-point, ...gradient
+        // toward this row's family] (or a single best-exemplar destination
+        // waypoint when no gradient field covers the family). The cursor
+        // starts at the grab-point waypoint, so positive rates travel toward
+        // the family and negative rates pull back through the grab point to
+        // the Reset-anchored home. The slider then drives `pos` along this
+        // route as a velocity cursor.
         rowPtr->routeWaypoints.clear();
         const auto cat = rowPtr->isTextureRow ? resolveTextureCategory()
                                               : rowPtr->category;
@@ -163,7 +165,7 @@ void SteerTab::wireSlider (ScrubRow& row)
             auto wp = ls.waypoints (ls.nearestNode (startWp.ops), cat);
             if (! wp.empty())
             {
-                rowPtr->routeWaypoints.reserve (wp.size() + 1);
+                rowPtr->routeWaypoints.reserve (wp.size() + 2);
                 rowPtr->routeWaypoints.push_back (startWp);
                 for (auto& w : wp)
                     rowPtr->routeWaypoints.push_back (std::move (w));
@@ -175,6 +177,12 @@ void SteerTab::wireSlider (ScrubRow& row)
                 rowPtr->routeWaypoints.push_back (startWp);
                 rowPtr->routeWaypoints.push_back ({ *best, 0.0f });
             }
+
+        if (! rowPtr->routeWaypoints.empty() && homeValid)
+        {
+            rowPtr->routeWaypoints.insert (rowPtr->routeWaypoints.begin(), homeWp);
+            rowPtr->pos = 1.0f;      // cursor at the grab point, home behind it
+        }
     };
     // No onValueChange morph — slider position is a *rate*, processed by the
     // timer. The cursor position (and the patch) persist on release.
@@ -305,8 +313,8 @@ juce::String SteerTab::resolveTextureCategory()
 
 void SteerTab::anchorHome()
 {
-    captured = proc.getCurrentOps();
-    capturedValid = ! captured.empty();
+    homeWp    = { proc.getCurrentOps(), proc.getOp0Feedback() };
+    homeValid = ! homeWp.ops.empty();
 }
 
 void SteerTab::onReset()
