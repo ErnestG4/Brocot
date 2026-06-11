@@ -245,8 +245,23 @@ void CloudView::timerCallback()
     if (! dotDriving)
     {
         // Passive: the dot tracks the node nearest the live patch (located by
-        // params) until the user takes over.
-        const int node = ls.nearestNode (proc.getCurrentOps());
+        // params) until the user takes over. The locate is a full-cloud
+        // histogram scan (~50k nodes × 40 bins), so only run it when the
+        // patch has actually changed since the last locate — a cheap
+        // signature over (path, depth, enabled) gates it. currentNode < 0
+        // (startup / map switch) always relocates.
+        const auto ops = proc.getCurrentOps();
+        auto sig = (juce::int64) 0xCBF29CE484222325ULL;  // FNV-1a-ish fold
+        for (const auto& o : ops)
+        {
+            sig = sig * 1099511628211LL + o.path.hashCode64();
+            sig = sig * 1099511628211LL + (juce::int64) juce::roundToInt (o.depth * 1.0e4f);
+            sig = sig * 1099511628211LL + (o.enabled ? 1 : 0);
+        }
+        if (sig == locatedSig && currentNode >= 0)
+            return;
+        locatedSig = sig;
+        const int node = ls.nearestNode (ops);
         if (node != currentNode)
         {
             currentNode = node;
