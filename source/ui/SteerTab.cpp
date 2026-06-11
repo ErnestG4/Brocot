@@ -159,12 +159,14 @@ void SteerTab::wireSlider (ScrubRow& row)
 
         const Landscape::Waypoint startWp { proc.getCurrentOps(),
                                             proc.getOp0Feedback() };
+        int sliceTo = 0;             // 0 = full waypoints (fallback route)
         const auto& ls = proc.getLandscape();
         if (! ls.isEmpty() && ls.hasFamily (cat))
         {
             auto wp = ls.waypoints (ls.nearestNode (startWp.ops), cat);
             if (! wp.empty())
             {
+                sliceTo = ls.getNOps();
                 rowPtr->routeWaypoints.reserve (wp.size() + 2);
                 rowPtr->routeWaypoints.push_back (startWp);
                 for (auto& w : wp)
@@ -183,6 +185,18 @@ void SteerTab::wireSlider (ScrubRow& row)
             rowPtr->routeWaypoints.insert (rowPtr->routeWaypoints.begin(), homeWp);
             rowPtr->pos = 1.0f;      // cursor at the grab point, home behind it
         }
+
+        // Map contract: a depth-N map edits ops 0..N-1 (nested prefix) and
+        // preserves the rest of the patch — CloudView::applyNode honours this.
+        // Slice every waypoint of a landscape route to the map depth so
+        // morph's implicit-off padding never fades out (and path-trims) the
+        // ops the map promises not to touch. The exemplar fallback keeps full
+        // waypoints: there the target defines the WHOLE patch and the padding
+        // is what fades the extra ops out (the Textured-Smooth fix in morph).
+        if (sliceTo > 0)
+            for (auto& w : rowPtr->routeWaypoints)
+                if ((int) w.ops.size() > sliceTo)
+                    w.ops.resize ((size_t) sliceTo);
     };
     // No onValueChange morph — slider position is a *rate*, processed by the
     // timer. The cursor position (and the patch) persist on release.
@@ -240,10 +254,16 @@ Landscape::Waypoint SteerTab::sampleRoute (
 {
     if (wp.empty())
         return {};
+    if (wp.size() == 1)
+        return wp.front();
     const float clamped = juce::jlimit (0.0f, (float) wp.size() - 1.0f, pos);
-    int i = (int) std::floor (clamped);
-    if (i >= (int) wp.size() - 1)              // at / past the final waypoint
-        return wp.back();
+    // Sample the route end as morph(A, B, 1.0) of the FINAL segment rather
+    // than returning wp.back() verbatim: morph's implicit-off padding then
+    // emits explicit disabled slots for the ops a shorter target doesn't
+    // cover, so a padded route (the exemplar fallback) arrives with its
+    // faded-out ops cleanly off instead of stuck at the last tick's residual
+    // depth.
+    const int   i    = juce::jmin ((int) std::floor (clamped), (int) wp.size() - 2);
     const float frac = clamped - (float) i;
     const auto& A = wp[(size_t) i];
     const auto& B = wp[(size_t) i + 1];
