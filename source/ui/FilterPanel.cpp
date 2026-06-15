@@ -2,6 +2,8 @@
 #include "../util/Colors.h"
 #include "../util/Fonts.h"
 
+#include <cmath>
+
 namespace brocot
 {
 
@@ -15,27 +17,42 @@ FilterPanel::FilterPanel (BrocotAudioProcessor& p)
     typeCombo.addItem ("BP",    2);
     typeCombo.addItem ("HP",    3);
     typeCombo.addItem ("Notch", 4);
-    typeCombo.setTooltip ("Filter type — Cytomic SVF output mode.");
+    typeCombo.setTooltip (juce::CharPointer_UTF8 ("Filter type — Cytomic SVF output mode."));
 
     for (auto* s : { &cutoff, &resonance })
     {
         addAndMakeVisible (*s);
-        s->setColour (juce::Slider::rotarySliderFillColourId,    colors::accent);
-        s->setColour (juce::Slider::rotarySliderOutlineColourId,
-                      colors::primaryText.withAlpha (0.20f));
-        s->setColour (juce::Slider::thumbColourId,               colors::accent);
-        s->setColour (juce::Slider::textBoxTextColourId,         colors::primaryText);
-        s->setColour (juce::Slider::textBoxOutlineColourId,      juce::Colours::transparentBlack);
+        s->setColour (juce::Slider::textBoxTextColourId,       colors::primaryText);
+        s->setColour (juce::Slider::textBoxOutlineColourId,    juce::Colours::transparentBlack);
+        s->setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
         s->setNumDecimalPlacesToDisplay (2);
-        s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 14);
+        s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18);
     }
-    cutoff   .setTooltip ("Cutoff frequency (0 = 20 Hz, 1 = ~Nyquist).");
+
+    // The cutoff param is normalised 0..1; PluginProcessor maps it to a log
+    // 20 Hz..20 kHz sweep (cutoffHz = 20 * 1000^x). Show that Hz value in the
+    // readout so the control reads like a filter, not an abstract 0..1.
+    cutoff.textFromValueFunction = [] (double v)
+    {
+        const double hz = 20.0 * std::pow (1000.0, v);
+        return hz >= 1000.0 ? juce::String (hz / 1000.0, 2) + " kHz"
+                            : juce::String (juce::roundToInt (hz)) + " Hz";
+    };
+    cutoff.valueFromTextFunction = [] (const juce::String& t)
+    {
+        auto s = t.trim().toLowerCase();
+        double hz = s.getDoubleValue() * (s.contains ("k") ? 1000.0 : 1.0);
+        hz = juce::jlimit (20.0, 20000.0, hz);
+        return std::log (hz / 20.0) / std::log (1000.0);
+    };
+
+    cutoff   .setTooltip ("Cutoff frequency (20 Hz .. 20 kHz, logarithmic).");
     resonance.setTooltip ("Resonance / Q (0..1).");
 
     for (auto* l : { &typeLabel, &cutoffLabel, &resonanceLabel })
     {
         addAndMakeVisible (*l);
-        l->setJustificationType (juce::Justification::centred);
+        l->setJustificationType (juce::Justification::centredLeft);
         l->setColour (juce::Label::textColourId, colors::primaryText);
     }
 
@@ -61,25 +78,26 @@ void FilterPanel::resized()
     auto bounds = getLocalBounds().reduced (10, 6);
     bounds.removeFromTop (24);   // header
 
-    // Top row: type combo (full width)
-    typeCombo.setBounds (bounds.removeFromTop (28));
-    bounds.removeFromTop (8);
-
-    auto labelRow = bounds.removeFromTop (16);
-    bounds.removeFromTop (2);
+    // Type combo (full width), then cutoff / resonance as stacked horizontal
+    // sliders (label · track · value) to match the envelope + operator panels.
+    typeCombo.setBounds (bounds.removeFromTop (24));
+    bounds.removeFromTop (6);
 
     juce::Slider* sliders[] { &cutoff, &resonance };
     juce::Label*  labels[]  { &cutoffLabel, &resonanceLabel };
 
-    const int n   = 2;
-    const int gap = 8;
-    const int w   = (bounds.getWidth() - gap * (n - 1)) / n;
-    int x = bounds.getX();
+    const int n      = 2;
+    const int gap    = 4;
+    const int rowH   = juce::jmax (18, (bounds.getHeight() - gap * (n - 1)) / n);
+    const int labelW = 52;
+    int y = bounds.getY();
     for (int i = 0; i < n; ++i)
     {
-        labels[i] ->setBounds (x, labelRow.getY(), w, labelRow.getHeight());
-        sliders[i]->setBounds (x, bounds.getY(), w, bounds.getHeight());
-        x += w + gap;
+        juce::Rectangle<int> r { bounds.getX(), y, bounds.getWidth(), rowH };
+        labels[i]->setBounds (r.removeFromLeft (labelW));
+        r.removeFromLeft (4);
+        sliders[i]->setBounds (r);
+        y += rowH + gap;
     }
 
     typeLabel.setBounds (0, 0, 0, 0);   // unused; combo's own text suffices

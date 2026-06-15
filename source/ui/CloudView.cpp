@@ -17,7 +17,7 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     seekRateKnob.setSkewFactorFromMidPoint (0.15);   // fine control at the slow end
     seekRateKnob.setValue (0.2);
     seekRateKnob.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 48, 14);
-    seekRateKnob.setTooltip ("Seek rate — how fast the dot travels to where you click.");
+    seekRateKnob.setTooltip (juce::CharPointer_UTF8 ("Seek rate — how fast the dot travels to where you click."));
     addAndMakeVisible (seekRateKnob);
 
     // Colour the cloud by family or by a measured spectral characteristic, to
@@ -185,7 +185,7 @@ void CloudView::rebuildImage()
     {
         g.setColour (colors::secondaryText);
         g.setFont (fonts::serifItalic (15.0f));
-        g.drawText ("landscape graph not loaded — run phase3.gpu_paths gradients",
+        g.drawText (juce::CharPointer_UTF8 ("landscape graph not loaded — run phase3.gpu_paths gradients"),
                     getLocalBounds(), juce::Justification::centred);
         return;
     }
@@ -355,7 +355,7 @@ void CloudView::paint (juce::Graphics& g)
     // Hint.
     g.setColour (colors::secondaryText.withAlpha (0.7f));
     g.setFont (fonts::serifItalic (12.0f));
-    g.drawText ("click to seek · double-click to drop · hover to inspect",
+    g.drawText (juce::CharPointer_UTF8 ("click to seek · double-click to drop · hover to inspect"),
                 getLocalBounds().reduced (10).removeFromBottom (18),
                 juce::Justification::centredRight);
 }

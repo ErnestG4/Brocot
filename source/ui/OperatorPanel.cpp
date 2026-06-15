@@ -91,8 +91,8 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     waveformCombo.addItem ("tri", 2);
     waveformCombo.addItem ("saw", 3);
     waveformCombo.addItem ("sqr", 4);
-    waveformCombo.setTooltip ("Operator waveform — non-sine modulators reshape "
-                              "the FM sidebands (more timbre per op).");
+    waveformCombo.setTooltip (juce::CharPointer_UTF8 ("Operator waveform — non-sine modulators reshape "
+                              "the FM sidebands (more timbre per op)."));
     waveformAttach = std::make_unique<ComboAttach> (
         apvts, params::opId (opIndex, "waveform"), waveformCombo);
 

@@ -1,0 +1,46 @@
+{
+  "name": "Electric Piano",
+  "version": "2.0",
+  "provenance": {
+    "kind": "manual",
+    "author": "Brocot factory",
+    "description": "Default startup patch. Simple classic FM electric piano centred on a 3:1 modulator (path RR) on the Truax harmonic spine, with a short percussive amp envelope.",
+    "category": "Truax"
+  },
+  "engine": {
+    "polyphony": "mono",
+    "maxVoices": 8,
+    "octaveShift": 0,
+    "pathMode": "free",
+    "operators": [
+      { "enabled": true,  "path": "RRRRR", "depth": 0.5854 },
+      { "enabled": true,  "path": "RR",    "depth": 1.7568 },
+      { "enabled": true,  "path": "RLRR",  "depth": 0.334 },
+      { "enabled": false, "path": "", "depth": 0.0 },
+      { "enabled": false, "path": "", "depth": 0.0 },
+      { "enabled": false, "path": "", "depth": 0.0 },
+      { "enabled": false, "path": "", "depth": 0.0 },
+      { "enabled": false, "path": "", "depth": 0.0 }
+    ]
+  },
+  "filter": {
+    "type": "lp",
+    "cutoff": 0.8,
+    "resonance": 0.1
+  },
+  "envelope": {
+    "attack": 0.003,
+    "decay": 0.09495,
+    "sustain": 0.144312,
+    "release": 0.5
+  },
+  "lfo": {
+    "shape": "sine",
+    "rate": 0.5,
+    "depth": 0.0,
+    "keySync": false
+  },
+  "master": {
+    "level": 0.4
+  }
+}

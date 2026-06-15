@@ -13,14 +13,11 @@ EnvelopePanel::EnvelopePanel (BrocotAudioProcessor& p)
     for (auto* s : { &attack, &decay, &sustain, &release })
     {
         addAndMakeVisible (*s);
-        s->setColour (juce::Slider::rotarySliderFillColourId,    colors::accent);
-        s->setColour (juce::Slider::rotarySliderOutlineColourId,
-                      colors::primaryText.withAlpha (0.20f));
-        s->setColour (juce::Slider::thumbColourId,               colors::accent);
-        s->setColour (juce::Slider::textBoxTextColourId,         colors::primaryText);
-        s->setColour (juce::Slider::textBoxOutlineColourId,      juce::Colours::transparentBlack);
+        s->setColour (juce::Slider::textBoxTextColourId,       colors::primaryText);
+        s->setColour (juce::Slider::textBoxOutlineColourId,    juce::Colours::transparentBlack);
+        s->setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
         s->setNumDecimalPlacesToDisplay (2);
-        s->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 50, 14);
+        s->setTextBoxStyle (juce::Slider::TextBoxRight, false, 52, 18);
     }
 
     attack .setTooltip ("Attack time (s)");
@@ -58,21 +55,25 @@ void EnvelopePanel::resized()
     auto bounds = getLocalBounds().reduced (10, 6);
     bounds.removeFromTop (24);   // header
 
-    auto labelRow = bounds.removeFromTop (16);
-    bounds.removeFromTop (2);
-
+    // Four stacked horizontal sliders (label · track · value), matching the
+    // operator/modulator panels. Replaces the old four-knob strip, which fell
+    // back to JUCE's stock rotary art (no custom drawRotarySlider) and read as
+    // cramped at this panel's wide-and-short size.
     juce::Slider* sliders[] { &attack, &decay, &sustain, &release };
     juce::Label*  labels[]  { &aLabel, &dLabel, &sLabel, &rLabel };
 
-    const int n   = 4;
-    const int gap = 4;
-    const int w   = (bounds.getWidth() - gap * (n - 1)) / n;
-    int x = bounds.getX();
+    const int n      = 4;
+    const int gap    = 2;
+    const int rowH   = juce::jmax (16, (bounds.getHeight() - gap * (n - 1)) / n);
+    const int labelW = 16;
+    int y = bounds.getY();
     for (int i = 0; i < n; ++i)
     {
-        labels[i]->setBounds (x, labelRow.getY(), w, labelRow.getHeight());
-        sliders[i]->setBounds (x, bounds.getY(), w, bounds.getHeight());
-        x += w + gap;
+        juce::Rectangle<int> r { bounds.getX(), y, bounds.getWidth(), rowH };
+        labels[i]->setBounds (r.removeFromLeft (labelW));
+        r.removeFromLeft (4);
+        sliders[i]->setBounds (r);
+        y += rowH + gap;
     }
 }
 

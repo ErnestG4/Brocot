@@ -65,7 +65,23 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     // 8×2 grid) below the operator strip. Width unchanged.
     setSize (1100, 940);
     setResizable (true, true);
-    setResizeLimits (880, 720, 1600, 1200);
+    setResizeLimits (880, 720, 3000, 2000);
+
+    // Standalone: open maximised to fill the screen work area (title bar kept,
+    // no macOS native-fullscreen Space). For the VST3/AU case the host owns the
+    // window size, so we only touch this when we own the window. Deferred via
+    // callAsync because the top-level window isn't attached yet here.
+    if (juce::JUCEApplicationBase::isStandaloneApp())
+        juce::MessageManager::callAsync (
+            [safe = juce::Component::SafePointer<juce::Component> (this)]
+            {
+                if (safe == nullptr)
+                    return;
+                if (auto* w = safe->findParentComponentOfClass<juce::ResizableWindow>())
+                    if (auto* d = juce::Desktop::getInstance().getDisplays()
+                                      .getDisplayForRect (w->getScreenBounds()))
+                        w->setBounds (d->userArea);
+            });
 }
 
 BrocotAudioProcessorEditor::~BrocotAudioProcessorEditor()

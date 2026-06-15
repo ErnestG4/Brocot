@@ -123,6 +123,15 @@ juce::File PullIndex::findIndexFile()
     }
    #endif
 
+    // Packaged macOS build: bundled under Contents/Resources/resources/ (see
+    // CMakeLists). currentExecutableFile is the binary inside this bundle.
+    {
+        auto exe = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+        auto bundled = exe.getParentDirectory().getParentDirectory()
+                          .getChildFile ("Resources/resources/pull_index.json");
+        if (bundled.existsAsFile()) return bundled;
+    }
+
     auto app = juce::File::getSpecialLocation (
                    juce::File::currentApplicationFile);
     for (const auto& c : {

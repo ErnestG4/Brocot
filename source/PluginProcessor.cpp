@@ -91,16 +91,17 @@ BrocotAudioProcessor::BrocotAudioProcessor()
     for (int i = 0; i < (int) maps.size(); ++i)
         if (maps[(size_t) i]->getNOps() == 6) { activeMap = i; break; }
 
-    // P3.12: default initial patch is the absolute-best 64-op
-    // textured-smooth carpet — obj 0.334, H≈7.81, ~4370 partials —
-    // discovered by the overnight P3.12 search. Loading here makes
-    // it the synth's startup state; the host's setStateInformation
-    // call (if any) overrides it afterwards as usual, so saved DAW
-    // sessions are unaffected.
+    // Default initial patch: a simple classic 2-op FM electric piano on the
+    // Truax harmonic spine (see curated/default_ep.brocot). The 64-op
+    // textured-smooth carpet that used to load here is a striking demo but a
+    // poor first impression; an EP is the friendly, legible starting point.
+    // Loading here makes it the synth's startup state; the host's
+    // setStateInformation call (if any) overrides it afterwards as usual, so
+    // saved DAW sessions are unaffected.
     {
         auto factoryDir = presetManager.getFactoryDirectory();
         auto defaultPreset = factoryDir.getChildFile (
-            "curated/textured_smooth_64op_top1.brocot");
+            "curated/default_ep.brocot");
         if (defaultPreset.existsAsFile())
             presetManager.load (defaultPreset);
     }

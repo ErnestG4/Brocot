@@ -31,7 +31,7 @@ void AboutDialog::paint (juce::Graphics& g)
 
     g.setColour (colors::secondaryAtAlpha (0.7f));
     g.setFont (fonts::mono (10.0f));
-    g.drawText ("v1.0 alpha", bounds.removeFromTop (16),
+    g.drawText ("v1.0", bounds.removeFromTop (16),
                 juce::Justification::topLeft);
 
     bounds.removeFromTop (12);

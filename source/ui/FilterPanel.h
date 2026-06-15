@@ -33,8 +33,8 @@ private:
     BrocotAudioProcessor& proc;
 
     juce::ComboBox typeCombo;
-    juce::Slider   cutoff      { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
-    juce::Slider   resonance   { juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow };
+    juce::Slider   cutoff      { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
+    juce::Slider   resonance   { juce::Slider::LinearHorizontal, juce::Slider::TextBoxRight };
 
     juce::Label typeLabel  { {}, "type" };
     juce::Label cutoffLabel { {}, "cutoff" };

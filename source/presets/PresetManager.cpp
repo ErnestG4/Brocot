@@ -31,6 +31,17 @@ juce::File PresetManager::getFactoryDirectory() const
     }
    #endif
 
+    // Packaged macOS build: resources/ is copied into the bundle's
+    // Contents/Resources/ (see CMakeLists). currentExecutableFile is the
+    // binary inside the bundle (the host app for plugins would be wrong here),
+    // so <bundle>/Contents/MacOS/bin -> ../Resources/resources/...
+    {
+        auto exe = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+        auto bundled = exe.getParentDirectory().getParentDirectory()
+                          .getChildFile ("Resources/resources/presets/factory");
+        if (bundled.isDirectory()) return bundled;
+    }
+
     auto app = juce::File::getSpecialLocation (
                    juce::File::currentApplicationFile);
     for (const auto& c : {

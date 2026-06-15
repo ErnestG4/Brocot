@@ -251,6 +251,16 @@ juce::File Landscape::findFile()
     }
    #endif
 
+    // Packaged macOS build: bundled under Contents/Resources/resources/ (see
+    // CMakeLists). currentExecutableFile is the binary inside this bundle.
+    {
+        auto exe = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+        auto resDir = exe.getParentDirectory().getParentDirectory()
+                         .getChildFile ("Resources/resources");
+        for (const char* name : kNames)
+            if (auto c = resDir.getChildFile (name); c.existsAsFile()) return c;
+    }
+
     auto app = juce::File::getSpecialLocation (juce::File::currentApplicationFile);
     for (const char* name : kNames)
         for (const auto& c : {

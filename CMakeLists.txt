@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(Brocot VERSION 0.1.0 LANGUAGES C CXX)
+project(Brocot VERSION 1.0.0 LANGUAGES C CXX)
 
 # ----------------------------------------------------------------------------
 # Project-wide settings
@@ -38,7 +38,7 @@ juce_add_plugin(Brocot
     BUNDLE_ID               fm.brocot.Brocot
     PLUGIN_MANUFACTURER_CODE Cbst
     PLUGIN_CODE             Brct
-    FORMATS                 VST3 Standalone
+    FORMATS                 VST3 AU Standalone
     PRODUCT_NAME            "Brocot"
     DESCRIPTION             "Stern-Brocot navigated multi-modulator FM"
     IS_SYNTH                TRUE
@@ -116,6 +116,30 @@ target_link_libraries(Brocot PRIVATE
 )
 
 target_include_directories(Brocot PRIVATE source)
+
+# ----------------------------------------------------------------------------
+# Bundle resources into each macOS artefact.
+#
+# Dev builds find resources/ via the BROCOT_SOURCE_DIR define above. A
+# downloaded .app/.vst3/.component has no such tree, so copy resources/ into
+# each bundle's Contents/Resources/resources/. The runtime loaders
+# (PresetManager, PullIndex, Landscape) look there via currentExecutableFile
+# when the source path is absent. Runs after JUCE's own post-build steps
+# (codesign / moduleinfo) since it's declared later on the same targets.
+# ----------------------------------------------------------------------------
+
+if(APPLE)
+    foreach(fmt Standalone VST3 AU)
+        if(TARGET Brocot_${fmt})
+            add_custom_command(TARGET Brocot_${fmt} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/resources"
+                    "$<TARGET_BUNDLE_DIR:Brocot_${fmt}>/Contents/Resources/resources"
+                COMMENT "Copying resources/ into Brocot_${fmt} bundle"
+                VERBATIM)
+        endif()
+    endforeach()
+endif()
 
 # ----------------------------------------------------------------------------
 # Tests (Catch2 v3) — wired in here even though Slice 1 has no tests, so the

@@ -25,8 +25,8 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     addAndMakeVisible (resetButton);
     resetButton.onClick = [this] { onReset(); };
-    resetButton.setTooltip ("Re-anchor home to the current state — the next "
-                            "leftward drag will pull back here.");
+    resetButton.setTooltip (juce::CharPointer_UTF8 ("Re-anchor home to the current state — the next "
+                            "leftward drag will pull back here."));
 
     addAndMakeVisible (depthMinusButton);
     depthMinusButton.onClick = [this] { onGlobalDepth (-0.1f); };
@@ -42,7 +42,7 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     addAndMakeVisible (hintLabel);
     hintLabel.setJustificationType (juce::Justification::centredLeft);
-    hintLabel.setText ("Hold a row right to push toward that shape  ·  hold left to pull home",
+    hintLabel.setText (juce::CharPointer_UTF8 ("Hold a row right to push toward that shape  ·  hold left to pull home"),
                        juce::dontSendNotification);
 
     // Inventory available Textured-Smooth op-counts by ASCII prefix
@@ -83,8 +83,8 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
 
     if (proc.getPullIndex().isEmpty())
     {
-        hintLabel.setText ("Pull index not loaded — run "
-                            "`python -m phase3.build_pull_index`",
+        hintLabel.setText (juce::CharPointer_UTF8 ("Pull index not loaded — run "
+                            "`python -m phase3.build_pull_index`"),
                             juce::dontSendNotification);
         resetButton.setEnabled (false);
         for (auto& r : rows)
@@ -222,7 +222,7 @@ void SteerTab::applyRowMorph (ScrubRow& row)
 
     const auto cat = row.isTextureRow ? resolveTextureCategory() : row.category;
     const int total = (int) row.routeWaypoints.size() - 1;
-    hintLabel.setText (juce::String ("→ ") + cat + "   hop "
+    hintLabel.setText (juce::String (juce::CharPointer_UTF8 ("→ ")) + cat + "   hop "
                        + juce::String (row.pos, 1) + " / " + juce::String (total),
                        juce::dontSendNotification);
 }
@@ -375,7 +375,7 @@ void SteerTab::onRandomize()
     }
     const int enabledCount = (int) std::count_if (ops.begin(), ops.end(),
         [] (const PullIndex::OpState& s) { return s.enabled; });
-    hintLabel.setText ("randomized — " + juce::String (enabledCount)
+    hintLabel.setText (juce::String (juce::CharPointer_UTF8 ("randomized — ")) + juce::String (enabledCount)
                        + " ops enabled, depths 0.04..0.6",
                        juce::dontSendNotification);
 }
