@@ -39,13 +39,25 @@ Index layout:
 
 The amplitude vector is the quantised spectrum projected onto the
 first q_max harmonics of the reference carrier (220 Hz) and
-normalised to sum=1. Comparing two configs by L1 over this vector is
-~30 multiply-adds; the whole 2240-exemplar index is well under 1 MB
-on disk.
+normalised to sum=1.
 
-The category key is the human-readable preset category — Sawtooth,
-Prime 7, Textured-Smooth · 8 ops, etc. — same string the .brocot's
-provenance.category field carries.
+Taxonomy (redesigned — see phase3.family_axis). Categories are two
+orthogonal kinds, no longer a single conflated provenance string:
+
+  1. The 12 MEASURED spectral families (Sawtooth, Square, …, Prime 13).
+     Populated with clean exemplars MINED from the GPU bank by render-
+     fingerprint proximity to each ideal target — the same canonical
+     realisations the landscape maps steer toward, and uniform across
+     all families (the factory presets barely cover Square/primes; the
+     old provenance grouping left those near-empty and contaminated).
+  2. The Textured-Smooth · N-ops DENSITY buckets, kept verbatim from the
+     factory tree — explicitly an op-count axis backing the runtime's
+     density-steer row, NOT spectral families.
+
+Vanity / reference labels (Atlas, Vowel, Truax, …) no longer define
+their own regions: those presets are classified ONTO the family axis
+(recorded in derived/preset_families.json for the menu) rather than
+appearing as pull categories.
 """
 
 from __future__ import annotations
@@ -109,25 +121,6 @@ def _amplitude_vector(cfg: Config, q_max: int) -> np.ndarray:
     return amps
 
 
-def _category_for(doc: dict) -> str:
-    """Resolve a preset's display category.
-
-    Priority order:
-      1. `provenance.category` (already human-readable for family-search
-         and spectral-search presets)
-      2. Fallback for legacy presets: `provenance.kind` capitalised, or
-         "Hand-authored".
-    """
-    prov = doc.get("provenance", {})
-    cat = (prov.get("category") or "").strip()
-    if cat:
-        return cat
-    kind = (prov.get("kind") or "").strip()
-    if kind:
-        return kind.replace("-", " ").title()
-    return "Hand-authored"
-
-
 def _exemplar_for(doc: dict, rel_path: str, q_max: int) -> dict[str, Any]:
     cfg = _config_from_preset(doc)
     amps = _amplitude_vector(cfg, q_max)
@@ -152,54 +145,103 @@ def _exemplar_for(doc: dict, rel_path: str, q_max: int) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Index builder
+# Family exemplars from the measured family axis (bank-mined, clean)
 # ---------------------------------------------------------------------------
 
-def build_index(
-    factory_dir: Path,
-    *,
-    q_max: int = DEFAULT_Q_MAX,
-    verbose: bool = True,
-) -> dict[str, Any]:
-    """Walk `factory_dir` recursively, build the pull index.
+FAMILY_EXEMPLARS_NPZ = Path("phase3/derived/family_exemplars.npz")
+TEXTURE_PREFIX = "Textured-Smooth"
 
-    Paths in the output are relative to `factory_dir` so the runtime
-    can resolve them regardless of where the factory tree is installed.
+
+def _ops_from_params(ridx_row, dep_row, paths: list[str],
+                     depth_eps: float = 1e-4) -> list[ModConfig]:
+    """Reconstruct an OpState list from a mined bank config's params."""
+    return [
+        ModConfig(path=paths[int(ridx_row[s])], depth=float(dep_row[s]),
+                  enabled=float(dep_row[s]) > depth_eps)
+        for s in range(len(ridx_row))
+    ]
+
+
+def _family_categories(q_max: int, verbose: bool) -> dict[str, Any]:
+    """The 12 measured spectral families, each populated with clean bank-mined
+    exemplars (the same canonical realisations the maps steer toward). This is
+    the family axis — positions are MEASURED, not provenance strings. Density is
+    a separate axis (the Textured-Smooth row); vanity labels are folded onto the
+    family each preset measures into and don't appear here."""
+    from phase3.coverage_bank import curated_ratios
+
+    if not FAMILY_EXEMPLARS_NPZ.exists():
+        raise FileNotFoundError(
+            f"{FAMILY_EXEMPLARS_NPZ} missing — run "
+            f"`phase3/.venv-gpu/bin/python -m phase3.family_axis exemplars` first.")
+    ex = np.load(FAMILY_EXEMPLARS_NPZ, allow_pickle=True)
+    fam_names = list(ex["family_names"])
+    ridx, depths, dist = ex["ridx"], ex["depths"], ex["dist"]
+    paths = curated_ratios(5)
+
+    categories: dict[str, Any] = {}
+    for fi, fam in enumerate(fam_names):
+        entries: list[dict[str, Any]] = []
+        # objective = render-space L1 to the ideal target (lower = cleaner),
+        # so exemplars.front() — what getBestOps() pulls toward — is the
+        # cleanest realisation of this family.
+        order = np.argsort(dist[fi])
+        for rank in order:
+            mods = _ops_from_params(ridx[fi, rank], depths[fi, rank], paths)
+            cfg = Config(mods=mods, f_carrier=DEFAULT_F_REF)
+            amps = _amplitude_vector(cfg, q_max)
+            entries.append({
+                "preset":    f"mined/{fam}/{int(rank):03d}",
+                "objective": round(float(dist[fi, rank]), 5),
+                "n_ops":     sum(1 for m in mods if m.enabled),
+                "amps":      [float(x) for x in amps.tolist()],
+                "ops": [{"path": m.path, "depth": float(m.depth),
+                         "enabled": bool(m.enabled)} for m in mods],
+            })
+        centroid = np.mean([e["amps"] for e in entries], axis=0)
+        s = float(centroid.sum())
+        if s > 0:
+            centroid = centroid / s
+        categories[fam] = {
+            "preset_count":    len(entries),
+            "best_obj_preset": entries[0]["preset"],
+            "centroid_amps":   [float(x) for x in centroid.tolist()],
+            "exemplars":       entries,
+        }
+        if verbose:
+            print(f"  family {fam:<22s}{len(entries):>4d} exemplars  "
+                  f"(cleanest L1 {entries[0]['objective']:.3f})")
+    return categories
+
+
+def _density_categories(factory_dir: Path, q_max: int, verbose: bool):
+    """The orthogonal DENSITY axis: the Textured-Smooth · N-ops buckets that back
+    the runtime's density-steer row (SteerTab resolves them via the
+    'Textured-Smooth' prefix). Kept verbatim from the factory tree — these are
+    explicitly op-count buckets, not spectral families, so they no longer share
+    the family axis with Sawtooth/Square/… (the conflation this redesign fixes).
     """
     by_cat: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    total = 0
     skipped = 0
-
     for f in sorted(factory_dir.rglob("*.brocot")):
         try:
             doc = json.loads(f.read_text())
-        except json.JSONDecodeError as e:
-            if verbose:
-                print(f"  ! skip {f}: {e}", file=sys.stderr)
+        except json.JSONDecodeError:
             skipped += 1
             continue
-
-        category = _category_for(doc)
+        cat = (doc.get("provenance", {}) or {}).get("category", "").strip()
+        if not cat.startswith(TEXTURE_PREFIX):
+            continue                       # non-density presets live on the family axis
         rel = str(f.relative_to(factory_dir))
         try:
-            entry = _exemplar_for(doc, rel, q_max)
-        except Exception as e:
-            if verbose:
-                print(f"  ! skip {f}: {e}", file=sys.stderr)
+            by_cat[cat].append(_exemplar_for(doc, rel, q_max))
+        except Exception:
             skipped += 1
-            continue
-        by_cat[category].append(entry)
-        total += 1
 
-    # Sort exemplars within each category by objective (best first), then
-    # compute centroid + best-obj reference.
     categories: dict[str, Any] = {}
     for cat, entries in sorted(by_cat.items()):
         entries.sort(key=lambda e: e["objective"])
-        amps_stack = np.array([e["amps"] for e in entries], dtype=np.float64)
-        centroid = amps_stack.mean(axis=0)
-        # Re-normalise the centroid; per-exemplar already L1=1, mean is too
-        # but float drift can leave it ~1.000001 — fix it.
+        centroid = np.mean([e["amps"] for e in entries], axis=0)
         s = float(centroid.sum())
         if s > 0:
             centroid = centroid / s
@@ -209,7 +251,34 @@ def build_index(
             "centroid_amps":   [float(x) for x in centroid.tolist()],
             "exemplars":       entries,
         }
+    if verbose:
+        print(f"  density buckets: {len(categories)} (skipped {skipped})")
+    return categories, skipped
 
+
+# ---------------------------------------------------------------------------
+# Index builder
+# ---------------------------------------------------------------------------
+
+def build_index(
+    factory_dir: Path,
+    *,
+    q_max: int = DEFAULT_Q_MAX,
+    verbose: bool = True,
+) -> dict[str, Any]:
+    """Build the pull index: 12 MEASURED family categories (bank-mined clean
+    exemplars) + the orthogonal Textured-Smooth density buckets. Reference /
+    vanity presets are classified onto the family axis (recorded in
+    derived/preset_families.json) rather than forming their own regions."""
+    if verbose:
+        print("Building measured family categories ...")
+    categories = _family_categories(q_max, verbose)
+    if verbose:
+        print("Building density (Textured-Smooth) categories ...")
+    density, skipped = _density_categories(factory_dir, q_max, verbose)
+    categories.update(density)
+
+    total = sum(c["preset_count"] for c in categories.values())
     return {
         "version":       INDEX_VERSION,
         "f_carrier_ref": DEFAULT_F_REF,

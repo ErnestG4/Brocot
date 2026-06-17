@@ -105,47 +105,32 @@ def labels_path(n_ops: int = 6) -> Path:
 
 
 def classify(bank_npz=BANK_NPZ, out=OUT):
+    """Label every bank config with its MEASURED spectral family.
+
+    Family centroids come from phase3.family_axis — the mean fingerprint of each
+    family's cleanest bank-mined realisations, NOT the mean of whatever carried a
+    given provenance string (the old approach conflated real families with
+    op-count density buckets and vanity labels; see family_axis docstring). The
+    centroids are mined once and shared across every per-depth / per-waveform
+    bank, so the family axis is stable: a Sawtooth output spectrum is Sawtooth
+    regardless of which map produced it. Density (op count) is an orthogonal node
+    feature (gpu_paths stores it as `dense`), never a family here."""
+    from phase3.family_axis import classify as fa_classify
+    from phase3.family_axis import load_centroids
+
     t0 = time.time()
-    t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
-    win = torch.hann_window(N_FFT, device=DEVICE)
-    W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
-
-    print("Rendering + fingerprinting factory exemplars on GPU ...")
-    cats, R, D, T = _load_factory()
-    fps = _fingerprint(R, D, T, W, t, win)              # (Npreset, Q_MAX)
-    print(f"  {fps.shape[0]} exemplars fingerprinted ({time.time()-t0:.1f}s)")
-
-    # Per-family centroid (mean fingerprint, re-normalised).
-    fam_names = sorted(set(cats))
-    fam_idx = {name: i for i, name in enumerate(fam_names)}
-    cat_i = np.array([fam_idx[c] for c in cats])
+    centroids, fam_names = load_centroids()
     F = len(fam_names)
-    centroids = torch.zeros(F, Q_MAX, device=DEVICE)
-    for i in range(F):
-        sel = fps[torch.from_numpy(np.where(cat_i == i)[0]).to(DEVICE)]
-        centroids[i] = sel.mean(0)
-    centroids = centroids / centroids.sum(1, keepdim=True).clamp(min=1e-12)
-    print(f"  {F} family centroids")
+    print(f"Using {F} mined family centroids from family_axis "
+          f"(shared across all maps).")
 
-    # Classify each bank row to nearest centroid (chunked L1). The bank stays on
-    # CPU (f16); only one chunk is uploaded+upcast at a time, so this scales to
-    # tens of millions of rows without OOM (loading all 40M as GPU float is
-    # ~10 GB and fragments the card).
-    d = np.load(bank_npz, mmap_mode="r")
-    amps_cpu = d["amps"]
+    # Classify each bank row to nearest centroid (chunked L1, bank stays mmap'd
+    # f16; one chunk uploaded+upcast at a time so this scales to tens of millions
+    # of rows without OOM).
+    amps_cpu = np.load(bank_npz, mmap_mode="r")["amps"]
     N = amps_cpu.shape[0]
     print(f"Classifying {N:,} bank rows to nearest family centroid ...")
-    labels = np.empty(N, np.int16)
-    dists = np.empty(N, np.float32)
-    CH = 500_000
-    for c in range(0, N, CH):
-        block = torch.from_numpy(np.ascontiguousarray(amps_cpu[c:c + CH])) \
-                     .to(DEVICE).float()                      # (b, Q)
-        dmat = (block.unsqueeze(1) - centroids.unsqueeze(0)).abs().sum(2)
-        best = dmat.min(1)
-        labels[c:c + CH] = best.indices.cpu().numpy().astype(np.int16)
-        dists[c:c + CH] = best.values.cpu().numpy()
-        del block, dmat, best
+    labels, dists = fa_classify(amps_cpu, centroids)
 
     counts = Counter(labels.tolist())
     print(f"\nClassified {N:,} configs into {F} families "
@@ -161,10 +146,69 @@ def classify(bank_npz=BANK_NPZ, out=OUT):
     out.parent.mkdir(parents=True, exist_ok=True)
     np.savez(out, labels=labels, dists=dists,
              family_names=np.array(fam_names),
-             centroids=centroids.cpu().numpy())
+             centroids=centroids)
     print(f"\nWrote {out} ({out.stat().st_size/1e6:.1f} MB)")
     print(f"overall median nearest-centroid L1: {np.median(dists):.3f}  "
           f"p90 {np.percentile(dists,90):.3f}")
+
+
+def classify_presets(out=Path("phase3/derived/preset_families.json")):
+    """Classify every factory .brocot onto the measured family axis.
+
+    Renders each preset in the GPU fingerprint space and assigns the nearest
+    family centroid (same axis the bank uses). Writes a {rel_path: {family, dist,
+    n_ops}} table that build_pull_index consumes — so the pull index groups
+    presets by MEASURED family, with provenance kept only as a per-preset label
+    and op-count as an orthogonal density value."""
+    import json as _json
+
+    from phase3.family_axis import load_centroids
+
+    t0 = time.time()
+    t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
+    win = torch.hann_window(N_FFT, device=DEVICE)
+    W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
+    centroids, fam_names = load_centroids()
+    C = torch.from_numpy(centroids).to(DEVICE).float()
+
+    rels, R, D, T, nops = [], [], [], [], []
+    for f in sorted(FACTORY.rglob("*.brocot")):
+        try:
+            doc = _json_load(f)
+        except ValueError:
+            continue
+        r, d, tt = _preset_arrays(doc)
+        rels.append(str(f.relative_to(FACTORY)))
+        R.append(r); D.append(d); T.append(tt)
+        nops.append(int(sum(1 for o in (doc.get("engine", {}) or {}).get("operators", []) or []
+                            if o.get("enabled", False))))
+    fps = _fingerprint(np.stack(R), np.stack(D), np.stack(T), W, t, win)
+    dmat = (fps.unsqueeze(1) - C.unsqueeze(0)).abs().sum(2)       # (Npreset, F)
+    best = dmat.min(1)
+    lab = best.indices.cpu().numpy()
+    dist = best.values.cpu().numpy()
+
+    table = {rels[i]: {"family": fam_names[int(lab[i])],
+                       "dist": round(float(dist[i]), 5),
+                       "n_ops": nops[i]}
+             for i in range(len(rels))}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(_json.dumps(table, ensure_ascii=False, indent=0) + "\n")
+
+    counts = Counter(v["family"] for v in table.values())
+    print(f"Classified {len(table)} presets into measured families "
+          f"({time.time()-t0:.0f}s):")
+    for fam in fam_names:
+        print(f"  {fam:<22s}{counts.get(fam, 0):>5d}")
+    print(f"\nWrote {out}")
+
+
+def _json_load(path: Path) -> dict:
+    import json as _json
+    try:
+        return _json.loads(path.read_text())
+    except _json.JSONDecodeError as e:
+        raise ValueError(str(e))
 
 
 def main():
@@ -175,11 +219,14 @@ def main():
     c.add_argument("--n-ops", type=int, default=6, help="derives bank/labels paths")
     c.add_argument("--bank", type=str, default=None, help="explicit bank .npz")
     c.add_argument("--out", type=str, default=None, help="explicit labels .npz")
+    sub.add_parser("presets", help="classify factory presets onto the family axis")
     a = ap.parse_args()
     if a.cmd == "classify":
         from pathlib import Path as _P
         classify(bank_npz=(_P(a.bank) if a.bank else bank_path(a.n_ops)),
                  out=(_P(a.out) if a.out else labels_path(a.n_ops)))
+    elif a.cmd == "presets":
+        classify_presets()
 
 
 if __name__ == "__main__":
