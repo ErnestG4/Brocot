@@ -118,25 +118,35 @@ target_link_libraries(Brocot PRIVATE
 target_include_directories(Brocot PRIVATE source)
 
 # ----------------------------------------------------------------------------
-# Bundle resources into each macOS artefact.
+# Bundle the CURATED resource set into each macOS artefact.
 #
 # Dev builds find resources/ via the BROCOT_SOURCE_DIR define above. A
-# downloaded .app/.vst3/.component has no such tree, so copy resources/ into
-# each bundle's Contents/Resources/resources/. The runtime loaders
-# (PresetManager, PullIndex, Landscape) look there via currentExecutableFile
-# when the source path is absent. Runs after JUCE's own post-build steps
-# (codesign / moduleinfo) since it's declared later on the same targets.
+# downloaded .app/.vst3/.component has no such tree, so copy the shipping
+# resources into each bundle's Contents/Resources/resources/. The runtime
+# loaders (PresetManager, PullIndex, Landscape) look there via
+# currentExecutableFile when the source path is absent. Runs after JUCE's own
+# post-build steps (codesign / moduleinfo) since it's declared later.
+#
+# v1.0 ships ONLY presets/ (factory bank) + tables/ (Bessel landmarks etc.).
+# The landscape maps (resources/landscape_graph*.json[.gz], ~75 MB) and
+# pull_index.json (~11 MB) are preserved in-repo for offline phase3 work but are
+# NOT shipped — they'd ~quadruple every artefact, and the Steer tab degrades
+# gracefully when they're absent (PullIndex/Landscape::load return false). Add
+# more subdirs here if a future runtime feature needs them.
 # ----------------------------------------------------------------------------
 
 if(APPLE)
+    set(BROCOT_SHIPPED_RESOURCES presets tables)
     foreach(fmt Standalone VST3 AU)
         if(TARGET Brocot_${fmt})
-            add_custom_command(TARGET Brocot_${fmt} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    "${CMAKE_SOURCE_DIR}/resources"
-                    "$<TARGET_BUNDLE_DIR:Brocot_${fmt}>/Contents/Resources/resources"
-                COMMENT "Copying resources/ into Brocot_${fmt} bundle"
-                VERBATIM)
+            foreach(res ${BROCOT_SHIPPED_RESOURCES})
+                add_custom_command(TARGET Brocot_${fmt} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_directory
+                        "${CMAKE_SOURCE_DIR}/resources/${res}"
+                        "$<TARGET_BUNDLE_DIR:Brocot_${fmt}>/Contents/Resources/resources/${res}"
+                    COMMENT "Copying resources/${res}/ into Brocot_${fmt} bundle"
+                    VERBATIM)
+            endforeach()
         endif()
     endforeach()
 endif()
