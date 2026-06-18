@@ -373,10 +373,15 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     # diversity (many starts converge) while fixing the destination to be clean.
     lab = np.load(labels_npz, allow_pickle=True)
     centroids = torch.from_numpy(lab["centroids"]).to(DEVICE).float()   # (F, Q)
-    # Small anchor set: routes from many starts converge on the same few clean
-    # canonical members (the destination is one SOUND; the journey is where the
-    # many-paths diversity lives — Will's model).
-    anchor_k = 6
+    # Anchor at the members NEAREST the family centroid. The centroid is now the
+    # clean bank-MINED prototype (phase3.family_axis), so nearest-to-centroid is
+    # already clean — the old entropy filter (added when the centroid was the
+    # high-entropy bank MEAN) pushed anchors out to the cleanest/most-PERIPHERAL
+    # configs, which sat in a far graph corner and made routes 2-6x longer
+    # (Prime 13 hit 60 hops vs ~10 in the provenance maps). A larger, nearest
+    # anchor set gives many gradient entry points → short routes back to old/
+    # better levels, while the clean centroid keeps the destination on-family.
+    anchor_k = 256
 
     # 2D embedding for the neighbor-cloud visualizer: screen distance ≈ timbral
     # (fingerprint) distance, so families cluster and mis-alignment is visible.
@@ -425,24 +430,13 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
         members = np.where(node_lab == fi)[0]
         if members.size < min_family:             # skip thinly-covered families
             continue
-        # Anchor = the family's CLEANEST members, so the gradient leads to the
-        # canonical waveform, not a chaotic outlier. The classifier centroid is
-        # itself complex (the random bank is dominated by dense high-op configs,
-        # so the family mean is high-entropy), so centroid-nearest ≠ clean.
-        # Instead: among members reasonably close to the centroid (still
-        # representative of the family shape), pick the lowest spectral-entropy
-        # ones (energy in a few ordered harmonics = tonal/clean, not mush).
+        # Anchor = the members nearest the clean mined centroid → on-family AND
+        # graph-central (so routes from typical start patches are short).
         mfp = amps[torch.from_numpy(members).to(DEVICE)]            # (m, Q)
         cdist = (mfp - centroids[fi].unsqueeze(0)).abs().sum(1)     # L1 to centroid
-        # representative pool: closest 60% to the centroid (drops far outliers).
-        pool_k = max(anchor_k, int(0.6 * members.size))
-        pool_k = int(min(pool_k, members.size))
-        pool_local = torch.topk(cdist, pool_k, largest=False).indices
-        p = mfp[pool_local] / mfp[pool_local].sum(1, keepdim=True).clamp(min=1e-9)
-        entropy = -(p * (p + 1e-9).log()).sum(1)                   # tonal = low H
-        kk = int(min(anchor_k, pool_k))
-        clean_local = pool_local[torch.topk(entropy, kk, largest=False).indices]
-        tgt = members[clean_local.cpu().numpy()]
+        kk = int(min(anchor_k, members.size))
+        near_local = torch.topk(cdist, kk, largest=False).indices
+        tgt = members[near_local.cpu().numpy()]
         # Augment: node n = super-source, ~0-weight edges to the prototype set.
         top = hstack([g, csr_matrix((n, 1))])
         bottomrow = np.zeros(n + 1, np.float32); bottomrow[tgt] = 1e-6
