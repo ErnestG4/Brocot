@@ -9,10 +9,13 @@ namespace brocot
 class BrocotAudioProcessor;
 
 /**
-    Two-panel readout per BROCOT-SPEC.md §7:
+    Three-panel readout per BROCOT-SPEC.md §7:
       - Left: frequency ratios for all enabled operators ("2/1 · 4/3 · 9/7")
-      - Right: depth ratios with simplest-integer approximation and residue
-               ("72 : 12 : 13  raw 5.13 : 0.86 : 0.90")
+      - Middle: depth ratios with simplest-integer approximation and residue
+                ("72 : 12 : 13  raw 5.13 : 0.86 : 0.90")
+      - Right: path-prefix coherence (§P0-a) — the fraction of sideband energy
+               the enabled modulators land on shared partials. Colour-coded so
+               a coherent, prefix-related config reads bright. Display only.
 
     Display only — does not lock or modify operator state. Matches the
     farey-fm prototype's findDepthRatio behaviour.
@@ -35,8 +38,13 @@ private:
 
     juce::Label freqHeader;
     juce::Label depthHeader;
+    juce::Label coherenceHeader;
     juce::Label freqValues;
     juce::Label depthValues;
+    juce::Label coherenceValues;
+
+    float coherence01 { 0.0f };            // latest score, for the bar
+    juce::Rectangle<int> coherenceBar {};  // bar bounds, set in resized()
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RatioReadout)
 };
