@@ -62,3 +62,44 @@ TEST_CASE ("Major flag aligns with n ≤ 2", "[Bessel]")
     for (const auto& l : lm::kLandmarks)
         REQUIRE (l.major == (l.n <= 2));
 }
+
+TEST_CASE ("J_m evaluates against known Bessel values", "[Bessel]")
+{
+    // Reference values (Abramowitz & Stegun tables).
+    REQUIRE (lm::J (0, 0.0f) == Catch::Approx (1.0f));
+    REQUIRE (lm::J (1, 0.0f) == Catch::Approx (0.0f));
+    REQUIRE (lm::J (5, 0.0f) == Catch::Approx (0.0f));
+
+    REQUIRE (lm::J (0, 1.0f) == Catch::Approx (0.7651977).margin (1e-5));
+    REQUIRE (lm::J (1, 1.0f) == Catch::Approx (0.4400506).margin (1e-5));
+    REQUIRE (lm::J (2, 2.0f) == Catch::Approx (0.3528340).margin (1e-5));
+    REQUIRE (lm::J (0, 5.0f) == Catch::Approx (-0.1775968).margin (1e-5));
+    REQUIRE (lm::J (3, 5.0f) == Catch::Approx (0.3648312).margin (1e-5));
+    REQUIRE (lm::J (1, 8.0f) == Catch::Approx (0.2346364).margin (1e-5));
+}
+
+TEST_CASE ("J_m vanishes / peaks at the landmark values", "[Bessel]")
+{
+    // Each Zero landmark is a root of J_n; each Peak is an extremum (J' = 0).
+    for (const auto& l : lm::kLandmarks)
+    {
+        const float v = lm::J (l.n, l.value);
+        if (l.kind == lm::Landmark::Kind::Zero)
+            REQUIRE (std::abs (v) < 1e-3f);
+        else
+        {
+            // At a peak the neighbouring values are smaller in magnitude.
+            const float a = std::abs (lm::J (l.n, l.value - 0.02f));
+            const float b = std::abs (lm::J (l.n, l.value + 0.02f));
+            REQUIRE (std::abs (v) >= a - 1e-4f);
+            REQUIRE (std::abs (v) >= b - 1e-4f);
+        }
+    }
+}
+
+TEST_CASE ("J_{-m} = (-1)^m J_m", "[Bessel]")
+{
+    REQUIRE (lm::J (-1, 3.0f) == Catch::Approx (-lm::J (1, 3.0f)));
+    REQUIRE (lm::J (-2, 3.0f) == Catch::Approx ( lm::J (2, 3.0f)));
+    REQUIRE (lm::J (-3, 4.5f) == Catch::Approx (-lm::J (3, 4.5f)));
+}

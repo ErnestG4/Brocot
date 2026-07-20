@@ -2,6 +2,7 @@
 
 #include <juce_core/juce_core.h>
 #include <array>
+#include <cmath>
 
 namespace brocot::bessel
 {
@@ -62,6 +63,58 @@ inline const Landmark* nearest (float depth, float tolerance = 0.12f) noexcept
         }
     }
     return best;
+}
+
+/** Bessel function of the first kind J_m(x) for integer order m.
+
+    FM sideband amplitudes are exactly these: a carrier phase-modulated at
+    index I puts a component of weight J_m(I) at carrier ± m·f_mod. The landmark
+    table above records where individual J_m peak/vanish; this evaluates them so
+    a coherence meter can weight sidebands by their real energy.
+
+    Miller's algorithm: downward recurrence from a high order (stable for all
+    m, unlike upward recurrence which blows up for m > x), normalised by the
+    sum rule J_0 + 2(J_2 + J_4 + …) = 1. Accurate to well past what a meter
+    needs across the audible index range (x ≲ 8). Self-contained — no external
+    special-function dependency. */
+inline float J (int m, float xf) noexcept
+{
+    const int n = std::abs (m);
+    const double x = (double) xf;
+
+    if (x == 0.0)
+        return n == 0 ? 1.0f : 0.0f;
+
+    // Start order comfortably above both n and x, and even (the sum rule pairs
+    // even indices).
+    int start = n + 16 + 2 * (int) std::ceil (std::sqrt (40.0 * (n + 1)));
+    start += (start & 1);
+
+    double bjp = 0.0;    // f_{k+1}
+    double bj  = 1.0;    // f_k, seeded arbitrarily; normalised out at the end
+    double sum = 0.0;    // Σ even-index f (includes f_0)
+    double ans = 0.0;    // f_n
+
+    for (int k = start; k >= 1; --k)
+    {
+        const double bjm = (2.0 * k / x) * bj - bjp;   // f_{k-1}
+        bjp = bj;
+        bj  = bjm;
+        if (std::abs (bj) > 1.0e10)                     // rescale to avoid overflow
+        {
+            bj  *= 1.0e-10;
+            bjp *= 1.0e-10;
+            sum *= 1.0e-10;
+            ans *= 1.0e-10;
+        }
+        if (((k - 1) & 1) == 0) sum += bj;             // f_0, f_2, f_4, …
+        if ((k - 1) == n)       ans = bj;
+    }
+
+    const double norm = 2.0 * sum - bj;                // bj == f_0 here
+    double result = ans / norm;
+    if (m < 0 && (n & 1)) result = -result;            // J_{-n} = (-1)^n J_n
+    return (float) result;
 }
 
 /** Coarse regime label per the spec's depth-range descriptions. */
