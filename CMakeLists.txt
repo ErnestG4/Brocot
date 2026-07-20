@@ -179,6 +179,7 @@ if(BROCOT_BUILD_TESTS)
 
     add_executable(BrocotTests
         tests/PathTests.cpp
+        tests/BrocotLatticeTests.cpp
         tests/VoiceSmokeTests.cpp
         tests/MidiVoiceTests.cpp
         tests/ModGraphTests.cpp
