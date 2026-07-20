@@ -1,5 +1,6 @@
 #include "SteerTab.h"
 #include "BrocotLookAndFeel.h"
+#include "../audio/CoherenceSuggest.h"
 #include "../audio/Path.h"
 #include "../util/Colors.h"
 #include "../util/Fonts.h"
@@ -44,6 +45,23 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
     hintLabel.setJustificationType (juce::Justification::centredLeft);
     hintLabel.setText (juce::CharPointer_UTF8 ("Hold a row right to push toward that shape  ·  hold left to pull home"),
                        juce::dontSendNotification);
+
+    addAndMakeVisible (coherenceToggle);
+    coherenceToggle.setClickingTogglesState (true);
+    coherenceToggle.setTooltip (juce::CharPointer_UTF8 (
+        "Suggest prefix-extension paths that raise path-prefix coherence — "
+        "modulators sharing a Stern-Brocot prefix share sideband partials (§P0-a)."));
+    coherenceToggle.onClick = [this]
+    {
+        suggestLabel.setVisible (coherenceToggle.getToggleState());
+        updateSuggestions();
+    };
+
+    addAndMakeVisible (suggestLabel);
+    suggestLabel.setVisible (false);
+    suggestLabel.setJustificationType (juce::Justification::centredLeft);
+    suggestLabel.setFont (fonts::mono (11.0f));
+    suggestLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.85f));
 
     // Inventory available Textured-Smooth op-counts by ASCII prefix
     // scan + integer parse — never construct the `·`-containing
@@ -229,6 +247,75 @@ void SteerTab::timerCallback()
                                  row->pos + v * kHopsPerSecAtFull * dt);
         applyRowMorph (*row);
     }
+
+    if (coherenceToggle.getToggleState())
+        updateSuggestions();
+}
+
+void SteerTab::updateSuggestions()
+{
+    auto& apvts = proc.getAPVTS();
+
+    std::vector<coherence::OpSpec> current;
+    Path  base;
+    int   baseDepth = 1 << 20;
+    int   baseQ     = 1 << 20;
+    bool  haveBase  = false;
+    double depthSum = 0.0;
+
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        bool enabled = false;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "enabled")))
+            enabled = (p->load() > 0.5f);
+        if (! enabled) continue;
+
+        float depth = 0.0f;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))
+            depth = p->load();
+
+        const Path path (proc.getOpPath (i));
+        int n, d;
+        path.walk (n, d);
+        current.push_back ({ path.ratio(), (double) depth });
+        depthSum += depth;
+
+        // Base = the shortest enabled path (the family's common ancestor),
+        // breaking ties toward the simplest ratio (smallest q).
+        if (path.depth() < baseDepth || (path.depth() == baseDepth && d < baseQ))
+        {
+            base = path;
+            baseDepth = path.depth();
+            baseQ = d;
+            haveBase = true;
+        }
+    }
+
+    if (! haveBase)
+    {
+        suggestLabel.setText ("enable a modulator to get coherent suggestions",
+                              juce::dontSendNotification);
+        return;
+    }
+
+    const double newIndex = current.empty() ? 3.0 : depthSum / (double) current.size();
+    const auto sugg = coherence::suggestExtensions (current, base, newIndex, 3, 3);
+
+    if (sugg.empty())
+    {
+        suggestLabel.setText ("no distinct prefix-extension improves coherence",
+                              juce::dontSendNotification);
+        return;
+    }
+
+    juce::String txt (juce::CharPointer_UTF8 ("coherent next → "));
+    for (size_t i = 0; i < sugg.size(); ++i)
+    {
+        if (i > 0) txt += "   ";
+        txt += sugg[i].path + " "
+             + juce::String (juce::roundToInt (sugg[i].coherence * 100.0f)) + "%";
+    }
+    suggestLabel.setText (txt, juce::dontSendNotification);
 }
 
 void SteerTab::applyRowMorph (ScrubRow& row)
@@ -435,9 +522,16 @@ void SteerTab::resized()
     depthPlusButton .setBounds (headerRow.removeFromRight (54).reduced (0, 4));
     headerRow.removeFromRight (4);
     depthMinusButton.setBounds (headerRow.removeFromRight (54).reduced (0, 4));
+    headerRow.removeFromRight (8);
+    coherenceToggle.setBounds (headerRow.removeFromRight (84).reduced (0, 4));
     headerRow.removeFromRight (12);
     hintLabel.setBounds (headerRow);
-    bounds.removeFromTop (8);
+    bounds.removeFromTop (4);
+
+    // A slim row for the coherence suggest-mode readout (visible only when the
+    // toggle is on; the reserved strip keeps the layout stable either way).
+    suggestLabel.setBounds (bounds.removeFromTop (16));
+    bounds.removeFromTop (4);
 
     const int rightW = juce::jlimit (380, 540, bounds.getWidth() * 4 / 10);
     auto leftCol  = bounds.removeFromLeft (bounds.getWidth() - rightW - 12);

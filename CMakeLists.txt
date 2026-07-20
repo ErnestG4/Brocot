@@ -181,6 +181,7 @@ if(BROCOT_BUILD_TESTS)
         tests/PathTests.cpp
         tests/BrocotLatticeTests.cpp
         tests/CoherenceTests.cpp
+        tests/CoherenceSuggestTests.cpp
         tests/VoiceSmokeTests.cpp
         tests/MidiVoiceTests.cpp
         tests/ModGraphTests.cpp

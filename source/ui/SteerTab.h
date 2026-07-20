@@ -77,6 +77,11 @@ private:
     juce::TextButton depthPlusButton  { "+0.1" };
     juce::Label      hintLabel;
 
+    // Coherence suggest-mode (§P0-a): when on, recommend prefix-extension paths
+    // for a new modulator that raise the config's path-prefix coherence.
+    juce::TextButton coherenceToggle  { "coherence" };
+    juce::Label      suggestLabel;
+
     // One scrub row per shape category. Sliders are LinearHorizontal,
     // range -1..+1, default 0, no text box.
     //
@@ -150,6 +155,7 @@ private:
 
     void buildRows();
     void wireSlider (ScrubRow& row);
+    void updateSuggestions();       // refresh the coherence suggest-mode readout
     void timerCallback() override;
     void applyRowMorph (ScrubRow& row);
     juce::String resolveTextureCategory();
