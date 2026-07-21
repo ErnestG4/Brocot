@@ -79,8 +79,13 @@ private:
 
     // Coherence suggest-mode (§P0-a): when on, recommend prefix-extension paths
     // for a new modulator that raise the config's path-prefix coherence.
+    // Clicking a chip places that modulator on the next free op.
     juce::TextButton coherenceToggle  { "coherence" };
-    juce::Label      suggestLabel;
+    juce::Label      suggestPrefix;
+    static constexpr int kNumSuggestChips = 3;
+    std::array<juce::TextButton, kNumSuggestChips> suggestChips;
+    std::array<juce::String,     kNumSuggestChips> suggestPaths;
+    double suggestIndex { 3.0 };
 
     // One scrub row per shape category. Sliders are LinearHorizontal,
     // range -1..+1, default 0, no text box.
@@ -155,7 +160,9 @@ private:
 
     void buildRows();
     void wireSlider (ScrubRow& row);
-    void updateSuggestions();       // refresh the coherence suggest-mode readout
+    void updateSuggestions();       // refresh the coherence suggest-mode chips
+    void setSuggestVisible (bool);  // show/hide the suggest prefix + chips
+    void applySuggestion (int chipIndex);   // place the chip's path on a free op
     void timerCallback() override;
     void applyRowMorph (ScrubRow& row);
     juce::String resolveTextureCategory();

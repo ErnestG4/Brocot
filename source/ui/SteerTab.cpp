@@ -50,18 +50,28 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
     coherenceToggle.setClickingTogglesState (true);
     coherenceToggle.setTooltip (juce::CharPointer_UTF8 (
         "Suggest prefix-extension paths that raise path-prefix coherence — "
-        "modulators sharing a Stern-Brocot prefix share sideband partials (§P0-a)."));
+        "modulators sharing a Stern-Brocot prefix share sideband partials (§P0-a). "
+        "Click a chip to place that modulator on a free op."));
     coherenceToggle.onClick = [this]
     {
-        suggestLabel.setVisible (coherenceToggle.getToggleState());
+        setSuggestVisible (coherenceToggle.getToggleState());
         updateSuggestions();
     };
 
-    addAndMakeVisible (suggestLabel);
-    suggestLabel.setVisible (false);
-    suggestLabel.setJustificationType (juce::Justification::centredLeft);
-    suggestLabel.setFont (fonts::mono (11.0f));
-    suggestLabel.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.85f));
+    addAndMakeVisible (suggestPrefix);
+    suggestPrefix.setJustificationType (juce::Justification::centredLeft);
+    suggestPrefix.setFont (fonts::mono (11.0f));
+    suggestPrefix.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.85f));
+
+    for (int i = 0; i < kNumSuggestChips; ++i)
+    {
+        auto& chip = suggestChips[(size_t) i];
+        addAndMakeVisible (chip);
+        chip.setColour (juce::TextButton::buttonColourId, colors::surface);
+        chip.onClick = [this, i] { applySuggestion (i); };
+        chip.setTooltip ("Place this coherent modulator on the next free operator.");
+    }
+    setSuggestVisible (false);
 
     // Inventory available Textured-Smooth op-counts by ASCII prefix
     // scan + integer parse — never construct the `·`-containing
@@ -291,31 +301,99 @@ void SteerTab::updateSuggestions()
         }
     }
 
+    auto hideChips = [this] (const juce::String& msg)
+    {
+        suggestPrefix.setText (msg, juce::dontSendNotification);
+        for (int i = 0; i < kNumSuggestChips; ++i)
+        {
+            suggestChips[(size_t) i].setVisible (false);
+            suggestPaths[(size_t) i] = {};
+        }
+    };
+
     if (! haveBase)
     {
-        suggestLabel.setText ("enable a modulator to get coherent suggestions",
-                              juce::dontSendNotification);
+        hideChips ("enable a modulator to get coherent suggestions");
         return;
     }
 
-    const double newIndex = current.empty() ? 3.0 : depthSum / (double) current.size();
-    const auto sugg = coherence::suggestExtensions (current, base, newIndex, 3, 3);
+    suggestIndex = current.empty() ? 3.0 : depthSum / (double) current.size();
+    const auto sugg = coherence::suggestExtensions (current, base, suggestIndex, 3, kNumSuggestChips);
 
     if (sugg.empty())
     {
-        suggestLabel.setText ("no distinct prefix-extension improves coherence",
-                              juce::dontSendNotification);
+        hideChips ("no distinct prefix-extension improves coherence");
         return;
     }
 
-    juce::String txt (juce::CharPointer_UTF8 ("coherent next → "));
-    for (size_t i = 0; i < sugg.size(); ++i)
+    suggestPrefix.setText (juce::CharPointer_UTF8 ("coherent next →"), juce::dontSendNotification);
+    for (int i = 0; i < kNumSuggestChips; ++i)
     {
-        if (i > 0) txt += "   ";
-        txt += sugg[i].path + " "
-             + juce::String (juce::roundToInt (sugg[i].coherence * 100.0f)) + "%";
+        auto& chip = suggestChips[(size_t) i];
+        const bool have = i < (int) sugg.size();
+        chip.setVisible (coherenceToggle.getToggleState() && have);
+        if (have)
+        {
+            suggestPaths[(size_t) i] = sugg[(size_t) i].path;
+            chip.setButtonText (sugg[(size_t) i].path + "  "
+                                + juce::String (juce::roundToInt (sugg[(size_t) i].coherence * 100.0f)) + "%");
+        }
+        else
+        {
+            suggestPaths[(size_t) i] = {};
+        }
     }
-    suggestLabel.setText (txt, juce::dontSendNotification);
+}
+
+void SteerTab::setSuggestVisible (bool on)
+{
+    suggestPrefix.setVisible (on);
+    for (int i = 0; i < kNumSuggestChips; ++i)
+        // Individual chips also gate on whether a suggestion exists (set in
+        // updateSuggestions); hide-all here when the mode is off.
+        if (! on) suggestChips[(size_t) i].setVisible (false);
+}
+
+void SteerTab::applySuggestion (int chipIndex)
+{
+    if (chipIndex < 0 || chipIndex >= kNumSuggestChips) return;
+    const juce::String path = suggestPaths[(size_t) chipIndex];
+    if (path.isEmpty()) return;
+
+    // The suggestion is an independent modulator ratio, so it only sounds in
+    // FREE mode (shared mode derives every op from the one shared path). Switch
+    // if needed — sound-preserving, since opRatios already hold the derived
+    // ratios — so the placement sticks instead of being reverted on the next
+    // shared refresh.
+    const bool switchedToFree = proc.isSharedMode();
+    if (switchedToFree)
+        if (auto* pm = proc.getAPVTS().getParameter (params::ids::pathMode))
+            pm->setValueNotifyingHost (1.0f);   // index 1 = free
+
+    // Place it on the first disabled operator (fallback: the lowest-depth one).
+    auto ops = proc.getCurrentOps();
+    int slot = -1;
+    for (int i = 0; i < (int) ops.size(); ++i)
+        if (! ops[(size_t) i].enabled) { slot = i; break; }
+    if (slot < 0)
+    {
+        float lowest = 1.0e9f;
+        for (int i = 0; i < (int) ops.size(); ++i)
+            if (ops[(size_t) i].depth < lowest) { lowest = ops[(size_t) i].depth; slot = i; }
+    }
+    if (slot < 0) return;
+
+    ops[(size_t) slot].path    = path;
+    ops[(size_t) slot].enabled = true;
+    ops[(size_t) slot].depth   = (float) juce::jlimit (0.04, 8.0, suggestIndex);
+    proc.applyOps (ops);
+
+    hintLabel.setText ("placed " + path + " on op " + juce::String (slot + 1)
+                       + juce::String (juce::CharPointer_UTF8 ("  ·  coherence rising"))
+                       + (switchedToFree ? juce::String (juce::CharPointer_UTF8 ("  ·  free mode"))
+                                         : juce::String()),
+                       juce::dontSendNotification);
+    updateSuggestions();
 }
 
 void SteerTab::applyRowMorph (ScrubRow& row)
@@ -528,9 +606,17 @@ void SteerTab::resized()
     hintLabel.setBounds (headerRow);
     bounds.removeFromTop (4);
 
-    // A slim row for the coherence suggest-mode readout (visible only when the
+    // A slim row for the coherence suggest-mode chips (visible only when the
     // toggle is on; the reserved strip keeps the layout stable either way).
-    suggestLabel.setBounds (bounds.removeFromTop (16));
+    {
+        auto row = bounds.removeFromTop (18);
+        suggestPrefix.setBounds (row.removeFromLeft (110));
+        for (int i = 0; i < kNumSuggestChips; ++i)
+        {
+            row.removeFromLeft (4);
+            suggestChips[(size_t) i].setBounds (row.removeFromLeft (96).reduced (0, 1));
+        }
+    }
     bounds.removeFromTop (4);
 
     const int rightW = juce::jlimit (380, 540, bounds.getWidth() * 4 / 10);
