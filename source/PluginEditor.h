@@ -11,6 +11,7 @@
 #include "ui/PresetBar.h"
 #include "ui/AboutDialog.h"
 #include "ui/CloudView.h"
+#include "ui/FareyView.h"
 #include "ui/SteerTab.h"
 #include "ui/UnderTheHoodTab.h"
 
@@ -59,6 +60,7 @@ private:
     SteerTab        steerTab        { processorRef };
     UnderTheHoodTab underTheHoodTab { processorRef };
     CloudView       cloudView       { processorRef };
+    FareyView       fareyView       { processorRef };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrocotAudioProcessorEditor)
 };

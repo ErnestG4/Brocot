@@ -58,6 +58,7 @@ BrocotAudioProcessorEditor::BrocotAudioProcessorEditor (BrocotAudioProcessor& p)
     tabs.setTabBarDepth (28);
     // Landscape (map steering) · Drive (the slider steerer) · Under the hood.
     tabs.addTab ("landscape",      colors::background, &cloudView,       false);
+    tabs.addTab ("farey",          colors::background, &fareyView,       false);
     tabs.addTab ("drive",          colors::background, &steerTab,        false);
     tabs.addTab ("under the hood", colors::background, &underTheHoodTab, false);
 
