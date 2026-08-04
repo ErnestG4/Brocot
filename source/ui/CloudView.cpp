@@ -1,6 +1,7 @@
 #include "CloudView.h"
 #include "../PluginProcessor.h"
 #include "../util/Colors.h"
+#include "../util/DensityGrid.h"
 #include "../util/Fonts.h"
 
 #include <map>
@@ -28,7 +29,7 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     colourModeCombo.addItem ("feedback",   4);
     colourModeCombo.addItem ("hollowness", 5);
     colourModeCombo.addItem ("musicality", 6);
-    colourModeCombo.addItem ("criticality", 7);
+    colourModeCombo.addItem ("criticality/voids", 7);
     colourModeCombo.setSelectedId (1, juce::dontSendNotification);
     colourModeCombo.onChange = [this]
     {
@@ -192,6 +193,36 @@ void CloudView::rebuildImage()
 
     const int fcount = ls.getFamilyCount();
     const auto& nodes = ls.getNodes();
+
+    // Criticality/voids only: underlay = node density of the shipped
+    // embedding; voids are the light regions; nothing is inferred. Dense
+    // regions get a dark slate wash so the speckle in the voids (the critical
+    // points that line them) reads immediately. One-time bake cost only.
+    if (colourMode == ColourMode::Criticality)
+    {
+        viz::DensityGrid grid;
+        for (const auto& n : nodes)
+            grid.accumulate (n.x, n.y);
+        grid.blur();
+
+        constexpr int kN = viz::DensityGrid::kN;
+        const juce::Colour slate (38, 46, 56);
+        for (int iy = 0; iy < kN; ++iy)
+        {
+            for (int ix = 0; ix < kN; ++ix)
+            {
+                const float x0 = -1.0f + 2.0f * (float) ix / kN;
+                const float x1 = -1.0f + 2.0f * (float) (ix + 1) / kN;
+                const float y0 = -1.0f + 2.0f * (float) iy / kN;
+                const float y1 = -1.0f + 2.0f * (float) (iy + 1) / kN;
+                const float cx = 0.5f * (x0 + x1), cyy = 0.5f * (y0 + y1);
+                const auto tl = mapToScreen (x0, y1);   // y flips on screen
+                const auto br = mapToScreen (x1, y0);
+                g.setColour (slate.withAlpha (0.10f + 0.25f * grid.sample01 (cx, cyy)));
+                g.fillRect (juce::Rectangle<float> (tl, br));
+            }
+        }
+    }
 
     // Dots, coloured by family or by a measured characteristic. Small +
     // translucent so density reads as shading and tails/outliers stay visible.
