@@ -2,6 +2,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <vector>
+
 namespace brocot
 {
 
@@ -66,6 +68,15 @@ private:
     bool  seeking   { false };
     bool  dotDriving { false };     // false until first interaction
     juce::Slider seekRateKnob;      // map-units / second at full
+
+    // Criticality shimmer: the baked image can't twinkle, so the top-crit
+    // nodes live as cached dots in the dynamic layer (criticality/voids mode
+    // only). Salts are deterministic (rank-hashed at bake time, no RNG); the
+    // alpha math is pure (util/CloudMath.h) so it stays testable.
+    struct ShimmerDot { juce::Point<float> pos; float crit; juce::uint32 salt; };
+    std::vector<ShimmerDot> shimmerDots;   // rebuilt with the image
+    float shimmerPhase { 0.0f };           // seconds, advanced by the timer
+    bool  shimmerFlip  { false };          // repaint every OTHER tick (15 Hz)
 
     ColourMode colourMode { ColourMode::Family };
     juce::ComboBox colourModeCombo;

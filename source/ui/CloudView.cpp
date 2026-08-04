@@ -1,5 +1,6 @@
 #include "CloudView.h"
 #include "../PluginProcessor.h"
+#include "../util/CloudMath.h"
 #include "../util/Colors.h"
 #include "../util/DensityGrid.h"
 #include "../util/Fonts.h"
@@ -224,6 +225,24 @@ void CloudView::rebuildImage()
         }
     }
 
+    // Criticality/voids only: cache the top-crit nodes for the dynamic-layer
+    // shimmer. Deterministic salts (rank-hashed, no RNG) keep the twinkle
+    // stable across rebakes.
+    shimmerDots.clear();
+    if (colourMode == ColourMode::Criticality)
+    {
+        std::vector<float> crits (nodes.size());
+        for (size_t i = 0; i < nodes.size(); ++i) crits[i] = nodes[i].crit;
+        const auto top = viz::topCritIndices (crits, 400);
+        shimmerDots.reserve (top.size());
+        for (size_t rank = 0; rank < top.size(); ++rank)
+        {
+            const auto& n = nodes[(size_t) top[rank]];
+            shimmerDots.push_back ({ mapToScreen (n.x, n.y), n.crit,
+                                     (juce::uint32) rank * 2654435761u });
+        }
+    }
+
     // Dots, coloured by family or by a measured characteristic. Small +
     // translucent so density reads as shading and tails/outliers stay visible.
     auto dotColour = [this, fcount] (const Landscape::Node& n) -> juce::Colour
@@ -272,6 +291,16 @@ void CloudView::timerCallback()
 {
     const auto& ls = proc.getLandscape();
     if (ls.isEmpty()) return;
+
+    // Criticality/voids only: the shimmer animates, so this mode repaints
+    // every OTHER tick (15 Hz). Every other mode keeps the idle-no-repaint
+    // invariant exactly — a stationary dot costs nothing.
+    if (colourMode == ColourMode::Criticality && ! shimmerDots.empty())
+    {
+        shimmerPhase += 1.0f / 30.0f;
+        shimmerFlip = ! shimmerFlip;
+        if (shimmerFlip) repaint();
+    }
 
     if (! dotDriving)
     {
@@ -328,6 +357,15 @@ void CloudView::paint (juce::Graphics& g)
 
     const auto& ls = proc.getLandscape();
     if (ls.isEmpty()) return;
+
+    // Criticality shimmer over the baked image — the twinkle that makes the
+    // void-edge speckle findable by eye. Alpha math is pure (CloudMath.h).
+    for (const auto& s : shimmerDots)
+    {
+        g.setColour (featureColour (s.crit)
+                         .withAlpha (viz::shimmerAlpha (s.crit, shimmerPhase, s.salt)));
+        g.fillEllipse (s.pos.x - 1.2f, s.pos.y - 1.2f, 2.4f, 2.4f);
+    }
 
     // Seek target + travel line while gliding.
     if (dotDriving && seeking)

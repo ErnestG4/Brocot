@@ -182,6 +182,7 @@ if(BROCOT_BUILD_TESTS)
         tests/PathTests.cpp
         tests/BrocotLatticeTests.cpp
         tests/DensityGridTests.cpp
+        tests/CloudHelperTests.cpp
         tests/CoherenceTests.cpp
         tests/CoherenceSuggestTests.cpp
         tests/VoiceSmokeTests.cpp
