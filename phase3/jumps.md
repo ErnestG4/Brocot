@@ -75,6 +75,42 @@ Known scope limits: the steer tab's audible trajectory is the *grooved
 glide*, not the SB walk (`ratio_mode="glide"` measures that variant); the
 Farey-gravity pull itself is unmodeled; detune is not part of `OpState`.
 
-## Results
+## Results (2026-08-04 overnight, 6-op base map, 50k nodes)
 
-(filled in by the run — calibration, training, mining, verification)
+**Calibration — GATE PASS** (300k pairs, 5 strata): median rendered `R_max`
+orders exactly as required — k-NN edge **0.41** < within-family **0.48** <
+cross-family **0.53** — and Spearman(R_max, endpoint L1) = **0.24**, far
+below the 0.9 kill-line. Walk roughness is a genuinely distinct signal:
+endpoint distance explains almost none of where the morph bumps are.
+(TV correlates 0.52 with R_max; 0 of 300k pairs hit the event cap.)
+
+**Glide mode** (15k pairs, steer-tab semantics): rendered `R_max` = **0 for
+every pair** — the continuous log-ratio glide has no instantaneous events at
+all (no wave flips sampled on this map), so the steer tab is inherently
+bump-free and pays only trajectory length (TV medians 2.3/2.8/3.0, same
+stratum ordering). Consequence: **wormholes are a preset/route-morph
+feature** (the SB-walk semantics where bumps live); steering needs no
+separate jumps table.
+
+**JumpNet — PARTIAL** (node-disjoint 5% val, 29,533 pairs): Spearman with
+log R_max — JumpNet **0.714** vs endpoint L1 0.246, landmark graph distance
+0.263, engineered-features MLP 0.529. The net beats every baseline by ≥
++0.18 (so the towers learn real pair-specific structure the hand-physics
+misses) but misses the pre-registered 0.90 SUCCESS bar → recorded as
+PARTIAL, per the rule. Product consequence: the net is the *proposer* only;
+nothing shipped is a prediction (every emitted edge is render-verified), so
+PARTIAL costs mining recall, not correctness.
+
+**Mining/emit** — 20M random cross-family pairs screened (endpoint-L1 ≤ p40
+= 1.09, landmark graph dist ≥ 8 median-edge units) → 6.6M survivors → 30k
+proposed by the net (500/family-pair caps) → **all 30k render-verified**:
+13,494 (45.0%) pass the wormhole rule R_max ≤ τ = 0.275, and the shipped
+1,385 (after ≤16/family-pair, ≤4/node, ≤2048 caps) have **median rendered
+R_max = 0.002** — cross-family morphs ~100× smoother than a typical
+intra-basin k-NN hop, at a median 12-hop-equivalent graph distance.
+Pre-registered mining precision@1k = **0.487** (bar 0.5; the net's rank
+ordering inside the smooth tail is noisy — consistent with PARTIAL), which
+is why ranking uses rendered values only. Shipped in the `jumps` block of
+`resources/landscape_graph.json.gz`; A/B WAVs in `derived/jumps_audio/`
+(top wormholes vs random cross-family morphs, same pacing) for the by-ear
+check of the metric itself.

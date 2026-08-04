@@ -310,3 +310,26 @@ TEST_CASE ("bestCritNode picks by criticality with a distance penalty", "[Landsc
     CHECK (ls.bestCritNode (0.0f, 0.0f, 0.0f) == -1);
     f.deleteFile();
 }
+
+TEST_CASE ("shipped base map's jumps block loads when present", "[Landscape]")
+{
+    // Guarded end-to-end check of the real artifact: if the shipped 6-op map
+    // carries a jumps block (mined by phase3/gpu_jumps.py), it must parse
+    // with in-range indices and rendered roughness below tau.
+    const juce::File f (juce::String (BROCOT_SOURCE_DIR)
+                            + "/resources/landscape_graph.json.gz");
+    if (! f.existsAsFile())
+        SKIP ("shipped base map not present");
+    Landscape ls;
+    REQUIRE (ls.load (f));
+    if (ls.getJumps().empty())
+        SKIP ("map carries no jumps block");
+    REQUIRE (ls.getJumpTau() > 0.0f);
+    for (const auto& j : ls.getJumps())
+    {
+        CHECK (j.a < j.b);
+        CHECK (j.b < ls.getNodeCount());
+        CHECK (j.rough <= ls.getJumpTau() + 1e-4f);
+    }
+    CHECK (! ls.jumpsFrom (ls.getJumps().front().a).empty());
+}
