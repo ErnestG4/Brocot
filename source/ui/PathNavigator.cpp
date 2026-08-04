@@ -33,6 +33,7 @@ PathNavigator::PathNavigator (BrocotAudioProcessor& processor)
     };
 
     refreshFromProcessor();
+    setVisible (proc.isSharedMode());
     startTimerHz (15);
 }
 
@@ -57,7 +58,13 @@ void PathNavigator::refreshFromProcessor()
     btnDrop.setEnabled (! pathStr.isEmpty());
 }
 
-void PathNavigator::timerCallback() { refreshFromProcessor(); }
+void PathNavigator::timerCallback()
+{
+    // Hidden when path mode is "free" (§7): the shared path drives nothing
+    // there, and SteerTab's suggest-apply flips the mode under us.
+    setVisible (proc.isSharedMode());
+    refreshFromProcessor();
+}
 
 void PathNavigator::paint (juce::Graphics& g)
 {

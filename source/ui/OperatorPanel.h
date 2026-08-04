@@ -11,11 +11,10 @@ namespace brocot
 class BrocotAudioProcessor;
 
 /**
-    One operator card in free mode per BROCOT-SPEC.md §7. Bound to one
-    operator index — owns its widgets, reads/writes path strings through
-    the processor's thread-safe accessor.
-
-    Shared-mode UI variant lands in Slice 10 (path navigator + position).
+    One operator card per BROCOT-SPEC.md §7. Bound to one operator index —
+    owns its widgets, reads/writes path strings through the processor's
+    thread-safe accessor. In shared mode the L/R/parent buttons yield to a
+    position-along-the-shared-path spinner (setFreeModeWidgetsVisible).
 */
 class OperatorPanel : public juce::Component,
                       private juce::Timer
