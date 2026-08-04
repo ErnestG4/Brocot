@@ -190,6 +190,7 @@ if(BROCOT_BUILD_TESTS)
         tests/BesselTests.cpp
         tests/DepthRatioTests.cpp
         tests/PresetRoundtripTests.cpp
+        tests/PresetFamilyTests.cpp
         tests/PullIndexTests.cpp
         tests/LandscapeTests.cpp
         tests/UniversalModulatorTests.cpp

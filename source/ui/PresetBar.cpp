@@ -64,8 +64,12 @@ void PresetBar::rebuildMenu()
     presetCombo.clear (juce::dontSendNotification);
     const auto& entries = manager.getEntries();
 
+    // Item id must stay entries-index + 1 (onChange relies on it), so this
+    // loop only inserts headings — grouping order comes from the manager's
+    // (family, name) sort, never from reordering here.
     bool inFactorySection = false;
     bool inUserSection = false;
+    juce::String lastFamily;
     int id = 1;
     for (const auto& e : entries)
     {
@@ -73,6 +77,11 @@ void PresetBar::rebuildMenu()
         {
             presetCombo.addSectionHeading ("factory");
             inFactorySection = true;
+        }
+        if (e.factory && e.family != lastFamily)
+        {
+            presetCombo.addSectionHeading (e.family);
+            lastFamily = e.family;
         }
         if (! e.factory && ! inUserSection)
         {

@@ -105,12 +105,26 @@ void PresetManager::rescan()
     // selection; presets are the anchor points.
     if (auto fac = getFactoryDirectory(); fac.isDirectory())
     {
-        for (const auto& f : fac.findChildFiles (juce::File::findFiles, false, "*.brocot"))
+        // Measured-family labels live beside factory/ (same anchor as the
+        // modbanks dir): resources/presets/preset_families.json, keyed by
+        // path relative to factory/. JSON::parse yields void on a missing
+        // file, so every lookup then falls through to "unclassified".
+        const auto families = juce::JSON::parse (
+            fac.getParentDirectory().getChildFile ("preset_families.json"));
+
+        auto addFactory = [&] (const juce::File& f)
+        {
             add (f, "factory", true);
+            entries.back().family =
+                familyForRelativePath (families, f.getRelativePathFrom (fac));
+        };
+
+        for (const auto& f : fac.findChildFiles (juce::File::findFiles, false, "*.brocot"))
+            addFactory (f);
 
         if (auto curated = fac.getChildFile ("curated"); curated.isDirectory())
             for (const auto& f : curated.findChildFiles (juce::File::findFiles, false, "*.brocot"))
-                add (f, "factory", true);
+                addFactory (f);
     }
 
     auto user = getUserDirectory();
@@ -129,11 +143,12 @@ void PresetManager::rescan()
         for (const auto& f : mbUser.findChildFiles (juce::File::findFiles, true, "*.brocotmod"))
             addModBank (f, false);
 
+    std::sort (entries.begin(), entries.end(), entryLess);
+
     auto byFactoryThenName = [] (const Entry& a, const Entry& b) {
         if (a.factory != b.factory) return a.factory;   // factory first
         return a.name.compareIgnoreCase (b.name) < 0;
     };
-    std::sort (entries.begin(), entries.end(), byFactoryThenName);
     std::sort (modBanks.begin(), modBanks.end(), byFactoryThenName);
 }
 
