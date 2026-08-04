@@ -131,13 +131,24 @@ void FareyView::rebuildNodes()
 {
     nodeVis.clear();
 
-    // Current cursor node — a ring; clicking steps back to the parent.
+    // Current cursor node — a ring; clicking steps back to the parent. The
+    // widest-gap readout runs the eigensolve HERE (cursor changes only) and
+    // is cached as a string for paint.
     {
         int p, q;
         cursor.walk (p, q);
+        cursorGapInfo.clear();
+        double bestWidth = 0.0; int bestChern = 0;
+        for (const auto& gp : lattice::gaps (p, q))
+            if (gp.width > bestWidth) { bestWidth = gp.width; bestChern = gp.chern; }
+        if (bestWidth > 0.0)
+            cursorGapInfo = juce::String (juce::CharPointer_UTF8 (" \xc2\xb7 widest gap Chern "))
+                          + juce::String (bestChern) + ", width "
+                          + juce::String (bestWidth, 2);
         nodeVis.push_back ({ cursor, cursor.parent(), fracTheta (p, q), 7.0f,
                              colors::accent,
                              "cursor " + juce::String (p) + "/" + juce::String (q)
+                               + cursorGapInfo
                                + (cursor.isEmpty() ? juce::String() : "   (click ↑ parent)"),
                              true });
     }
@@ -224,6 +235,32 @@ void FareyView::paint (juce::Graphics& g)
                 plot.toNearestInt().removeFromBottom (16).translated (0, 20),
                 juce::Justification::centredRight);
 
+    // Chern legend — the gap tint decoded. Pure HSV math per swatch, no
+    // eigensolves, so it may live in paint. NB: chernColour spreads hue over
+    // ±kQMax (=32), which compresses small |c| into neighbouring hues at this
+    // qMax; widening the spread is a one-line change in chernColour — flagged
+    // for Will's visual pass.
+    {
+        const float sw = 12.0f;
+        const float ly = plot.getBottom() + 26.0f;
+        float lx = plot.getX();
+        g.setFont (fonts::mono (10.0f));
+        for (int c = -4; c <= 4; ++c)
+        {
+            g.setColour (chernColour (c));
+            g.fillRect (lx, ly, sw, sw);
+            g.setColour (colors::secondaryAtAlpha (0.8f));
+            g.drawText ((c > 0 ? "+" : "") + juce::String (c),
+                        (int) (lx + sw + 3), (int) ly, 20, 12,
+                        juce::Justification::centredLeft);
+            lx += sw + 27.0f;
+        }
+        g.setColour (colors::secondaryAtAlpha (0.6f));
+        g.drawText ("gap tint = Chern integer",
+                    (int) lx + 8, (int) ly, (int) (plot.getRight() - lx) - 8, 12,
+                    juce::Justification::centredLeft);
+    }
+
     // Flux columns for every enabled operator: where the live sound sits.
     auto& apvts = proc.getAPVTS();
     for (int i = 0; i < params::kNumOperators; ++i)
@@ -274,7 +311,7 @@ void FareyView::resized()
 {
     auto b = getLocalBounds().toFloat().reduced (24.0f);
     b.removeFromTop (48.0f);       // title + cursor label
-    b.removeFromBottom (24.0f);    // θ axis labels
+    b.removeFromBottom (44.0f);    // θ axis labels + Chern legend strip
     plot = b.withTrimmedLeft (8.0f).withTrimmedRight (8.0f);
     rebuildTargets();
 }

@@ -62,6 +62,9 @@ private:
 
     Path cursor;                           // navigation position = shared path
     juce::String lastSharedPath;           // to detect external path changes
+    juce::String cursorGapInfo;            // widest-gap Chern/width readout —
+                                           // computed in rebuildNodes, never
+                                           // in paint (the eigensolve rule)
 
     // Cached per-node visuals — recomputed only when the cursor moves (the
     // prominence/Chern eigensolves must not run on every 10 Hz repaint).
