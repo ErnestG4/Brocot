@@ -218,12 +218,73 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
         }
     }
 
+    // Optional "jumps" block (phase3/jumps.md). Malformed edges are dropped
+    // silently — an old or partly-written map must never fail to load over
+    // its annotation layer.
+    jumps.clear();
+    jumpTau = 0.0f;
+    if (auto* jo = asObject (root->getProperty ("jumps")))
+    {
+        jumpTau = (float) (double) jo->getProperty ("tau");
+        if (auto* edges = jo->getProperty ("edges").getArray())
+        {
+            constexpr int kMaxJumps = 2048;   // producer cap, enforced here too
+            jumps.reserve ((size_t) juce::jmin (edges->size(), kMaxJumps));
+            for (const auto& ev : *edges)
+            {
+                if ((int) jumps.size() >= kMaxJumps) break;
+                auto* eo = asObject (ev);
+                if (eo == nullptr) continue;
+                Jump j;
+                j.a          = (int) eo->getProperty ("a");
+                j.b          = (int) eo->getProperty ("b");
+                j.rough      = (float) (double) eo->getProperty ("r");
+                j.tv         = (float) (double) eo->getProperty ("t");
+                j.graphDist  = (float) (double) eo->getProperty ("g");
+                j.worstAlpha = (float) (double) eo->getProperty ("w");
+                const int nN = (int) nodes.size();
+                if (j.a < 0 || j.b < 0 || j.a >= nN || j.b >= nN || j.a == j.b)
+                    continue;
+                if (j.a > j.b) std::swap (j.a, j.b);
+                j.rough = juce::jlimit (0.0f, 2.0f, j.rough);   // L1 of two unit-L1 fps
+                jumps.push_back (j);
+            }
+        }
+    }
+
     if (nodes.empty())
     {
         if (outError) *outError = "Landscape graph has no nodes";
         return false;
     }
     return true;
+}
+
+std::vector<int> Landscape::jumpsFrom (int nodeIdx) const
+{
+    std::vector<int> out;
+    for (int i = 0; i < (int) jumps.size(); ++i)
+        if (jumps[(size_t) i].a == nodeIdx || jumps[(size_t) i].b == nodeIdx)
+            out.push_back (i);
+    return out;
+}
+
+int Landscape::bestCritNode (float cx, float cy, float radius,
+                             float distPenalty) const
+{
+    if (radius <= 0.0f) return -1;
+    int best = -1;
+    float bestScore = 0.0f;
+    for (int i = 0; i < (int) nodes.size(); ++i)
+    {
+        const auto& n = nodes[(size_t) i];
+        const float dx = n.x - cx, dy = n.y - cy;
+        const float dist = std::sqrt (dx * dx + dy * dy);
+        if (dist > radius) continue;
+        const float score = n.crit - distPenalty * (dist / radius);
+        if (best < 0 || score > bestScore) { best = i; bestScore = score; }
+    }
+    return best;
 }
 
 juce::StringArray Landscape::getFamilyNames() const { return familyNames; }

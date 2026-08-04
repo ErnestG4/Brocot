@@ -50,6 +50,18 @@ public:
         float feedback { 0.0f };
     };
 
+    /** A verified smooth cross-basin jump ("wormhole") mined offline by
+        phase3/gpu_jumps.py — see phase3/jumps.md for the contract. All
+        numbers are RENDER-VERIFIED, never model predictions. */
+    struct Jump
+    {
+        int   a { 0 }, b { 0 };      // node indices, a < b (undirected)
+        float rough { 0.0f };        // rendered R_max (worst morph bump, fp L1)
+        float tv { 0.0f };           // rendered total variation of the morph
+        float graphDist { 0.0f };    // k-NN graph distance at mine time
+        float worstAlpha { 0.0f };   // where along the morph the bump sits
+    };
+
     static constexpr int kHistBins = 40;         // log2-ratio bins over [-5, +5]
 
     Landscape() = default;
@@ -109,12 +121,32 @@ public:
         return (i >= 0 && i < (int) nodes.size()) ? &nodes[(size_t) i] : nullptr;
     }
 
+    /** Verified wormholes, sorted smoothest-first as shipped. Empty for maps
+        mined before the jumps pass (the "jumps" key is optional). */
+    const std::vector<Jump>& getJumps() const noexcept { return jumps; }
+
+    /** τ the miner used (25th pct of k-NN-edge roughness), 0 if no jumps. */
+    float getJumpTau() const noexcept { return jumpTau; }
+
+    /** Indices into getJumps() of the jumps incident to `nodeIdx`. Linear
+        scan — jumps are capped at 2048, callers poll at UI rates. */
+    std::vector<int> jumpsFrom (int nodeIdx) const;
+
+    /** Highest-criticality node within `radius` of (cx, cy), scored
+        crit − distPenalty·(dist/radius) so a marginally-less-critical nearer
+        node beats a rim across the map. Returns -1 if none in radius. The
+        criticality-seek navigation aid; pure so tests can reach it. */
+    int bestCritNode (float cx, float cy, float radius,
+                      float distPenalty = 0.5f) const;
+
     /** Depth-weighted log2-ratio histogram (length kHistBins, L1-normalised)
         — the param-space signature used for localisation. Public for tests. */
     static std::vector<float> ratioHistogram (const std::vector<PullIndex::OpState>& ops);
 
 private:
     std::vector<Node>             nodes;
+    std::vector<Jump>             jumps;
+    float                         jumpTau { 0.0f };
     int                           nOps { 6 };   // map depth (nested prefix)
     juce::String                  mapName;      // selector label
     juce::StringArray             familyNames;

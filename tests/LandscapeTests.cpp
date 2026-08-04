@@ -224,3 +224,89 @@ TEST_CASE ("route that never arrives is empty, not partial", "[Landscape]")
     REQUIRE (ls.waypoints (1, "Bright").empty());
     f.deleteFile();
 }
+
+TEST_CASE ("jumps block parses, validates, and is optional", "[Landscape]")
+{
+    // kJson has no "jumps" key → empty.
+    auto f0 = writeTemp (kJson);
+    Landscape none;
+    REQUIRE (none.load (f0));
+    REQUIRE (none.getJumps().empty());
+    REQUIRE (none.getJumpTau() == Catch::Approx (0.0f));
+    f0.deleteFile();
+
+    // A jumps block with one valid edge (given a>b, must be swapped), one
+    // out-of-range edge and one self-edge (both dropped silently).
+    const char* json = R"JSON(
+    {
+      "version": "1.0",
+      "family_names": ["Bright"],
+      "nodes": [
+        {"family": 0, "ops": [{"path": "R",   "depth": 1.0, "enabled": true}]},
+        {"family": 0, "ops": [{"path": "RR",  "depth": 1.0, "enabled": true}]},
+        {"family": 0, "ops": [{"path": "RRR", "depth": 1.0, "enabled": true}]}
+      ],
+      "next_hop": { "Bright": [1, 2, -1] },
+      "jumps": {
+        "version": 1, "metric": "maxstep_fp_l1", "tau": 0.18,
+        "edges": [
+          {"a": 2, "b": 0, "r": 0.11, "t": 1.92, "g": 23.4, "w": 0.42},
+          {"a": 0, "b": 99, "r": 0.05, "t": 1.0, "g": 9.0, "w": 0.5},
+          {"a": 1, "b": 1, "r": 0.05, "t": 1.0, "g": 9.0, "w": 0.5}
+        ]
+      }
+    })JSON";
+    auto f = writeTemp (json);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+    REQUIRE (ls.getJumpTau() == Catch::Approx (0.18f));
+    REQUIRE (ls.getJumps().size() == 1);
+    const auto& j = ls.getJumps()[0];
+    CHECK (j.a == 0);           // swapped into a < b
+    CHECK (j.b == 2);
+    CHECK (j.rough == Catch::Approx (0.11f));
+    CHECK (j.tv == Catch::Approx (1.92f));
+    CHECK (j.graphDist == Catch::Approx (23.4f));
+    CHECK (j.worstAlpha == Catch::Approx (0.42f));
+
+    // Incidence lookup finds the edge from both endpoints, not from node 1.
+    CHECK (ls.jumpsFrom (0) == std::vector<int> { 0 });
+    CHECK (ls.jumpsFrom (2) == std::vector<int> { 0 });
+    CHECK (ls.jumpsFrom (1).empty());
+    f.deleteFile();
+}
+
+TEST_CASE ("bestCritNode picks by criticality with a distance penalty", "[Landscape]")
+{
+    // Three nodes: a high-crit node just inside the radius, a mid-crit node
+    // at the centre, a max-crit node far outside.
+    const char* json = R"JSON(
+    {
+      "version": "1.0",
+      "family_names": ["Bright"],
+      "nodes": [
+        {"family": 0, "x": 0.0,  "y": 0.0, "crit": 0.40,
+         "ops": [{"path": "R", "depth": 1.0, "enabled": true}]},
+        {"family": 0, "x": 0.09, "y": 0.0, "crit": 0.90,
+         "ops": [{"path": "RR", "depth": 1.0, "enabled": true}]},
+        {"family": 0, "x": 0.9,  "y": 0.9, "crit": 1.00,
+         "ops": [{"path": "RRR", "depth": 1.0, "enabled": true}]}
+      ],
+      "next_hop": { "Bright": [1, 2, -1] }
+    })JSON";
+    auto f = writeTemp (json);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+
+    // Radius 0.1 around origin: node 1 wins (0.90 - 0.5*0.9 = 0.45 beats
+    // node 0's 0.40 - 0 = 0.40); the far max-crit node is out of range.
+    CHECK (ls.bestCritNode (0.0f, 0.0f, 0.1f) == 1);
+
+    // A harsh distance penalty flips the choice to the centre node.
+    CHECK (ls.bestCritNode (0.0f, 0.0f, 0.1f, 6.0f) == 0);
+
+    // No node within a tiny radius elsewhere → -1; nonpositive radius → -1.
+    CHECK (ls.bestCritNode (-0.9f, 0.9f, 0.05f) == -1);
+    CHECK (ls.bestCritNode (0.0f, 0.0f, 0.0f) == -1);
+    f.deleteFile();
+}
