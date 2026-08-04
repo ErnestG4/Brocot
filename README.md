@@ -30,15 +30,18 @@ Beyond the curated search, the `phase3/gpu_*.py` modules (see [`phase3/gpu.md`](
 
 ### Runtime: steer
 
-[`source/pull/PullIndex.{h,cpp}`](./source/pull/) loads the table once at startup. The editor has three tabs:
+[`source/pull/PullIndex.{h,cpp}`](./source/pull/) loads the table once at startup. The editor has four tabs:
 
 - The **landscape** tab plots the whole reachable sound-space as a 2D point cloud and lets you drive through it — see the next section.
-- The **drive** tab presents the categories as a column of ± buttons. Pressing `+ Sawtooth` morphs the current patch by one step (≈ 15%) toward the canonical Sawtooth exemplar. `−` walks back toward a captured "home" state (which re-anchors on Reset). The Textured-Smooth row carries an op-count spinner so the carpet-density dimension is one inline knob. The right column stacks the global ADSR, the filter, and the first two modulators — the touch-points you reach for most while shaping.
+- The **farey** tab draws the Hofstadter / almost-Mathieu butterfly directly from the validated lattice math ([`source/audio/BrocotLattice.h`](./source/audio/BrocotLattice.h)): allowed bands in cream, gaps tinted by their Chern integers, a flux column at θ = frac(ratio) for every enabled operator, and the Stern-Brocot navigation cursor with clickable L/R children sized by gap prominence. Clicking a child extends the shared path, so the whole nested-prefix operator family navigates as one. (Structural, not literal — see BROCOT-SPEC.md Addendum D.)
+- The **drive** tab is a column of family scrub rows: each slider is a *velocity cursor* (−1..+1, snapping to zero on release) that resolves a route from the current patch along the landscape's precomputed gradient toward that family and travels it at a constant waypoints-per-second pace — push further, travel faster; negative retreats along the same route. While steering, per-operator ratios glide continuously in log-ratio space with Farey "groove" gravity pulling toward simple rationals. The Textured-Smooth row carries an op-count spinner. A **coherence** toggle suggests prefix-extensions of the current shortest path that would raise sideband coherence, as clickable chips. The right column stacks the global ADSR, the filter, and the first two modulators.
 - The **under the hood** tab exposes every operator + modulator directly for hand-tweaking once the steered shape feels close.
 
-The morph itself is a *stepped Stern-Brocot tree walk*: from the current path up to the longest-common-prefix ancestor, then down to the target path. Each step is one L/R character — a small ratio nudge that the audio-thread ratio smoother absorbs cleanly. Depth lerps continuously through enable transitions (a newly-enabling operator ramps in from silence; a fading-out one decays smoothly).
+Between waypoints the morph is a *stepped Stern-Brocot tree walk*: from the current path up to the longest-common-prefix ancestor, then down to the target path. Each step is one L/R character — a small ratio nudge that the audio-thread ratio smoother absorbs cleanly. Depth lerps continuously through enable transitions (a newly-enabling operator ramps in from silence; a fading-out one decays smoothly). During active steering the discrete walk is bypassed in favour of the continuous grooved glide above.
 
-The thesis: **shaping is sound selection.** The preset menu carries ≈ 48 canonical anchors; the steer buttons reach everything in-between by walking the SB tree continuously. When the tooling makes a space cheap to traverse, push the space wider — the 4 → 8 → 16 → 64-operator progression is the recurring move.
+The ratio readout under the keyboard shows the enabled operators' frequency and depth ratios plus a live **path-prefix coherence** meter — the fraction of predicted sideband energy landing on partials shared by two or more modulators, which is what "organized" FM spectra are.
+
+The thesis: **shaping is sound selection.** The preset menu carries ~47 curated anchors (the full factory tree holds ~4.3k presets from the Phase-3 packs; the menu shows the top level + `curated/`); the drive and landscape tabs reach everything in-between by walking the SB tree continuously. When the tooling makes a space cheap to traverse, push the space wider — the 4 → 8 → 16 → 64-operator progression is the recurring move.
 
 ## The landscape map — "where am I, where can I go"
 
@@ -127,6 +130,16 @@ Outputs:
   `~/Library/Audio/Plug-Ins/VST3/`
 - `build/Brocot_artefacts/Release/AU/Brocot.component` — copy to
   `~/Library/Audio/Plug-Ins/Components/`
+
+### A note on packaged builds
+
+The landscape maps (`resources/landscape_graph*.json.gz`, ~75 MB) and
+`resources/pull_index.json` (~11 MB) are deliberately **excluded** from
+packaged artefacts to keep bundles small — and the bundle-copy step currently
+runs on macOS only. Building from a source checkout resolves everything via
+the source tree, so developers see the full landscape/drive experience; a
+bare distributed binary without those files gets an empty landscape and
+drive tab. Distribution packaging is tracked in the Mac release work.
 
 ### Tests
 
