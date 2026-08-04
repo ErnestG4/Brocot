@@ -152,3 +152,33 @@ recovery perceptually sound. Cleared to use for ARP-style targets.
   predicted-vs-rendered gap is larger. Musically-typical material is fine.
 - Real ARP recordings are matched the same way once they exist; until then the
   round-trip validates the machinery on synthetic targets.
+
+## 2026-08-04 — basin-hopping lands (the "separate arc" above, run)
+
+`search.basin_hop`: perturb-and-descend around the two-phase search — path
+kicks (parent-trims/L-R extensions), Gaussian depth kicks, Bessel-landmark
+teleports, op swaps; Metropolis acceptance with a separately-tracked global
+best; deterministic per seed; `two_phase_search(n_basin_hops=0)` is a
+byte-identical regression pin. Diagnostic (`diag_modeb_budget --basin-hops`,
+3 configs × 8 seeds):
+
+| hops | bestObj (harm4/mix4/metal4) | worst audio L1 | worst audio KL |
+|---|---|---|---|
+| 0  | 0.0437 / 0.0056 / 0.0375 | 0.61 | 0.30 |
+| 10 | 0.0382 / 0.0049 / 0.0358 | **0.21** | **0.038** |
+| 30 | 0.0215 / 0.0038 / 0.0353 | 0.81 ⚠ | 0.61 ⚠ |
+
+**Findings:** basin-hopping works as an optimizer — the analytic objective
+improves monotonically with hops on every config. **hops=10 is the sweet
+spot**: worst-case audio improves ~3× over no hopping. **hops=30
+over-optimizes into the predicted-vs-rendered gap** — the deeper search
+finds configs that game the analytic predictor (the fragile near-Bessel-zero
+cancellation regime flagged under Scope/limits) and render *worse*. Exact
+synthetic recovery (objective → floor) remains out of reach for the analytic
+objective alone.
+
+**Verdict:** ship with `n_basin_hops=10` as the recommended setting for
+Mode-B matching (default stays 0 = legacy behavior). Pushing past ~10 hops
+needs a **rendered** objective in the inner loop (the same lesson as the
+register-drift arc) — that, not more hops, is the next lever for exact
+recovery.
