@@ -689,7 +689,7 @@ def _pool_features(ops_all, pairs: np.ndarray, workers: int = 10) -> np.ndarray:
 
 def mine(map_path: FsPath, pool_size: int = 20_000_000,
          keep_top: int = 30_000, seed: int = 0,
-         hop_floor: float = 8.0) -> None:
+         hop_floor: float = 8.0, out_npz: FsPath | None = None) -> None:
     """Propose smooth cross-family candidates with the trained scorer.
     Sampled mining (not exhaustive): `pool_size` random cross-family pairs
     are screened — log what that leaves behind, no silent caps."""
@@ -768,43 +768,30 @@ def mine(map_path: FsPath, pool_size: int = 20_000_000,
         if len(take) >= keep_top:
             break
     take = np.array(take)
-    np.savez_compressed(MINED_NPZ, a=pairs[take, 0].astype(np.int32),
+    out_npz = out_npz or MINED_NPZ
+    np.savez_compressed(out_npz, a=pairs[take, 0].astype(np.int32),
                         b=pairs[take, 1].astype(np.int32),
                         pred_log_rmax=pred[take].astype(np.float32),
                         endpoint_l1=l1[take], graph_dist=gd[take],
                         map=str(map_path.name), pool_size=pool_size,
                         l1_cut=l1_cut, gd_floor=gd_floor)
-    print(f"mined {len(take):,} candidates → {MINED_NPZ}  "
+    print(f"mined {len(take):,} candidates → {out_npz}  "
           f"[{time.time()-t0:.1f}s]")
 
 
-def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
-                    per_family_pair: int = 16, per_node: int = 4,
-                    total_cap: int = 2048, seed: int = 0) -> dict:
-    """Render-verify every mined candidate, apply the pre-registered wormhole
-    definition, and write the surviving `jumps` block into the map JSON."""
-    t0 = time.time()
-    d = np.load(MINED_NPZ, allow_pickle=False)
-    ds = np.load(DATASET_NPZ, allow_pickle=False)
-    doc = load_map(map_path)
-    ops_all, fb, fam = node_states(doc)
-
-    # τ = 25th percentile of RENDERED k-NN-edge roughness from the dataset:
-    # "smoother than a typical intra-basin hop".
-    knn_rmax = ds["r_max"][ds["stratum"] == STRATUM_CODE["knn_edge"]]
-    tau = float(np.percentile(knn_rmax, 25))
-
-    a, b = d["a"].astype(np.int64), d["b"].astype(np.int64)
+def _render_pairs_metrics(ops_all, fb, a: np.ndarray, b: np.ndarray,
+                          chunk_pairs: int = 1200):
+    """Rendered (r_max, tv, alpha_worst) for explicit node pairs — the same
+    trajectory protocol as the dataset (uniform grid + event brackets)."""
     t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
     win = torch.hann_window(N_FFT, device=DEVICE)
     W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
     uni = np.linspace(0.0, 1.0, N_UNIFORM)
-
     r_max = np.zeros(len(a), np.float32)
     tv = np.zeros(len(a), np.float32)
     aw = np.zeros(len(a), np.float32)
-    for c0 in range(0, len(a), 1200):
-        c1 = min(c0 + 1200, len(a))
+    for c0 in range(0, len(a), chunk_pairs):
+        c1 = min(c0 + chunk_pairs, len(a))
         alphas_per, ladders = [], []
         for i in range(c0, c1):
             cur, tgt = ops_all[a[i]], ops_all[b[i]]
@@ -839,6 +826,45 @@ def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
                     if jmp > rm:
                         rm, wa = jmp, float(e)
             r_max[c0 + j], aw[c0 + j] = rm, wa
+    return r_max, tv, aw
+
+
+def _map_tau(map_path: FsPath, ops_all, fb, node_fps, rng,
+             n_edges: int = 4000) -> float:
+    """τ for THIS map: 25th percentile of rendered k-NN-edge roughness.
+    The base map can reuse the 300k dataset; every other map renders a
+    fresh edge sample — τ must come from the map it gates."""
+    if map_path.name == DEFAULT_MAP.name and DATASET_NPZ.exists():
+        ds = np.load(DATASET_NPZ, allow_pickle=False)
+        knn = ds["r_max"][ds["stratum"] == STRATUM_CODE["knn_edge"]]
+        if len(knn):
+            return float(np.percentile(knn, 25))
+    graph = _knn_graph(node_fps, k=12)
+    coo = graph.tocoo()
+    mask = coo.row < coo.col
+    edges = np.stack([coo.row[mask], coo.col[mask]], 1)
+    idx = rng.choice(len(edges), size=min(n_edges, len(edges)), replace=False)
+    rm, _, _ = _render_pairs_metrics(ops_all, fb, edges[idx, 0], edges[idx, 1])
+    return float(np.percentile(rm, 25))
+
+
+def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
+                    per_family_pair: int = 16, per_node: int = 4,
+                    total_cap: int = 2048, seed: int = 0,
+                    mined_npz: FsPath | None = None) -> dict:
+    """Render-verify every mined candidate, apply the pre-registered wormhole
+    definition, and write the surviving `jumps` block into the map JSON."""
+    t0 = time.time()
+    d = np.load(mined_npz or MINED_NPZ, allow_pickle=False)
+    doc = load_map(map_path)
+    ops_all, fb, fam = node_states(doc)
+    rng = np.random.default_rng(seed + 3)
+
+    node_fps = render_node_fps(ops_all, fb)
+    tau = _map_tau(map_path, ops_all, fb, node_fps, rng)
+
+    a, b = d["a"].astype(np.int64), d["b"].astype(np.int64)
+    r_max, tv, aw = _render_pairs_metrics(ops_all, fb, a, b)
     print(f"verified {len(a):,} candidates  [{time.time()-t0:.1f}s]")
 
     keep = r_max <= tau
@@ -884,13 +910,15 @@ def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
         f.write(payload)
     print(f"wrote {out_path} (+jumps block, {len(edges)} edges)")
 
-    summary = {"tau": tau, "n_proposed": int(len(a)),
+    summary = {"map": map_path.name, "tau": tau, "n_proposed": int(len(a)),
                "n_pass": int(keep.sum()), "n_shipped": len(edges),
                "median_shipped_r": float(np.median([e["r"] for e in edges]))
                if edges else None,
                "median_shipped_g": float(np.median([e["g"] for e in edges]))
                if edges else None}
-    (DERIVED / "jumps_emit.json").write_text(json.dumps(summary, indent=1) + "\n")
+    stem = map_path.name.replace("landscape_graph", "jumps_emit") \
+                        .replace(".json.gz", "") or "jumps_emit"
+    (DERIVED / f"{stem}.json").write_text(json.dumps(summary, indent=1) + "\n")
     print(json.dumps(summary, indent=1))
     return summary
 
@@ -990,11 +1018,13 @@ def main() -> None:
     m.add_argument("--pool", type=int, default=20_000_000)
     m.add_argument("--top", type=int, default=30_000)
     m.add_argument("--seed", type=int, default=0)
+    m.add_argument("--mined-out", type=FsPath, default=None)
 
     e = sub.add_parser("emit", help="render-verify mined candidates and "
                                     "write the jumps block into the map")
     e.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
     e.add_argument("--out", type=FsPath, default=None)
+    e.add_argument("--mined", type=FsPath, default=None)
 
     au = sub.add_parser("audio", help="A/B WAVs: top wormholes vs random")
     au.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
@@ -1009,9 +1039,10 @@ def main() -> None:
     elif args.cmd == "train":
         train(args.dataset, args.map, epochs=args.epochs, seed=args.seed)
     elif args.cmd == "mine":
-        mine(args.map, pool_size=args.pool, keep_top=args.top, seed=args.seed)
+        mine(args.map, pool_size=args.pool, keep_top=args.top, seed=args.seed,
+             out_npz=args.mined_out)
     elif args.cmd == "emit":
-        verify_and_emit(args.map, args.out)
+        verify_and_emit(args.map, args.out, mined_npz=args.mined)
 
 
 if __name__ == "__main__":
