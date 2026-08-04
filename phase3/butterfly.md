@@ -75,3 +75,46 @@ confirmed**, even single-op.
 Re-run per map (`--map resources/landscape_graph_4.json.gz`, the solo-waveform
 maps, etc.) to see whether lower-op or solo-timbre maps sharpen the single-op
 signal before investing in any overlay.
+
+## 2026-08-04 — the gated re-run (6 maps) and the overlay decision
+
+The re-run the verdict above demanded, with the study extended first: per-subset
+`meanQ` baselines (the ship rule requires prominence to beat trivial simplicity
+*in-subset*), an `nActive ≤ 2` block (the candidate ship population), and
+machine-readable JSON verdicts (`derived/butterfly_study_*.json`).
+
+**Decision rule, fixed before looking (panel pre-registration):** ship a low-op
+prominence overlay iff, single-op, ρ(prom, tonal) ≥ +0.25 or
+ρ(prom, crit) ≤ −0.35 on the 4-op map or on ≥ 2 solo-wave maps, **and**
+prominence beats the in-subset meanQ baseline by ≥ 0.08 on the same field.
+
+| map | n (1op) | prom↔tonal | prom↔crit | meanQ↔tonal | meanQ↔crit |
+|---|---|---|---|---|---|
+| 6-op base | 11,765 | +0.14 | −0.26 | **+0.24** | **−0.35** |
+| 4-op | 9,151 | +0.12 | −0.26 | **+0.24** | **−0.33** |
+| 6op sine | 6,756 | +0.14 | −0.25 | **+0.27** | **−0.31** |
+| 6op tri | 6,907 | +0.06 | −0.24 | **+0.16** | **−0.34** |
+| 6op saw | 7,293 | −0.04 | −0.25 | −0.06 | **−0.34** |
+| 6op sqr | 7,014 | −0.21 ⚠ | −0.39 | −0.11 | **−0.48** |
+
+(⚠ = replicates with the *opposite* predicted sign. The ≤2-op blocks show the
+same pattern, uniformly attenuated.)
+
+**Findings:**
+1. `prom↔crit` (wide gaps sit away from void-rims) **replicates on all six
+   maps** (−0.24…−0.39) — the sign is robust.
+2. `prom↔tonal` does **not** replicate: it flips sign on saw/sqr. The "wide
+   gaps are more tonal" half was waveform-contingent, not structural.
+3. **The margin criterion fails everywhere**: plain depth-weighted simplicity
+   (meanQ) beats prominence on *every map, both subsets, both fields*. Gap
+   prominence carries no signal beyond its correlation with q.
+
+**Verdict: NO-GO, permanently.** The butterfly-specific quantity is fully
+shadowed by Farey simplicity on the measured maps — the "stable plateau"
+signal was simplicity all along. P0-b (prominence terrain) is closed as a
+documented negative, not deferred. What the data *does* earn is the fallback
+the rule anticipated: a **"simplicity" colour mode** on the cloud (per-node
+depth-weighted q, computable at load, no eigensolves, no butterfly claim) —
+the Farey-gravity thesis made visible with the numbers on its side.
+Prominence remains a FareyView-only quantity, where it is §6-validated as
+lattice annotation rather than a map claim.

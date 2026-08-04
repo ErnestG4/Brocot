@@ -257,31 +257,44 @@ def run(map_path: FsPath, n_shuffle: int) -> str:
         lines.append(f"{label:32s} {rho:>+9.3f} {effect_label(rho):>11s} {z:>7.1f} {p:>6.3f}  "
                      f"{verdict(rho, z, p, sign)}")
 
-    # Single-op subset: nodes with exactly one audible operator, where the
-    # butterfly flux θ = p/q is UNAMBIGUOUS (no multi-op averaging confound).
-    # This is the cleanest direct test of §0's "the map is the butterfly".
+    # Low-op subsets. Single-op: the butterfly flux θ = p/q is UNAMBIGUOUS
+    # (no multi-op averaging confound) — the cleanest direct test of §0's
+    # "the map is the butterfly". ≤2-op: the candidate SHIP population for a
+    # low-op overlay (roughly doubles n; tells us where a colouring cutoff
+    # could sit). Each subset carries its own meanQ baselines: the ship
+    # decision requires prominence to beat trivial simplicity IN-SUBSET, not
+    # just at aggregate level.
     one = data["nActive"] == 1.0
-    one_res = {}
-    lines += ["", f"Single-op subset (θ unambiguous): {int(one.sum()):,} nodes",
-              "-" * 92]
-    if one.sum() > 200:
-        for label, af, bf, sign in [
-            ("  1op  promNode vs tonal      ", "promNode", "tonal", +1),
-            ("  1op  promNode vs crit       ", "promNode", "crit",  None),
-            ("  1op  critNode vs tonal      ", "critNode", "tonal", -1),
-            ("  1op  critNode vs crit       ", "critNode", "crit",  +1),
-        ]:
-            rho, z, p = corr_shuffle(data[af][one], data[bf][one], n_shuffle)
-            one_res[(af, bf)] = rho
-            lines.append(f"{label:32s} {rho:>+9.3f} {effect_label(rho):>11s} {z:>7.1f} {p:>6.3f}  "
-                         f"{verdict(rho, z, p, sign)}")
+    one_res: Dict[Tuple[str, str], Tuple[float, float, float]] = {}
+    subset_json: Dict[str, dict] = {}
+    for mask, tag, title in [
+        (one, "1op", "Single-op subset (θ unambiguous)"),
+        (data["nActive"] <= 2.0, "le2op", "Low-op subset (nActive ≤ 2)"),
+    ]:
+        lines += ["", f"{title}: {int(mask.sum()):,} nodes", "-" * 92]
+        sub: Dict[str, dict] = {}
+        if mask.sum() > 200:
+            for label, af, bf, sign in [
+                (f"  {tag:5s}promNode vs tonal     ", "promNode", "tonal", +1),
+                (f"  {tag:5s}promNode vs crit      ", "promNode", "crit",  None),
+                (f"  {tag:5s}critNode vs tonal     ", "critNode", "tonal", -1),
+                (f"  {tag:5s}critNode vs crit      ", "critNode", "crit",  +1),
+                (f"  {tag:5s}baseline meanQ vs tonal", "meanQ",   "tonal", None),
+                (f"  {tag:5s}baseline meanQ vs crit ", "meanQ",   "crit",  None),
+            ]:
+                rho, z, p = corr_shuffle(data[af][mask], data[bf][mask], n_shuffle)
+                if tag == "1op":
+                    one_res[(af, bf)] = (rho, z, p)
+                sub[f"{af}_vs_{bf}"] = {"rho": round(rho, 4), "z": round(z, 2),
+                                        "p": round(p, 4)}
+                lines.append(f"{label:32s} {rho:>+9.3f} {effect_label(rho):>11s} {z:>7.1f} {p:>6.3f}  "
+                             f"{verdict(rho, z, p, sign)}")
+        subset_json[tag] = {"n": int(mask.sum()), "tests": sub}
 
     # Honest headline, effect-size first.
-    agg_bf = max(abs(results.get("P1  critNode vs measured crit", 0.0)),
-                 abs(results.get("P3  promNode vs tonal", 0.0)))
-    prom_tonal_1op = one_res.get(("promNode", "tonal"), 0.0)
-    prom_crit_1op  = one_res.get(("promNode", "crit"), 0.0)
-    crit_void_1op  = abs(one_res.get(("critNode", "crit"), 0.0))
+    prom_tonal_1op = one_res.get(("promNode", "tonal"), (0.0, 0.0, 1.0))[0]
+    prom_crit_1op  = one_res.get(("promNode", "crit"), (0.0, 0.0, 1.0))[0]
+    crit_void_1op  = abs(one_res.get(("critNode", "crit"), (0.0, 0.0, 1.0))[0])
     lines += ["", "CONCLUSION", "-" * 92]
     lines.append("Aggregate (multi-op): butterfly gap/CF quantities are NEGLIGIBLY")
     lines.append("associated with the measured geometry and are dominated by op-count")
@@ -306,6 +319,12 @@ def run(map_path: FsPath, n_shuffle: int) -> str:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     stem = f"butterfly_study_{name.replace(' ', '_').replace('/', '_')}"
     (OUT_DIR / f"{stem}.txt").write_text(report + "\n")
+    # Machine-readable verdicts so the ship gate is mechanical, not transcribed.
+    agg_json = {label.strip(): {"rho": round(rho, 4)} for label, rho in results.items()}
+    (OUT_DIR / f"{stem}.json").write_text(json.dumps({
+        "map": map_path.name, "name": name, "n_nodes": n,
+        "n_shuffle": n_shuffle, "aggregate": agg_json, "subsets": subset_json,
+    }, indent=1, ensure_ascii=False) + "\n")
     write_svg_panels(
         data,
         [("promNode (butterfly gap width)", data["promNode"]),
