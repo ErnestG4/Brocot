@@ -23,7 +23,6 @@ from phase3.build_pull_index import (
     DEFAULT_F_REF,
     DEFAULT_Q_MAX,
     INDEX_VERSION,
-    _category_for,
     _config_from_preset,
     build_index,
 )
@@ -111,20 +110,9 @@ def test_config_from_preset_recovers_op_state():
     assert cfg.mods[2].path == "LL" and cfg.mods[2].depth == pytest.approx(0.7)
 
 
-def test_category_for_uses_provenance_category_first():
-    doc = {"provenance": {"category": "Prime 7", "kind": "family-search"}}
-    assert _category_for(doc) == "Prime 7"
-
-
-def test_category_for_falls_back_to_kind():
-    doc = {"provenance": {"kind": "spectral-search"}}
-    assert _category_for(doc) == "Spectral Search"
-
-
-def test_category_for_falls_back_to_hand_authored():
-    """No provenance at all — treat as a hand-authored preset."""
-    assert _category_for({}) == "Hand-authored"
-    assert _category_for({"provenance": {}}) == "Hand-authored"
+# NB: the _category_for tests died with provenance-string taxonomy itself —
+# the measured family axis (phase3/family_axis.md) replaced it; categories
+# now come from bank-mined centroids, not provenance fields.
 
 
 # ---------------------------------------------------------------------------
