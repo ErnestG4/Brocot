@@ -493,6 +493,409 @@ def calibrate(ds_path: FsPath) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# JumpNet — pair roughness surrogate (§A3). Success/negative-result numbers
+# are pre-registered in jumps.md; the baselines below are the bar.
+# ---------------------------------------------------------------------------
+
+JUMPNET_PT = DERIVED / "jumpnet.pt"
+EVAL_JSON = DERIVED / "jumpnet_eval.json"
+N_NODE_SCALARS = 8   # n_active, depth_sum, depth_max, feedback, wave hist (4)
+
+
+def _node_scalars(ops_all, fb) -> np.ndarray:
+    out = np.zeros((len(ops_all), N_NODE_SCALARS), np.float32)
+    for i, ops in enumerate(ops_all):
+        act = [o for o in ops if o.enabled and o.depth > 1e-4]
+        out[i, 0] = len(act)
+        out[i, 1] = sum(o.depth for o in act)
+        out[i, 2] = max((o.depth for o in act), default=0.0)
+        out[i, 3] = fb[i]
+        for o in act:
+            out[i, 4 + min(o.wave, 3)] += 1.0
+    return out
+
+
+class JumpNet(torch.nn.Module):
+    """Siamese towers over (fingerprint ⊕ node scalars), symmetric pooling
+    [h_a + h_b, |h_a − h_b|], engineered pair features appended, two heads:
+    log(R_max + 1e-3), log(TV + 1e-3). Deliberately invnet-scale."""
+
+    def __init__(self, n_feats: int = len(FEATURE_NAMES)):
+        super().__init__()
+        nn = torch.nn
+        self.tower = nn.Sequential(
+            nn.Linear(Q_MAX + N_NODE_SCALARS, 256), nn.GELU(),
+            nn.Linear(256, 256), nn.GELU())
+        self.head = nn.Sequential(
+            nn.Linear(512 + n_feats, 256), nn.GELU(),
+            nn.Linear(256, 2))
+
+    def forward(self, xa, xb, feats):
+        ha, hb = self.tower(xa), self.tower(xb)
+        return self.head(torch.cat([ha + hb, (ha - hb).abs(), feats], dim=1))
+
+    def embed(self, x):
+        return self.tower(x)
+
+
+def _node_split(a: np.ndarray, b: np.ndarray, n_nodes: int, seed: int,
+                held_frac: float = 0.05):
+    """Node-disjoint split: pairs touching a held-out node are validation,
+    the rest train. Pair-level splits leak node identity — never use them."""
+    rng = np.random.default_rng(seed + 1)
+    held = np.zeros(n_nodes, bool)
+    held[rng.choice(n_nodes, int(n_nodes * held_frac), replace=False)] = True
+    val = held[a] | held[b]
+    return ~val, val
+
+
+def _spearman_np(a: np.ndarray, b: np.ndarray) -> float:
+    return _spear(a, b)
+
+
+def train(ds_path: FsPath, map_path: FsPath, epochs: int = 15,
+          batch: int = 8192, lr: float = 2e-3, seed: int = 0) -> dict:
+    d = np.load(ds_path, allow_pickle=False)
+    doc = load_map(map_path)
+    ops_all, fb, _fam = node_states(doc)
+    node_fps = render_node_fps(ops_all, fb)
+    scal = torch.as_tensor(_node_scalars(ops_all, fb), device=DEVICE)
+    X = torch.cat([node_fps, scal], dim=1)                       # (n, 72)
+
+    a, b = d["a"].astype(np.int64), d["b"].astype(np.int64)
+    feats = torch.as_tensor(d["features"].astype(np.float32), device=DEVICE)
+    y = torch.as_tensor(np.stack([
+        np.log(d["r_max"].astype(np.float64) + 1e-3),
+        np.log(d["tv"].astype(np.float64) + 1e-3)], 1).astype(np.float32),
+        device=DEVICE)
+
+    tr, va = _node_split(a, b, len(ops_all), seed)
+    ta = torch.as_tensor(a, device=DEVICE)
+    tb = torch.as_tensor(b, device=DEVICE)
+    tr_idx = torch.as_tensor(np.where(tr)[0], device=DEVICE)
+    va_idx = torch.as_tensor(np.where(va)[0], device=DEVICE)
+    print(f"train {len(tr_idx):,} / val {len(va_idx):,} pairs "
+          f"(node-disjoint 5%)")
+
+    torch.manual_seed(seed)
+    net = JumpNet().to(DEVICE)
+    opt = torch.optim.AdamW(net.parameters(), lr=lr)
+    sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        opt, T_max=epochs * (len(tr_idx) // batch + 1))
+    huber = torch.nn.HuberLoss()
+
+    for ep in range(epochs):
+        perm = tr_idx[torch.randperm(len(tr_idx), device=DEVICE)]
+        tot = 0.0
+        for c in range(0, len(perm), batch):
+            idx = perm[c:c + batch]
+            pred = net(X[ta[idx]], X[tb[idx]], feats[idx])
+            loss = huber(pred, y[idx])
+            opt.zero_grad(); loss.backward(); opt.step(); sched.step()
+            tot += float(loss) * len(idx)
+        print(f"epoch {ep + 1:2d}/{epochs}  huber {tot / len(perm):.4f}")
+
+    net.eval()
+    with torch.no_grad():
+        preds = []
+        for c in range(0, len(va_idx), 65536):
+            idx = va_idx[c:c + 65536]
+            preds.append(net(X[ta[idx]], X[tb[idx]], feats[idx]))
+        pred = torch.cat(preds).cpu().numpy()
+    torch.save({"state": net.state_dict(), "seed": seed,
+                "map": str(map_path.name)}, JUMPNET_PT)
+
+    # --- Baselines on the SAME val pairs -----------------------------------
+    vy = y[va_idx, 0].cpu().numpy()                     # log R_max target
+    va_np = np.where(va)[0]
+    rho_net = _spearman_np(pred[:, 0], vy)
+    rho_l1 = _spearman_np(d["endpoint_l1"][va_np], vy)
+    rho_gd = _spearman_np(d["graph_dist"][va_np], vy)
+
+    # Engineered-only MLP, same protocol (the ablation that decides whether
+    # the towers add anything beyond the hand physics).
+    torch.manual_seed(seed)
+    eng = torch.nn.Sequential(
+        torch.nn.Linear(len(FEATURE_NAMES), 128), torch.nn.GELU(),
+        torch.nn.Linear(128, 128), torch.nn.GELU(),
+        torch.nn.Linear(128, 1)).to(DEVICE)
+    eopt = torch.optim.AdamW(eng.parameters(), lr=lr)
+    for ep in range(epochs):
+        perm = tr_idx[torch.randperm(len(tr_idx), device=DEVICE)]
+        for c in range(0, len(perm), batch):
+            idx = perm[c:c + batch]
+            loss = huber(eng(feats[idx])[:, 0], y[idx, 0])
+            eopt.zero_grad(); loss.backward(); eopt.step()
+    eng.eval()
+    with torch.no_grad():
+        epred = torch.cat([eng(feats[va_idx[c:c + 65536]])[:, 0]
+                           for c in range(0, len(va_idx), 65536)]).cpu().numpy()
+    rho_eng = _spearman_np(epred, vy)
+
+    best_base = max(abs(rho_l1), abs(rho_gd), abs(rho_eng))
+    verdict = ("SUCCESS" if rho_net >= 0.90 and rho_net - best_base >= 0.05
+               else "ENGINEERED-TIES" if rho_net - rho_eng < 0.02
+               else "PARTIAL")
+    out = {
+        "n_train": int(len(tr_idx)), "n_val": int(len(va_idx)),
+        "spearman_val_logRmax": {
+            "jumpnet": round(rho_net, 4), "endpoint_l1": round(rho_l1, 4),
+            "graph_dist_landmark": round(rho_gd, 4),
+            "engineered_mlp": round(rho_eng, 4)},
+        "pre_registered": "net >= 0.90 and net - best_baseline >= 0.05",
+        "verdict": verdict,
+    }
+    EVAL_JSON.write_text(json.dumps(out, indent=1) + "\n")
+    print(json.dumps(out, indent=1))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Mining + render-verification + emit (§A4). The net proposes, the renderer
+# disposes: shipped numbers are always rendered, never predictions.
+# ---------------------------------------------------------------------------
+
+MINED_NPZ = DERIVED / "jumps_mined.npz"
+
+
+_FEAT_CTX: dict = {}   # fork-inherited state for _feat_worker (ops, pairs)
+
+
+def _feat_worker(args):
+    lo, hi = args
+    ops_all, pairs = _FEAT_CTX["ops"], _FEAT_CTX["pairs"]
+    out = np.empty((hi - lo, len(FEATURE_NAMES)), np.float32)
+    for i in range(lo, hi):
+        out[i - lo] = feature_vector(ops_all[pairs[i, 0]], ops_all[pairs[i, 1]])
+    return lo, out
+
+
+def _pool_features(ops_all, pairs: np.ndarray, workers: int = 10) -> np.ndarray:
+    """Engineered features for a candidate pool. Fork start method inherits
+    _FEAT_CTX copy-on-write, so only (lo, hi) ranges cross the pipe."""
+    import multiprocessing as mp
+
+    _FEAT_CTX["ops"], _FEAT_CTX["pairs"] = ops_all, pairs
+    n = len(pairs)
+    step = max(1, n // (workers * 8))
+    ranges = [(lo, min(lo + step, n)) for lo in range(0, n, step)]
+    feats = np.empty((n, len(FEATURE_NAMES)), np.float32)
+    with mp.get_context("fork").Pool(workers) as pool:
+        for lo, block in pool.imap_unordered(_feat_worker, ranges):
+            feats[lo:lo + len(block)] = block
+    _FEAT_CTX.clear()
+    return feats
+
+
+def mine(map_path: FsPath, pool_size: int = 20_000_000,
+         keep_top: int = 30_000, seed: int = 0,
+         hop_floor: float = 8.0) -> None:
+    """Propose smooth cross-family candidates with the trained scorer.
+    Sampled mining (not exhaustive): `pool_size` random cross-family pairs
+    are screened — log what that leaves behind, no silent caps."""
+    rng = np.random.default_rng(seed + 7)
+    t0 = time.time()
+    doc = load_map(map_path)
+    ops_all, fb, fam = node_states(doc)
+    n = len(ops_all)
+    node_fps = render_node_fps(ops_all, fb)
+    graph = _knn_graph(node_fps, k=12)
+    dl, _ = _landmark_dists(graph, n, rng)
+    med_edge = float(np.median(graph.tocoo().data))
+    gd_floor = hop_floor * med_edge     # "≥ 8 hops" in edge-weight units
+    print(f"map {map_path.name}: {n:,} nodes; median edge {med_edge:.3f} "
+          f"→ graph-dist floor {gd_floor:.2f}  [{time.time()-t0:.1f}s]")
+
+    # Screen the random pool on GPU-cheap signals first.
+    kept_pairs, kept_l1, kept_gd = [], [], []
+    chunk = 2_000_000
+    l1_cut = None
+    for c in range(0, pool_size, chunk):
+        m = min(chunk, pool_size - c)
+        a = rng.integers(0, n, m * 2)
+        b = rng.integers(0, n, m * 2)
+        ok = (a != b) & (fam[a] != fam[b])
+        a, b = a[ok][:m], b[ok][:m]
+        l1 = np.empty(len(a), np.float32)
+        for s in range(0, len(a), 16384):
+            sl = slice(s, s + 16384)
+            l1[sl] = (node_fps[a[sl]] - node_fps[b[sl]]).abs().sum(1).cpu().numpy()
+        if l1_cut is None:
+            l1_cut = float(np.percentile(l1, 40))   # from the first chunk
+        gd = _approx_graph_dist(dl, a, b)
+        keep = (l1 <= l1_cut) & (gd >= gd_floor) & np.isfinite(gd)
+        kept_pairs.append(np.stack([a[keep], b[keep]], 1))
+        kept_l1.append(l1[keep]); kept_gd.append(gd[keep])
+    pairs = np.concatenate(kept_pairs)
+    l1 = np.concatenate(kept_l1); gd = np.concatenate(kept_gd)
+    print(f"screen: {pool_size:,} sampled → {len(pairs):,} survivors "
+          f"(l1 ≤ {l1_cut:.2f}, gd ≥ {gd_floor:.2f})  [{time.time()-t0:.1f}s]")
+
+    # De-dup canonical a<b.
+    lo = np.minimum(pairs[:, 0], pairs[:, 1])
+    hi = np.maximum(pairs[:, 0], pairs[:, 1])
+    _, uniq = np.unique(lo.astype(np.int64) * n + hi, return_index=True)
+    pairs = np.stack([lo[uniq], hi[uniq]], 1)
+    l1, gd = l1[uniq], gd[uniq]
+
+    # Score with the trained net (or engineered head if that's the verdict).
+    feats = _pool_features(ops_all, pairs)
+    print(f"features for {len(pairs):,} pairs  [{time.time()-t0:.1f}s]")
+    ckpt = torch.load(JUMPNET_PT, map_location=DEVICE, weights_only=False)
+    net = JumpNet().to(DEVICE); net.load_state_dict(ckpt["state"]); net.eval()
+    scal = torch.as_tensor(_node_scalars(ops_all, fb), device=DEVICE)
+    X = torch.cat([node_fps, scal], dim=1)
+    tf = torch.as_tensor(feats, device=DEVICE)
+    ta = torch.as_tensor(pairs[:, 0], device=DEVICE)
+    tb = torch.as_tensor(pairs[:, 1], device=DEVICE)
+    with torch.no_grad():
+        pred = torch.cat([
+            net(X[ta[c:c + 65536]], X[tb[c:c + 65536]], tf[c:c + 65536])[:, 0]
+            for c in range(0, len(pairs), 65536)]).cpu().numpy()
+
+    # Family-pair caps on the PROPOSAL side (500/pair) neutralise basin skew,
+    # then a global keep_top by predicted smoothness.
+    fp_key = fam[pairs[:, 0]].astype(np.int64) * 64 + fam[pairs[:, 1]]
+    order = np.argsort(pred)                       # smoothest-predicted first
+    counts: dict = {}
+    take = []
+    for i in order:
+        k = int(fp_key[i])
+        if counts.get(k, 0) >= 500:
+            continue
+        counts[k] = counts.get(k, 0) + 1
+        take.append(i)
+        if len(take) >= keep_top:
+            break
+    take = np.array(take)
+    np.savez_compressed(MINED_NPZ, a=pairs[take, 0].astype(np.int32),
+                        b=pairs[take, 1].astype(np.int32),
+                        pred_log_rmax=pred[take].astype(np.float32),
+                        endpoint_l1=l1[take], graph_dist=gd[take],
+                        map=str(map_path.name), pool_size=pool_size,
+                        l1_cut=l1_cut, gd_floor=gd_floor)
+    print(f"mined {len(take):,} candidates → {MINED_NPZ}  "
+          f"[{time.time()-t0:.1f}s]")
+
+
+def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
+                    per_family_pair: int = 16, per_node: int = 4,
+                    total_cap: int = 2048, seed: int = 0) -> dict:
+    """Render-verify every mined candidate, apply the pre-registered wormhole
+    definition, and write the surviving `jumps` block into the map JSON."""
+    t0 = time.time()
+    d = np.load(MINED_NPZ, allow_pickle=False)
+    ds = np.load(DATASET_NPZ, allow_pickle=False)
+    doc = load_map(map_path)
+    ops_all, fb, fam = node_states(doc)
+
+    # τ = 25th percentile of RENDERED k-NN-edge roughness from the dataset:
+    # "smoother than a typical intra-basin hop".
+    knn_rmax = ds["r_max"][ds["stratum"] == STRATUM_CODE["knn_edge"]]
+    tau = float(np.percentile(knn_rmax, 25))
+
+    a, b = d["a"].astype(np.int64), d["b"].astype(np.int64)
+    t = torch.arange(N_FFT, device=DEVICE, dtype=torch.float32) / SAMPLE_RATE
+    win = torch.hann_window(N_FFT, device=DEVICE)
+    W = interp_matrix(N_FFT, SAMPLE_RATE, Q_MAX, F_CARRIER)
+    uni = np.linspace(0.0, 1.0, N_UNIFORM)
+
+    r_max = np.zeros(len(a), np.float32)
+    tv = np.zeros(len(a), np.float32)
+    aw = np.zeros(len(a), np.float32)
+    for c0 in range(0, len(a), 1200):
+        c1 = min(c0 + 1200, len(a))
+        alphas_per, ladders = [], []
+        for i in range(c0, c1):
+            cur, tgt = ops_all[a[i]], ops_all[b[i]]
+            ev = events(cur, tgt)[:MAX_EVENTS]
+            br = np.array(ev, np.float64)
+            alphas = np.unique(np.clip(np.concatenate(
+                [uni, br - EVENT_EPS, br + EVENT_EPS]), 0.0, 1.0))
+            alphas_per.append((alphas, np.array(ev)))
+            ladders.append(PairLadder(cur, tgt, fb[a[i]], fb[b[i]]))
+        counts = np.array([len(x) for x, _ in alphas_per])
+        offs = np.concatenate([[0], np.cumsum(counts)])
+        k = ladders[0].k
+        R = np.empty((offs[-1], k)); D = np.empty((offs[-1], k))
+        Wv = np.empty((offs[-1], k)); F = np.empty(offs[-1])
+        for j, ((alphas, _), pl) in enumerate(zip(alphas_per, ladders)):
+            r, dep, w, f = pl.sample(alphas)
+            R[offs[j]:offs[j + 1]] = r; D[offs[j]:offs[j + 1]] = dep
+            Wv[offs[j]:offs[j + 1]] = w; F[offs[j]:offs[j + 1]] = f
+        fps = _render_fps(R, D, Wv, F, t, win, W)
+        d_seq = (fps[1:] - fps[:-1]).abs().sum(1).cpu().numpy()
+        for j in range(c1 - c0):
+            alphas, ev = alphas_per[j]
+            tv[c0 + j] = d_seq[offs[j]:offs[j + 1] - 1].sum()
+            rm, wa = 0.0, 0.0
+            for e in ev:
+                loi = np.searchsorted(alphas, np.clip(e - EVENT_EPS, 0, 1))
+                hii = np.searchsorted(alphas, np.clip(e + EVENT_EPS, 0, 1))
+                loi = min(loi, len(alphas) - 1); hii = min(hii, len(alphas) - 1)
+                if hii > loi:
+                    jmp = float(np.abs(fps[offs[j] + hii].cpu().numpy()
+                                       - fps[offs[j] + loi].cpu().numpy()).sum())
+                    if jmp > rm:
+                        rm, wa = jmp, float(e)
+            r_max[c0 + j], aw[c0 + j] = rm, wa
+    print(f"verified {len(a):,} candidates  [{time.time()-t0:.1f}s]")
+
+    keep = r_max <= tau
+    print(f"wormhole rule: rendered R_max ≤ τ={tau:.3f} → {keep.sum():,} pass "
+          f"({100.0 * keep.mean():.1f}% of proposals)")
+
+    # Rank by wormhole score, then apply the shipping caps.
+    score = d["graph_dist"] / np.maximum(r_max, 1e-3)
+    order = np.argsort(-score)
+    fp_count: dict = {}; node_count: dict = {}
+    edges = []
+    for i in order:
+        if not keep[i]:
+            continue
+        ai, bi = int(a[i]), int(b[i])
+        fpk = (int(fam[ai]) << 8) | int(fam[bi])
+        if fp_count.get(fpk, 0) >= per_family_pair:
+            continue
+        if node_count.get(ai, 0) >= per_node or node_count.get(bi, 0) >= per_node:
+            continue
+        fp_count[fpk] = fp_count.get(fpk, 0) + 1
+        node_count[ai] = node_count.get(ai, 0) + 1
+        node_count[bi] = node_count.get(bi, 0) + 1
+        edges.append({"a": min(ai, bi), "b": max(ai, bi),
+                      "r": round(float(r_max[i]), 3),
+                      "t": round(float(tv[i]), 2),
+                      "g": round(float(d["graph_dist"][i]), 1),
+                      "w": round(float(aw[i]), 2)})
+        if len(edges) >= total_cap:
+            break
+    edges.sort(key=lambda e: e["r"])              # shipped smoothest-first
+    print(f"caps (≤{per_family_pair}/family-pair, ≤{per_node}/node, "
+          f"≤{total_cap} total) → {len(edges):,} shipped")
+
+    doc["jumps"] = {"version": 1, "metric": "maxstep_fp_l1",
+                    "tau": round(tau, 4), "edges": edges}
+    out_path = out_path or map_path
+    # dict insertion order puts "jumps" last → after "nodes", so the C++
+    # peekHeader preamble scan is unaffected. Raw UTF-8 (the json gotcha).
+    payload = json.dumps(doc, ensure_ascii=False,
+                         separators=(",", ":")).encode()
+    with gzip.open(out_path, "wb") as f:
+        f.write(payload)
+    print(f"wrote {out_path} (+jumps block, {len(edges)} edges)")
+
+    summary = {"tau": tau, "n_proposed": int(len(a)),
+               "n_pass": int(keep.sum()), "n_shipped": len(edges),
+               "median_shipped_r": float(np.median([e["r"] for e in edges]))
+               if edges else None,
+               "median_shipped_g": float(np.median([e["g"] for e in edges]))
+               if edges else None}
+    (DERIVED / "jumps_emit.json").write_text(json.dumps(summary, indent=1) + "\n")
+    print(json.dumps(summary, indent=1))
+    return summary
+
+
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -508,11 +911,34 @@ def main() -> None:
     c = sub.add_parser("calibrate", help="strata medians + gate verdict")
     c.add_argument("--dataset", type=FsPath, default=DATASET_NPZ)
 
+    t = sub.add_parser("train", help="JumpNet + baselines on the dataset")
+    t.add_argument("--dataset", type=FsPath, default=DATASET_NPZ)
+    t.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
+    t.add_argument("--epochs", type=int, default=15)
+    t.add_argument("--seed", type=int, default=0)
+
+    m = sub.add_parser("mine", help="propose smooth cross-family candidates")
+    m.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
+    m.add_argument("--pool", type=int, default=20_000_000)
+    m.add_argument("--top", type=int, default=30_000)
+    m.add_argument("--seed", type=int, default=0)
+
+    e = sub.add_parser("emit", help="render-verify mined candidates and "
+                                    "write the jumps block into the map")
+    e.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
+    e.add_argument("--out", type=FsPath, default=None)
+
     args = ap.parse_args()
     if args.cmd == "dataset":
         dataset(args.map, args.pairs, args.seed, args.out, args.ratio_mode)
     elif args.cmd == "calibrate":
         calibrate(args.dataset)
+    elif args.cmd == "train":
+        train(args.dataset, args.map, epochs=args.epochs, seed=args.seed)
+    elif args.cmd == "mine":
+        mine(args.map, pool_size=args.pool, keep_top=args.top, seed=args.seed)
+    elif args.cmd == "emit":
+        verify_and_emit(args.map, args.out)
 
 
 if __name__ == "__main__":
