@@ -67,6 +67,52 @@ TEST_CASE ("two salts decorrelate the twinkle", "[CloudMath]")
 }
 
 // ----------------------------------------------------------------------------
+// arcControl — wormhole-arc geometry
+// ----------------------------------------------------------------------------
+
+TEST_CASE ("arcControl offset is perpendicular to the chord", "[CloudMath]")
+{
+    const Vec2 p1 { 10.0f, 20.0f }, p2 { 110.0f, 60.0f }, centre { 50.0f, 50.0f };
+    const auto c = arcControl (p1, p2, centre);
+    const Vec2 mid { 60.0f, 40.0f };
+    const float dot = (c.x - mid.x) * (p2.x - p1.x) + (c.y - mid.y) * (p2.y - p1.y);
+    REQUIRE (dot == Approx (0.0f).margin (1.0e-3));
+}
+
+TEST_CASE ("arcControl offset magnitude is bulge times the chord length", "[CloudMath]")
+{
+    const Vec2 p1 { 0.0f, 0.0f }, p2 { 30.0f, 40.0f }, centre { 100.0f, 100.0f };
+    for (float bulge : { 0.18f, 0.5f })
+    {
+        const auto c = arcControl (p1, p2, centre, bulge);
+        const Vec2 mid { 15.0f, 20.0f };
+        const float mag = std::sqrt ((c.x - mid.x) * (c.x - mid.x)
+                                     + (c.y - mid.y) * (c.y - mid.y));
+        REQUIRE (mag == Approx (bulge * 50.0f).epsilon (1.0e-4));   // |chord| = 50
+    }
+}
+
+TEST_CASE ("arcControl bows away from the centre, flipping as it crosses the chord", "[CloudMath]")
+{
+    // Horizontal chord along y = 10: centre below → bow up; centre above → bow down.
+    const Vec2 p1 { 0.0f, 10.0f }, p2 { 100.0f, 10.0f };
+    const auto below = arcControl (p1, p2, { 50.0f, -40.0f });
+    const auto above = arcControl (p1, p2, { 50.0f,  60.0f });
+    REQUIRE (below.y > 10.0f);
+    REQUIRE (above.y < 10.0f);
+    REQUIRE (below.x == Approx (50.0f));
+    REQUIRE (below.y == Approx (2.0f * 10.0f - above.y));   // mirror images
+}
+
+TEST_CASE ("arcControl degenerates to p1 when the chord vanishes", "[CloudMath]")
+{
+    const Vec2 p { 7.0f, -3.0f };
+    const auto c = arcControl (p, p, { 0.0f, 0.0f });
+    REQUIRE (c.x == Approx (7.0f));
+    REQUIRE (c.y == Approx (-3.0f));
+}
+
+// ----------------------------------------------------------------------------
 // topCritIndices — bake-time dot selection
 // ----------------------------------------------------------------------------
 

@@ -78,6 +78,13 @@ private:
     float shimmerPhase { 0.0f };           // seconds, advanced by the timer
     bool  shimmerFlip  { false };          // repaint every OTHER tick (15 Hz)
 
+    // Wormhole arcs: render-verified smooth cross-basin jumps (Landscape::
+    // getJumps). Dormant until a map ships jump data — the toggle only shows
+    // then. Arcs incident to the hover/current node light up regardless of
+    // the toggle; the full smoothest-200 layer is opt-in.
+    juce::ToggleButton wormholeToggle;
+    void drawJumpArcs (juce::Graphics&);
+
     ColourMode colourMode { ColourMode::Family };
     juce::ComboBox colourModeCombo;
     juce::ComboBox mapCombo;        // pick the operator-depth map to navigate

@@ -29,6 +29,25 @@ inline float shimmerAlpha (float crit, float phaseSeconds, uint32_t salt)
     return std::clamp (alpha, 0.0f, 0.7f);
 }
 
+/** Minimal 2D point so the header stays JUCE-free; CloudView converts. */
+struct Vec2 { float x { 0.0f }, y { 0.0f }; };
+
+/** Control point for a quadratic wormhole arc between p1 and p2: offset from
+    the chord midpoint, perpendicular to the chord, magnitude bulge·|chord|,
+    bowing AWAY from `centre` (so arcs across the map bow outward instead of
+    piling up in the middle). Degenerate p1 == p2 → p1. */
+inline Vec2 arcControl (Vec2 p1, Vec2 p2, Vec2 centre, float bulge = 0.18f)
+{
+    const float dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const float len = std::sqrt (dx * dx + dy * dy);
+    if (len < 1.0e-6f) return p1;
+
+    const Vec2 mid { 0.5f * (p1.x + p2.x), 0.5f * (p1.y + p2.y) };
+    float px = -dy / len, py = dx / len;
+    if (px * (mid.x - centre.x) + py * (mid.y - centre.y) < 0.0f) { px = -px; py = -py; }
+    return { mid.x + px * bulge * len, mid.y + py * bulge * len };
+}
+
 /** Indices of the n largest values in `crit`, descending; ties keep their
     original index order (stable). n past the end returns everything. */
 inline std::vector<int> topCritIndices (const std::vector<float>& crit, int n)

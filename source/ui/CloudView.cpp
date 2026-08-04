@@ -5,6 +5,7 @@
 #include "../util/DensityGrid.h"
 #include "../util/Fonts.h"
 
+#include <algorithm>
 #include <map>
 
 namespace brocot
@@ -55,6 +56,13 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
         repaint();
     };
     addAndMakeVisible (mapCombo);
+
+    // Wormhole layer toggle — a child only made visible when the active map
+    // actually ships verified jumps (rebuildImage keeps that in sync).
+    wormholeToggle.setButtonText ("wormholes");
+    wormholeToggle.setTooltip (juce::CharPointer_UTF8 ("Show the smoothest render-verified cross-basin jumps."));
+    wormholeToggle.onClick = [this] { repaint(); };
+    addChildComponent (wormholeToggle);
 
     startTimerHz (30);
 }
@@ -131,7 +139,8 @@ void CloudView::resized()
     plot = getLocalBounds().toFloat().reduced (16.0f);
     seekRateKnob.setBounds (getWidth() - 70, 8, 60, 60);
     mapCombo.setBounds (10, 8, 124, 22);   // wide enough for "16-op mix" etc.
-    colourModeCombo.setBounds (140, 8, 120, 22);
+    colourModeCombo.setBounds (140, 8, 130, 22);
+    wormholeToggle.setBounds (276, 8, 100, 22);
     rebuildImage();
 }
 
@@ -183,6 +192,7 @@ void CloudView::rebuildImage()
     juce::Graphics g (cloud);
 
     const auto& ls = proc.getLandscape();
+    wormholeToggle.setVisible (! ls.getJumps().empty());
     if (ls.isEmpty())
     {
         g.setColour (colors::secondaryText);
@@ -349,6 +359,76 @@ void CloudView::timerCallback()
     if (seeking || changed) repaint();   // idle (stationary dot) → no repaint
 }
 
+void CloudView::drawJumpArcs (juce::Graphics& g)
+{
+    // Wormholes = render-verified smooth cross-basin jumps (phase3/jumps.md).
+    // Dynamic layer: the incident-arc highlight follows hover/current, so the
+    // arcs can't live in the baked image. ≤ 2048 jumps as shipped; the linear
+    // incidence scans stay trivially cheap at repaint rates.
+    const auto& ls = proc.getLandscape();
+    const auto& jumps = ls.getJumps();
+    if (jumps.empty()) return;
+
+    const auto& nodes = ls.getNodes();
+    const float tau = juce::jmax (ls.getJumpTau(), 1.0e-6f);
+    const auto  centre = plot.getCentre();
+
+    auto smoothOf = [tau] (const Landscape::Jump& j)
+    {
+        return juce::jlimit (0.0f, 1.0f, 1.0f - j.rough / tau);
+    };
+    auto arcOf = [this, &nodes, centre] (const Landscape::Jump& j,
+                                         juce::Point<float>& p1, juce::Point<float>& p2)
+    {
+        const auto& na = nodes[(size_t) j.a];
+        const auto& nb = nodes[(size_t) j.b];
+        p1 = mapToScreen (na.x, na.y);
+        p2 = mapToScreen (nb.x, nb.y);
+        const auto c = viz::arcControl ({ p1.x, p1.y }, { p2.x, p2.y },
+                                        { centre.x, centre.y });
+        juce::Path arc;
+        arc.startNewSubPath (p1);
+        arc.quadraticTo (c.x, c.y, p2.x, p2.y);
+        return arc;
+    };
+
+    // Opt-in layer: the smoothest min(200, all) jumps, faint, alpha graded by
+    // smoothness. getJumps() is sorted smoothest-first as shipped.
+    if (wormholeToggle.getToggleState())
+    {
+        const int nDraw = juce::jmin (200, (int) jumps.size());
+        for (int i = 0; i < nDraw; ++i)
+        {
+            juce::Point<float> p1, p2;
+            const auto arc = arcOf (jumps[(size_t) i], p1, p2);
+            g.setColour (colors::secondaryText.withAlpha (
+                juce::jlimit (0.0f, 1.0f, 0.08f + 0.30f * smoothOf (jumps[(size_t) i]))));
+            g.strokePath (arc, juce::PathStrokeType (1.0f));
+        }
+    }
+
+    // Regardless of the toggle: jumps incident to the hover/current node draw
+    // bright — "where can this sound tunnel to" is always answerable.
+    std::vector<int> incident;
+    for (int node : { hoverNode, currentNode })
+        if (node >= 0)
+            for (int ji : ls.jumpsFrom (node))
+                incident.push_back (ji);
+    std::sort (incident.begin(), incident.end());
+    incident.erase (std::unique (incident.begin(), incident.end()), incident.end());
+
+    for (int ji : incident)
+    {
+        const auto& j = jumps[(size_t) ji];
+        juce::Point<float> p1, p2;
+        const auto arc = arcOf (j, p1, p2);
+        g.setColour (colors::accent.withAlpha (0.4f + 0.5f * smoothOf (j)));
+        g.strokePath (arc, juce::PathStrokeType (1.5f));
+        for (const auto& e : { p1, p2 })
+            g.drawEllipse (e.x - 3.0f, e.y - 3.0f, 6.0f, 6.0f, 1.0f);
+    }
+}
+
 void CloudView::paint (juce::Graphics& g)
 {
     g.fillAll (colors::background);
@@ -366,6 +446,8 @@ void CloudView::paint (juce::Graphics& g)
                          .withAlpha (viz::shimmerAlpha (s.crit, shimmerPhase, s.salt)));
         g.fillEllipse (s.pos.x - 1.2f, s.pos.y - 1.2f, 2.4f, 2.4f);
     }
+
+    drawJumpArcs (g);
 
     // Seek target + travel line while gliding.
     if (dotDriving && seeking)
