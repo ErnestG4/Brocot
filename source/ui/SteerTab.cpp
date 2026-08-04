@@ -1,6 +1,7 @@
 #include "SteerTab.h"
 #include "BrocotLookAndFeel.h"
 #include "../audio/CoherenceSuggest.h"
+#include "../audio/GrooveLock.h"
 #include "../audio/Path.h"
 #include "../util/Colors.h"
 #include "../util/Fonts.h"
@@ -40,6 +41,44 @@ SteerTab::SteerTab (BrocotAudioProcessor& p)
     addAndMakeVisible (randomizeButton);
     randomizeButton.onClick = [this] { onRandomize(); };
     randomizeButton.setTooltip ("Replace the patch with a fresh low-depth random carpet (32 ops on, depth 0.04..0.6).");
+
+    addAndMakeVisible (keepButton);
+    keepButton.onClick = [this] { onKeep(); };
+    keepButton.setTooltip ("Save the current patch as a user preset (steered/keep_<timestamp>).");
+
+    // Groove-feel strip (S4). Attachments bind to the steer.groove* params;
+    // groovedRatios reads the same params per tick, so knob moves are heard
+    // live during a scrub.
+    {
+        auto& apvts = proc.getAPVTS();
+        using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
+        using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
+
+        addAndMakeVisible (grooveStripLabel);
+        grooveStripLabel.setJustificationType (juce::Justification::centredLeft);
+
+        for (auto* l : { &grooveGravityLabel, &grooveRestlessLabel })
+        {
+            addAndMakeVisible (*l);
+            l->setJustificationType (juce::Justification::centredRight);
+        }
+
+        addAndMakeVisible (grooveGravityKnob);
+        grooveGravityKnob.setTooltip (juce::CharPointer_UTF8 (
+            "Gravity — how hard steering is pulled into consonant Farey grooves."));
+        addAndMakeVisible (grooveRestlessKnob);
+        grooveRestlessKnob.setTooltip (juce::CharPointer_UTF8 (
+            "Restlessness — lets steering escape shallow grooves (deep wells still hold)."));
+
+        addAndMakeVisible (grooveLockToggle);
+        grooveLockToggle.setTooltip (juce::CharPointer_UTF8 (
+            "On release, lock each steered op to its nearest groove's rational + exact "
+            "detune (no settle). Off = legacy settle back to the path rational."));
+
+        grooveGravityAttach  = std::make_unique<SliderAttach> (apvts, params::ids::grooveGravity,  grooveGravityKnob);
+        grooveRestlessAttach = std::make_unique<SliderAttach> (apvts, params::ids::grooveRestless, grooveRestlessKnob);
+        grooveLockAttach     = std::make_unique<ButtonAttach> (apvts, params::ids::grooveLock,     grooveLockToggle);
+    }
 
     addAndMakeVisible (hintLabel);
     hintLabel.setJustificationType (juce::Justification::centredLeft);
@@ -232,9 +271,14 @@ void SteerTab::wireSlider (ScrubRow& row)
     {
         rowPtr->dragging = false;
         rowPtr->slider.setValue (0.0, juce::dontSendNotification);
+        // S5: while the steered ratios are still resolvable, commit each op
+        // to its nearest groove's rational + exact detune, so releasing the
+        // override below is audibly seamless (grooveLock gates this; off, or
+        // an unlockable op, falls back to the legacy settle).
+        lockToGrooves (*rowPtr);
         // Release the continuous override: the patch reverts to the discrete
-        // (path) state the morph left it at — near a groove, so the 20ms ratio
-        // smoother absorbs the tiny settle.
+        // (path) state — after a lock the path+detune equal the grooved ratio
+        // exactly; otherwise the 20ms ratio smoother absorbs the tiny settle.
         proc.clearSteeredRatios();
     };
 }
@@ -442,6 +486,16 @@ std::vector<float> SteerTab::groovedRatios (const ScrubRow& row) const
     std::vector<float> out;
     if (wp.empty()) return out;
 
+    // Groove feel from the S4 params (message thread, per tick). Defaults
+    // equal the pre-S4 constants; missing params (never in practice) too.
+    const auto& apvts = proc.getAPVTS();
+    float gravity      = groove::kDefaultGravity;
+    float restlessness = groove::kDefaultRestlessness;
+    if (auto* p = apvts.getRawParameterValue (params::ids::grooveGravity))
+        gravity = p->load();
+    if (auto* p = apvts.getRawParameterValue (params::ids::grooveRestless))
+        restlessness = p->load();
+
     const float clamped = juce::jlimit (0.0f, (float) wp.size() - 1.0f, row.pos);
     int i = (int) std::floor (clamped);
     int j = i + 1;
@@ -467,11 +521,74 @@ std::vector<float> SteerTab::groovedRatios (const ScrubRow& row) const
         // then Farey-gravity pull toward the nearest consonant groove.
         const float logL = (float) ((1.0 - frac) * std::log2 (rA)
                                      + frac * std::log2 (rB));
-        const float logG = logL + grooveField.pull (logL, kGrooveGravity,
-                                                     kGrooveRestlessness);
+        const float logG = logL + grooveField.pull (logL, gravity, restlessness);
         out[(size_t) op] = std::exp2 (logG);
     }
     return out;
+}
+
+void SteerTab::lockToGrooves (const ScrubRow& row)
+{
+    auto& apvts = proc.getAPVTS();
+    bool lockOn = groove::kDefaultLock;
+    if (auto* p = apvts.getRawParameterValue (params::ids::grooveLock))
+        lockOn = (p->load() > 0.5f);
+    // Shared mode derives every op ratio from the one shared path, so a
+    // per-op path+detune lock would be inert (the applySuggestion caveat) —
+    // release falls through to the legacy settle there.
+    if (! lockOn || proc.isSharedMode())
+        return;
+
+    const auto ratios = groovedRatios (row);
+    int locked = 0;
+    for (int op = 0; op < (int) ratios.size() && op < params::kNumOperators; ++op)
+    {
+        const double r = ratios[(size_t) op];
+        if (! (r > 0.0))
+            continue;
+
+        const auto lock = lockRatioToGroove (grooveField, r, groove::kMaxDetuneCents);
+        if (! lock.ok)
+            continue;   // beyond capture / failed descent → legacy settle for this op
+
+        // path × 2^(detune/1200) == the grooved ratio exactly, so dropping
+        // the steered override after this is audibly seamless.
+        proc.setOpPath (op, lock.path.toString());
+        if (auto* dp = apvts.getParameter (params::opId (op, "detune")))
+            dp->setValueNotifyingHost (dp->convertTo0to1 (lock.detuneCents));
+        ++locked;
+    }
+
+    if (locked > 0)
+        hintLabel.setText ("locked " + juce::String (locked)
+                           + (locked == 1 ? " op" : " ops") + " to grooves",
+                           juce::dontSendNotification);
+}
+
+void SteerTab::onKeep()
+{
+    auto& pm  = proc.getPresetManager();
+    auto  dir = pm.getUserDirectory().getChildFile ("steered");
+
+    const auto stamp = juce::Time::getCurrentTime().formatted ("%Y-%m-%d_%H%M%S");
+    juce::String name = "keep_" + stamp;
+    auto file = dir.getChildFile (name + ".brocot");
+    for (int c = 2; file.existsAsFile(); ++c)     // same-second keeps
+    {
+        name = "keep_" + stamp + "_" + juce::String (c);
+        file = dir.getChildFile (name + ".brocot");
+    }
+
+    juce::String err;
+    if (pm.save (file, name, &err))
+    {
+        pm.rescan();    // user-dir scan is recursive, so steered/ shows up
+        hintLabel.setText ("kept as steered/" + name, juce::dontSendNotification);
+    }
+    else
+    {
+        hintLabel.setText ("keep failed: " + err, juce::dontSendNotification);
+    }
 }
 
 juce::String SteerTab::resolveTextureCategory()
@@ -597,6 +714,8 @@ void SteerTab::resized()
     headerRow.removeFromRight (4);
     randomizeButton.setBounds (headerRow.removeFromRight (60).reduced (0, 4));
     headerRow.removeFromRight (4);
+    keepButton     .setBounds (headerRow.removeFromRight (48).reduced (0, 4));
+    headerRow.removeFromRight (4);
     depthPlusButton .setBounds (headerRow.removeFromRight (54).reduced (0, 4));
     headerRow.removeFromRight (4);
     depthMinusButton.setBounds (headerRow.removeFromRight (54).reduced (0, 4));
@@ -623,6 +742,23 @@ void SteerTab::resized()
     auto leftCol  = bounds.removeFromLeft (bounds.getWidth() - rightW - 12);
     bounds.removeFromLeft (12);
     auto rightCol = bounds;
+
+    // Groove-feel strip (S4): slim row pinned under the family rows.
+    auto grooveStrip = leftCol.removeFromBottom (34);
+    leftCol.removeFromBottom (4);
+    {
+        auto s = grooveStrip;
+        grooveStripLabel  .setBounds (s.removeFromLeft (56));
+        grooveGravityLabel.setBounds (s.removeFromLeft (14));
+        s.removeFromLeft (2);
+        grooveGravityKnob .setBounds (s.removeFromLeft (32));
+        s.removeFromLeft (8);
+        grooveRestlessLabel.setBounds (s.removeFromLeft (14));
+        s.removeFromLeft (2);
+        grooveRestlessKnob.setBounds (s.removeFromLeft (32));
+        s.removeFromLeft (10);
+        grooveLockToggle  .setBounds (s.removeFromLeft (64));
+    }
 
     const int totalRows = (int) rows.size();
     const int rowGap = 2;

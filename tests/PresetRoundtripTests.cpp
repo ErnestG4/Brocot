@@ -3,6 +3,8 @@
 
 #include <juce_core/juce_core.h>
 
+#include "audio/GrooveLock.h"
+
 // We're testing the JSON-shape contract here. The full apply/serialise
 // roundtrip is tested at runtime through the plugin host; here we verify
 // that hand-constructed JSON has the expected schema and is parsable.
@@ -167,6 +169,39 @@ TEST_CASE ("v1 preset (no provenance) is still parseable JSON", "[Preset]")
     REQUIRE_FALSE (root->hasProperty ("provenance"));
     // The loader synthesises provenance on applyTo. Tested via host
     // integration; here we just confirm the input shape.
+}
+
+TEST_CASE ("Preset without groove-feel keys leaves the S4 defaults intact", "[Preset]")
+{
+    // Presets predate the steer.groove* params (S4) and the schema neither
+    // serialises nor applies them — PresetSchema.cpp has no groove keys — so
+    // loading any old preset leaves the params at their layout defaults,
+    // which are pinned to the pre-S4 hardcoded feel constants.
+    static constexpr auto json = R"({
+        "name": "pre-groove preset", "version": "2.0",
+        "provenance": {"kind": "manual"},
+        "engine": {
+            "pathMode": "free",
+            "operators": [{"enabled": true, "path": "RL", "depth": 1.0, "detune": 3.5}]
+        }
+    })";
+
+    juce::var parsed;
+    REQUIRE (juce::JSON::parse (json, parsed).wasOk());
+    auto* root = parsed.getDynamicObject();
+    REQUIRE (root != nullptr);
+    REQUIRE_FALSE (root->hasProperty ("steer"));
+    REQUIRE_FALSE (root->hasProperty ("groove"));
+    auto* engine = root->getProperty ("engine").getDynamicObject();
+    REQUIRE (engine != nullptr);
+    REQUIRE_FALSE (engine->hasProperty ("grooveGravity"));
+    REQUIRE_FALSE (engine->hasProperty ("grooveRestless"));
+    REQUIRE_FALSE (engine->hasProperty ("grooveLock"));
+
+    // The defaults such a load leaves in place — the pre-S4 constants.
+    REQUIRE (brocot::groove::kDefaultGravity      == 0.6f);
+    REQUIRE (brocot::groove::kDefaultRestlessness == 0.3f);
+    REQUIRE (brocot::groove::kDefaultLock         == true);
 }
 
 TEST_CASE ("Free-mode v2 preset uses 'path' instead of 'position'", "[Preset]")

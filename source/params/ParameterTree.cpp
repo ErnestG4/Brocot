@@ -1,5 +1,7 @@
 #include "ParameterTree.h"
 
+#include "../audio/GrooveLock.h"
+
 namespace brocot::params
 {
 
@@ -152,6 +154,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     layout.add (std::make_unique<BoolParam> (
         juce::ParameterID (ids::lfoKeySync, 1),
         "LFO Key Sync", false));
+
+    // Groove feel (S4): the steer tab's Farey-gravity constants, UI-exposed.
+    // Defaults are the pre-S4 hardcoded values (groove::kDefault*), so states
+    // saved without these params steer exactly as before. grooveLock arms the
+    // lock-to-groove-on-release behaviour (S5); off = the legacy settle.
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (ids::grooveGravity, 1),
+        "Groove Gravity",
+        juce::NormalisableRange<float> (0.0f, 1.0f), groove::kDefaultGravity));
+    layout.add (std::make_unique<FloatParam> (
+        juce::ParameterID (ids::grooveRestless, 1),
+        "Groove Restlessness",
+        juce::NormalisableRange<float> (0.0f, 1.0f), groove::kDefaultRestlessness));
+    layout.add (std::make_unique<BoolParam> (
+        juce::ParameterID (ids::grooveLock, 1),
+        "Groove Lock", groove::kDefaultLock));
 
     // V2 universal-modulator bank — 16 LFOs, each with its own rate
     // (extralinear 0.1-800 Hz sweep), lock target, envelope shape, depth,

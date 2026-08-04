@@ -148,11 +148,27 @@ private:
     // Farey-gravity groove field: between waypoints, each op's ratio glides
     // CONTINUOUSLY in log-ratio and is pulled toward consonant rationals (the
     // SB path-walk is bypassed during steering — Will). Gravity = pull
-    // strength; restlessness lets shallow wells be escaped. Feel constants,
-    // tunable / UI-exposed later.
+    // strength; restlessness lets shallow wells be escaped. Feel values come
+    // from the steer.groove* params (S4), read per tick; their defaults equal
+    // the pre-S4 hardcoded constants (groove::kDefault* in GrooveLock.h).
     GrooveField grooveField;
-    static constexpr float kGrooveGravity     = 0.6f;
-    static constexpr float kGrooveRestlessness = 0.3f;
+
+    // Groove-feel strip (S4): gravity + restlessness knobs and the S5 lock
+    // toggle, in a slim row under the family rows.
+    juce::Label   grooveStripLabel { {}, "groove" };
+    juce::Label   grooveGravityLabel { {}, "g" };
+    juce::Label   grooveRestlessLabel { {}, "r" };
+    juce::Slider  grooveGravityKnob  { juce::Slider::RotaryHorizontalVerticalDrag,
+                                       juce::Slider::NoTextBox };
+    juce::Slider  grooveRestlessKnob { juce::Slider::RotaryHorizontalVerticalDrag,
+                                       juce::Slider::NoTextBox };
+    juce::ToggleButton grooveLockToggle { "lock" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> grooveGravityAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> grooveRestlessAttach;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> grooveLockAttach;
+
+    // S9: capture the current patch as a user preset under steered/.
+    juce::TextButton keepButton { "keep" };
 
     // Continuous grooved ratio per op for the route position `pos`; 0 for
     // disabled ops. Pushed to the engine's steered-ratio override each tick.
@@ -165,6 +181,12 @@ private:
     void applySuggestion (int chipIndex);   // place the chip's path on a free op
     void timerCallback() override;
     void applyRowMorph (ScrubRow& row);
+    // S5: on release, commit each steered ratio as nearest-groove path + exact
+    // cents detune (zero audible discontinuity) instead of settling. Gated on
+    // the grooveLock param and free path-mode; must run BEFORE
+    // clearSteeredRatios so the grooved ratios are still resolvable.
+    void lockToGrooves (const ScrubRow& row);
+    void onKeep();      // S9: save current patch as a user preset under steered/
     juce::String resolveTextureCategory();
     void onReset();
     void anchorHome();

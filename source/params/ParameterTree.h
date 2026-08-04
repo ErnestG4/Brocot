@@ -95,6 +95,12 @@ namespace params
         inline constexpr auto lfoRate    = "lfo.rate";
         inline constexpr auto lfoDepth   = "lfo.depth";
         inline constexpr auto lfoKeySync = "lfo.keySync";
+        // Groove feel (S4/S5). Defaults come from groove::kDefault* in
+        // audio/GrooveLock.h — kept equal to the pre-S4 SteerTab constants so
+        // states saved before these params existed behave identically.
+        inline constexpr auto grooveGravity  = "steer.grooveGravity";
+        inline constexpr auto grooveRestless = "steer.grooveRestless";
+        inline constexpr auto grooveLock     = "steer.grooveLock";
     }
 
     juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
