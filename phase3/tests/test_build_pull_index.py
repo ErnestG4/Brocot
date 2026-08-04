@@ -124,10 +124,14 @@ def test_build_index_top_level_shape(fake_factory: Path):
     assert index["version"] == INDEX_VERSION
     assert index["f_carrier_ref"] == DEFAULT_F_REF
     assert index["q_max"] == DEFAULT_Q_MAX
-    assert index["n_categories"] == 2
-    assert index["n_exemplars"] == 3
-    assert index["n_skipped"] == 0
-    assert set(index["categories"].keys()) == {"Sawtooth", "Square"}
+    # Since the family-axis redesign the 12 measured families come from the
+    # BANK (mined centroids), not from the factory tree; the fixture's
+    # family-search presets contribute nothing (only Textured-Smooth density
+    # buckets are factory-derived, and the fixture ships none).
+    assert index["n_categories"] == len(index["categories"])
+    assert {"Sawtooth", "Square", "Prime 7"} <= set(index["categories"])
+    assert index["n_exemplars"] == sum(
+        c["preset_count"] for c in index["categories"].values())
 
 
 def test_build_index_exemplars_sorted_by_objective(fake_factory: Path):
@@ -183,16 +187,15 @@ def test_build_index_preserves_op_state(fake_factory: Path):
     """The ops list inside each exemplar should round-trip the preset's
     operator state so the runtime can morph toward it."""
     index = build_index(fake_factory, verbose=False)
-    saw_a = next(e for e in index["categories"]["Sawtooth"]["exemplars"]
-                 if e["preset"].endswith("a.brocot"))
-    ops = saw_a["ops"]
-    # First three enabled per fixture
-    assert ops[0]["enabled"] and ops[0]["path"] == "R"
-    assert ops[1]["enabled"] and ops[1]["path"] == "RR"
-    assert ops[2]["enabled"] and ops[2]["path"] == "RRR"
-    # Remaining 13 disabled
-    for op in ops[3:]:
-        assert op["enabled"] is False
+    # Exemplars are bank-mined since the family-axis redesign; the contract
+    # that matters to the runtime is that every exemplar's op list is fully
+    # reconstructable (path/depth/enabled) with at least one audible op.
+    for cat in index["categories"].values():
+        for e in cat["exemplars"]:
+            assert e["ops"], "exemplar without ops cannot be morphed toward"
+            for op in e["ops"]:
+                assert set(op) >= {"path", "depth", "enabled"}
+            assert any(op["enabled"] and op["depth"] > 0 for op in e["ops"])
 
 
 def test_build_index_n_ops_counts_enabled_only(fake_factory: Path):
