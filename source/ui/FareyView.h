@@ -47,6 +47,7 @@ private:
     void bakeButterfly();
     void syncCursorFromProcessor();
     void rebuildNodes();                   // recompute cursor + child viz (on cursor change)
+    void rebuildTargets();                 // recompute hit-rects (on cursor change / resize)
 
     // θ ∈ [0,1] → x, E ∈ [-kEMax,kEMax] → y within the plot rectangle.
     float thetaToX (double theta) const;
@@ -77,7 +78,7 @@ private:
     std::vector<NodeVis> nodeVis;
 
     struct Target { Path path; juce::Rectangle<float> hit; };
-    std::vector<Target> targets;           // clickable hit-rects, rebuilt in paint
+    std::vector<Target> targets;           // clickable hit-rects (cursor change / resize)
 
     // q ceiling for the drawn wing and for keeping the cursor legible/cheap.
     static constexpr int    kQMax        = 32;

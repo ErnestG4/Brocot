@@ -162,6 +162,25 @@ void FareyView::rebuildNodes()
         nodeVis.push_back ({ child, child, fracTheta (p, q), radius, col,
                              juce::String (p) + "/" + juce::String (q), false });
     }
+
+    rebuildTargets();
+}
+
+void FareyView::rebuildTargets()
+{
+    // Hit-rects derive purely from nodeVis + plot, so they are rebuilt on
+    // cursor change and resize — never in paint(), which may not have run yet
+    // when the first click arrives.
+    targets.clear();
+    const float cy = energyToY (0.0);
+    for (const auto& nv : nodeVis)
+    {
+        if (nv.isCursor && nv.path.isEmpty()) continue;   // root has no parent
+        const float cx = thetaToX (nv.theta);
+        const juce::Rectangle<float> r (cx - nv.radius, cy - nv.radius,
+                                        nv.radius * 2, nv.radius * 2);
+        targets.push_back ({ nv.onClick, r.expanded (3.0f) });
+    }
 }
 
 void FareyView::timerCallback()
@@ -177,7 +196,6 @@ void FareyView::timerCallback()
 void FareyView::paint (juce::Graphics& g)
 {
     g.fillAll (colors::background);
-    targets.clear();
 
     // Title.
     g.setColour (colors::primaryText);
@@ -249,11 +267,6 @@ void FareyView::paint (juce::Graphics& g)
             g.drawText (nv.label, (int) cx - 20, (int) (r.getBottom()) + 1, 40, 12,
                         juce::Justification::centred);
         }
-
-        // A node is clickable only if navigating there is a real move (the root
-        // cursor has no parent).
-        if (! (nv.isCursor && nv.path.isEmpty()))
-            targets.push_back ({ nv.onClick, r.expanded (3.0f) });
     }
 }
 
@@ -263,6 +276,7 @@ void FareyView::resized()
     b.removeFromTop (48.0f);       // title + cursor label
     b.removeFromBottom (24.0f);    // θ axis labels
     plot = b.withTrimmedLeft (8.0f).withTrimmedRight (8.0f);
+    rebuildTargets();
 }
 
 void FareyView::mouseDown (const juce::MouseEvent& e)
