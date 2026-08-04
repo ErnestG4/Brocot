@@ -34,6 +34,7 @@ public:
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
+    bool keyPressed (const juce::KeyPress&) override;
 
     /** Distinct colour per family index (stable hue wheel). */
     static juce::Colour familyColour (int index, int count);
@@ -87,6 +88,18 @@ private:
     // the toggle; the full smoothest-200 layer is opt-in.
     juce::ToggleButton wormholeToggle;
     void drawJumpArcs (juce::Graphics&);
+
+    // Criticality-seek: opt-in gestures onto Landscape::bestCritNode — the
+    // thesis navigation aid (the interesting sounds speckle/line the voids).
+    // "crit" (button or key 'c') seeks the best critical node NEAR the dot;
+    // it never teleports across the map (bounded radii, then a brief hint).
+    // "rim snap" retargets plain clicks to a tight-radius critical node.
+    // Both reuse the user-click seek pathway so the patch glides identically.
+    void seekToCritical();
+    juce::TextButton   critButton;
+    juce::ToggleButton rimSnapToggle;      // default OFF
+    juce::String flashHint;                // transient hint-line override
+    juce::uint32 flashHintUntilMs { 0 };   // 0 = inactive
 
     // Simplicity mode cache: per-node q̄ plus the map's p2/p98 scaling, built
     // at image-rebuild time (the Path::walk pass is a bake cost, not a paint

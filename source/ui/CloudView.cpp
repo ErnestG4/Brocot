@@ -85,6 +85,18 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     wormholeToggle.onClick = [this] { repaint(); };
     addChildComponent (wormholeToggle);
 
+    // Criticality-seek gestures (opt-in; no default behaviour changes).
+    critButton.setButtonText ("crit");
+    critButton.setTooltip (juce::CharPointer_UTF8 ("Seek the most critical node near the dot (key: c)."));
+    critButton.onClick = [this] { seekToCritical(); };
+    addAndMakeVisible (critButton);
+
+    rimSnapToggle.setButtonText ("rim snap");
+    rimSnapToggle.setTooltip (juce::CharPointer_UTF8 ("Snap clicks to a nearby critical node (tight radius)."));
+    addAndMakeVisible (rimSnapToggle);
+
+    setWantsKeyboardFocus (true);          // for the 'c' shortcut
+
     startTimerHz (30);
 }
 
@@ -162,6 +174,8 @@ void CloudView::resized()
     mapCombo.setBounds (10, 8, 124, 22);   // wide enough for "16-op mix" etc.
     colourModeCombo.setBounds (140, 8, 130, 22);
     wormholeToggle.setBounds (276, 8, 100, 22);
+    critButton.setBounds (380, 8, 44, 22);
+    rimSnapToggle.setBounds (430, 8, 80, 22);
     rebuildImage();
 }
 
@@ -176,9 +190,49 @@ void CloudView::mouseDown (const juce::MouseEvent& e)
 {
     // A plain click sets a destination; the dot auto-travels there at seek rate.
     seekTarget = screenToMap (e.position);
+
+    // Rim snap (opt-in): retarget the click to the best critical node within
+    // a tight radius; misses leave the click exactly as it was.
+    if (rimSnapToggle.getToggleState())
+    {
+        const auto& ls = proc.getLandscape();
+        if (const auto* n = ls.node (ls.bestCritNode (seekTarget.x, seekTarget.y, 0.12f)))
+            seekTarget = { n->x, n->y };
+    }
+
     seeking    = true;
     dotDriving = true;
     hovering   = false;
+}
+
+void CloudView::seekToCritical()
+{
+    // Bounded search around the dot, widening once; a miss reports via the
+    // hint line and does nothing — this gesture NEVER teleports across the
+    // map. A hit goes through the exact user-click pathway (seekTarget +
+    // seeking), so the patch glides through the same smoothers.
+    const auto& ls = proc.getLandscape();
+    if (ls.isEmpty()) return;
+
+    int node = ls.bestCritNode (dot.x, dot.y, 0.25f);
+    if (node < 0) node = ls.bestCritNode (dot.x, dot.y, 0.5f);
+    if (const auto* n = ls.node (node))
+    {
+        seekTarget = { n->x, n->y };
+        seeking    = true;
+        dotDriving = true;
+        hovering   = false;
+        return;
+    }
+    flashHint = "no critical node nearby";
+    flashHintUntilMs = juce::Time::getMillisecondCounter() + 1800;
+    repaint();
+}
+
+bool CloudView::keyPressed (const juce::KeyPress& key)
+{
+    if (key.getTextCharacter() == 'c') { seekToCritical(); return true; }
+    return false;
 }
 
 void CloudView::mouseDrag (const juce::MouseEvent& e)
@@ -354,6 +408,14 @@ void CloudView::timerCallback()
 {
     const auto& ls = proc.getLandscape();
     if (ls.isEmpty()) return;
+
+    // Expire the transient hint (one repaint to restore the standard line).
+    if (flashHintUntilMs != 0
+        && juce::Time::getMillisecondCounter() >= flashHintUntilMs)
+    {
+        flashHintUntilMs = 0;
+        repaint();
+    }
 
     // Criticality/voids only: the shimmer animates, so this mode repaints
     // every OTHER tick (15 Hz). Every other mode keeps the idle-no-repaint
@@ -577,10 +639,14 @@ void CloudView::paint (juce::Graphics& g)
                     juce::Justification::topLeft);
     }
 
-    // Hint.
+    // Hint — briefly overridden by a transient message (e.g. a crit-seek
+    // miss); the timer restores the standard line when it expires.
+    const bool flashing = flashHintUntilMs != 0
+                       && juce::Time::getMillisecondCounter() < flashHintUntilMs;
     g.setColour (colors::secondaryText.withAlpha (0.7f));
     g.setFont (fonts::serifItalic (12.0f));
-    g.drawText (juce::CharPointer_UTF8 ("click to seek · double-click to drop · hover to inspect"),
+    g.drawText (flashing ? flashHint
+                         : juce::String (juce::CharPointer_UTF8 ("click to seek · double-click to drop · hover to inspect")),
                 getLocalBounds().reduced (10).removeFromBottom (18),
                 juce::Justification::centredRight);
 }
