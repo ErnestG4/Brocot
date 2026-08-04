@@ -3,11 +3,16 @@ problem? Multi-start the existing two_phase_search across many seeds in
 parallel (a budget knob, not an algorithm change) and see whether the
 recovered objective approaches the ~0 floor and audio recovery clears ε.
 
-Run: python -m phase3.diag_modeb_budget
+Run: python -m phase3.diag_modeb_budget [--basin-hops N]
+
+`--basin-hops N` (S11) turns on the basin-hopping escape pass inside
+two_phase_search (N hops on the top-3 post-Phase-2 candidates per
+search); default 0 keeps the original budget-only diagnostic.
 """
 
 from __future__ import annotations
 
+import argparse
 import tempfile
 from concurrent.futures import ProcessPoolExecutor
 
@@ -38,12 +43,13 @@ def _target_for(name):
 
 
 def _one_search(args):
-    name, seed = args
+    name, seed, basin_hops = args
     cfg, tgt = _target_for(name)
     fam = family_from_target(tgt, name=name, f_carrier=cfg.f_carrier)
     res = two_phase_search(
         fam, f_carrier=cfg.f_carrier, n_phase1=N_PHASE1, k_top=K_TOP,
         seed=seed, time_budget_per_candidate_s=BUDGET, q_max=Q_MAX,
+        n_basin_hops=basin_hops,
     )
     best = res[0]
     return name, seed, best.objective, best.config
@@ -60,7 +66,14 @@ def _audio_recovery(name, best_config):
     return float(np.abs(rn - tn).sum()), _kl_divergence(rn, tn)
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument(
+        "--basin-hops", type=int, default=0, metavar="N",
+        help="basin-hopping hops per search (0 = off, original diagnostic)",
+    )
+    args = ap.parse_args(argv)
+
     names = list(known_configs().keys())
     floors = {}
     for nm in names:
@@ -68,9 +81,10 @@ def main():
         fam = family_from_target(tgt, name=nm, f_carrier=cfg.f_carrier)
         floors[nm] = family_distance(cfg.predict(), fam, cfg.f_carrier, q_max=Q_MAX)
 
-    jobs = [(nm, 1000 + s) for nm in names for s in range(SEEDS)]
+    jobs = [(nm, 1000 + s, args.basin_hops) for nm in names for s in range(SEEDS)]
     print(f"multi-start: {len(names)} configs × {SEEDS} seeds = {len(jobs)} "
-          f"searches  (n_phase1={N_PHASE1}, k_top={K_TOP})\n")
+          f"searches  (n_phase1={N_PHASE1}, k_top={K_TOP}, "
+          f"basin_hops={args.basin_hops})\n")
 
     best_by_name = {}
     with ProcessPoolExecutor(max_workers=min(10, len(jobs))) as ex:

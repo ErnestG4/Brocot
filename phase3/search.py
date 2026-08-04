@@ -53,6 +53,37 @@ from phase3.family_distance import composite_objective, family_distance
 # Phase 1 — random sampling
 # ---------------------------------------------------------------------------
 
+def _sample_mod(
+    rng: np.random.Generator,
+    sample_cap: int,
+    landmark_bias: float,
+    landmark_jitter_std: float,
+    depth_range: tuple[float, float],
+) -> ModConfig:
+    """Draw a single enabled modulator from the sampling prior.
+
+    Extracted from `sample_random_config` so basin-hopping's op-swap
+    kick reuses the identical prior. The rng draw *order* is preserved
+    exactly (path length, path chars, landmark coin, depth) — Phase-1
+    sampling for a given seed is unchanged.
+    """
+    # Path length from 0 so the *empty path* (ratio 1/1, the harmonic
+    # fundamental) is reachable in Phase 1 — previously path_len ≥ 1 made
+    # ratio-1 modulators impossible to seed, so any harmonic-stack target
+    # with a 1/1 op could only be reached via Phase-2 parent moves (rare).
+    path_len = int(rng.integers(0, sample_cap + 1))
+    path = "".join("L" if rng.random() < 0.5 else "R" for _ in range(path_len))
+
+    if rng.random() < landmark_bias:
+        landmark = float(rng.choice(BESSEL_LANDMARKS))
+        depth = landmark + float(rng.standard_normal()) * landmark_jitter_std
+    else:
+        depth = float(rng.uniform(*depth_range))
+    depth = max(MIN_DEPTH, min(8.0, depth))
+
+    return ModConfig(path=path, depth=depth, enabled=True)
+
+
 def sample_random_config(
     rng: np.random.Generator,
     n_mods: int = 64,
@@ -92,21 +123,9 @@ def sample_random_config(
         if i >= n_enabled:
             mods.append(ModConfig(path="", depth=0.0, enabled=False))
             continue
-        # Path length from 0 so the *empty path* (ratio 1/1, the harmonic
-        # fundamental) is reachable in Phase 1 — previously path_len ≥ 1 made
-        # ratio-1 modulators impossible to seed, so any harmonic-stack target
-        # with a 1/1 op could only be reached via Phase-2 parent moves (rare).
-        path_len = int(rng.integers(0, sample_cap + 1))
-        path = "".join("L" if rng.random() < 0.5 else "R" for _ in range(path_len))
-
-        if rng.random() < landmark_bias:
-            landmark = float(rng.choice(BESSEL_LANDMARKS))
-            depth = landmark + float(rng.standard_normal()) * landmark_jitter_std
-        else:
-            depth = float(rng.uniform(*depth_range))
-        depth = max(MIN_DEPTH, min(8.0, depth))
-
-        mods.append(ModConfig(path=path, depth=depth, enabled=True))
+        mods.append(_sample_mod(
+            rng, sample_cap, landmark_bias, landmark_jitter_std, depth_range,
+        ))
 
     return Config(mods=mods, f_carrier=f_carrier)
 
@@ -269,6 +288,183 @@ def coordinate_descent(
 
 
 # ---------------------------------------------------------------------------
+# Basin hopping (S10) — perturb-and-descend on top of coordinate descent
+# ---------------------------------------------------------------------------
+#
+# Mode B residual (mode_b.md): coordinate descent finds perceptually-
+# similar configs but gets trapped short of the exact generating one.
+# Basin hopping wraps the existing descent in a Metropolis walk: kick
+# the current optimum with a few structured random moves, re-descend
+# with a short budget, accept better always / worse with probability
+# exp(-Δ/T), and track the global best separately from the walker.
+#
+# This is a bespoke loop, NOT scipy.optimize.basinhopping — SB paths
+# are discrete strings and scipy's continuous-step machinery fights
+# discrete moves.
+
+_KICK_KINDS = ("path", "depth", "landmark", "swap")
+
+
+def perturb(
+    cfg: Config,
+    rng: np.random.Generator,
+    *,
+    kick_ops: tuple[int, int] = (1, 3),
+    min_enabled: int = 4,
+    max_path_depth: int = 16,
+) -> Config:
+    """Apply k (uniform in `kick_ops` inclusive) random kicks to a copy
+    of `cfg` and return it. Kicks are drawn uniformly from:
+
+      - path kick: one enabled op takes 1-3 random Stern-Brocot steps
+        mixing parent-trims and L/R extensions (capped at
+        `max_path_depth`);
+      - depth kick: Gaussian nudge (σ=0.5), capped at 8.0; a landing
+        below MIN_DEPTH auto-disables the op exactly like coordinate
+        descent — but only if the enabled count stays ≥ `min_enabled`,
+        otherwise the kick is a no-op;
+      - landmark teleport: depth ← a random Bessel landmark;
+      - op swap: disable one enabled op and enable a freshly-sampled
+        one (same per-op prior as Phase 1), keeping the enabled count
+        unchanged.
+
+    All P3.7 invariants (min_enabled, MIN_DEPTH floor, max_path_depth)
+    hold on the output. The input config is never mutated.
+    """
+    kicked = cfg.copy()
+    n_kicks = int(rng.integers(kick_ops[0], kick_ops[1] + 1))
+
+    for _ in range(n_kicks):
+        enabled_idx = [i for i, m in enumerate(kicked.mods) if m.enabled]
+        if not enabled_idx:
+            break
+        kind = _KICK_KINDS[int(rng.integers(0, len(_KICK_KINDS)))]
+
+        if kind == "path":
+            i = int(rng.choice(enabled_idx))
+            path = kicked.mods[i].path
+            for _ in range(int(rng.integers(1, 4))):
+                moves = []
+                if path:
+                    moves.append("parent")
+                if len(path) < max_path_depth:
+                    moves.extend(("L", "R"))
+                if not moves:
+                    break
+                mv = moves[int(rng.integers(0, len(moves)))]
+                path = path[:-1] if mv == "parent" else path + mv
+            kicked.mods[i].path = path
+
+        elif kind == "depth":
+            i = int(rng.choice(enabled_idx))
+            m = kicked.mods[i]
+            new_depth = min(8.0, m.depth + float(rng.standard_normal()) * 0.5)
+            if new_depth < MIN_DEPTH:
+                # Auto-disable, exactly like coordinate descent — only
+                # if that keeps ≥ min_enabled ops on; otherwise reject.
+                if len(enabled_idx) - 1 >= min_enabled:
+                    m.enabled = False
+                    m.depth = 0.0
+                    m.path = ""
+            else:
+                m.depth = new_depth
+
+        elif kind == "landmark":
+            i = int(rng.choice(enabled_idx))
+            kicked.mods[i].depth = float(rng.choice(BESSEL_LANDMARKS))
+
+        else:  # "swap"
+            disabled_idx = [
+                i for i, m in enumerate(kicked.mods) if not m.enabled
+            ]
+            if not disabled_idx:
+                continue  # every slot on — nothing to swap in
+            i_off = int(rng.choice(enabled_idx))
+            i_on = int(rng.choice(disabled_idx))
+            kicked.mods[i_off] = ModConfig(path="", depth=0.0, enabled=False)
+            kicked.mods[i_on] = _sample_mod(
+                rng,
+                sample_cap=min(6, max_path_depth),
+                landmark_bias=0.55,
+                landmark_jitter_std=0.15,
+                depth_range=(MIN_DEPTH, 6.0),
+            )
+
+    return kicked
+
+
+def _metropolis_accept(
+    delta: float,
+    temperature: float,
+    rng: np.random.Generator,
+) -> bool:
+    """Metropolis criterion: always accept an improvement (Δ ≤ 0);
+    accept a worsening with probability exp(-Δ/T). T ≤ 0 degenerates
+    to strict descent (never accept worse)."""
+    if delta <= 0.0:
+        return True
+    if temperature <= 0.0:
+        return False
+    return bool(rng.random() < np.exp(-delta / temperature))
+
+
+def basin_hop(
+    cfg: Config,
+    family: Family,
+    *,
+    n_hops: int = 20,
+    kick_ops: tuple[int, int] = (1, 3),
+    temperature: float = 0.02,
+    seed: int = 0,
+    cd_budget_s: float = 1.5,
+    **cd_kwargs,
+) -> tuple[Config, float]:
+    """Basin-hopping refinement of `cfg` against `family`.
+
+    Descend `cfg` with the existing coordinate descent, then repeat
+    `n_hops` times: perturb the walker, re-descend with a short budget
+    (`cd_budget_s` → coordinate_descent's `time_budget_s`; pass
+    `max_iterations` via `cd_kwargs` for iteration-bounded determinism),
+    Metropolis-accept. The global best is tracked separately from the
+    walker and returned canonicalised.
+
+    Deterministic given `seed` (a single np.random.default_rng threads
+    through perturb and acceptance), provided the descent itself is
+    iteration-bounded rather than wall-clock-bounded.
+
+    `cd_kwargs` are forwarded to `coordinate_descent` (q_max,
+    threshold_db, eps, min_enabled, max_path_depth, lambda_crit,
+    max_iterations, …); min_enabled / max_path_depth also govern
+    `perturb`'s invariants.
+    """
+    rng = np.random.default_rng(seed)
+    min_enabled = cd_kwargs.get("min_enabled", 4)
+    max_path_depth = cd_kwargs.get("max_path_depth", 16)
+
+    cur, cur_d = coordinate_descent(
+        cfg, family, time_budget_s=cd_budget_s, **cd_kwargs,
+    )
+    best, best_d = cur, cur_d
+
+    for _ in range(n_hops):
+        kicked = perturb(
+            cur, rng,
+            kick_ops=kick_ops,
+            min_enabled=min_enabled,
+            max_path_depth=max_path_depth,
+        )
+        cand, cand_d = coordinate_descent(
+            kicked, family, time_budget_s=cd_budget_s, **cd_kwargs,
+        )
+        if cand_d < best_d:
+            best, best_d = cand, cand_d
+        if _metropolis_accept(cand_d - cur_d, temperature, rng):
+            cur, cur_d = cand, cand_d
+
+    return best.canonicalised(), best_d
+
+
+# ---------------------------------------------------------------------------
 # Two-phase search
 # ---------------------------------------------------------------------------
 
@@ -313,6 +509,9 @@ def two_phase_search(
     min_enabled: int = 4,
     max_path_depth: int = 16,
     lambda_crit: float = 0.0,
+    n_basin_hops: int = 0,
+    basin_temperature: float = 0.02,
+    basin_cd_budget_s: float = 1.5,
 ) -> list[SearchResult]:
     """Run the full two-phase search and return the top-K refined,
     *uniquely-fingerprinted* configurations sorted by objective.
@@ -329,6 +528,13 @@ def two_phase_search(
     candidate-selection signal (most random samples are bland whether
     you measure their criticality or not). Defaults to 0 (no
     criticality anywhere, exactly P3.6 behaviour).
+
+    `n_basin_hops` (S11): when > 0, apply `basin_hop` to the top-3
+    post-Phase-2 results (`n_basin_hops` hops each, walker temperature
+    `basin_temperature`, per-descent budget `basin_cd_budget_s`), keep
+    any improvement, then re-dedupe and re-sort. Defaults to 0 —
+    Phase 1 + Phase 2 behaviour is byte-identical to before, so this
+    doubles as the revert switch.
     """
     rng = np.random.default_rng(seed)
 
@@ -405,4 +611,47 @@ def two_phase_search(
             by_fp[fp] = r
     results = list(by_fp.values())
     results.sort(key=lambda r: r.objective)
+
+    # --- Basin hopping (S11) — optional escape pass on the top 3 ---
+    if n_basin_hops > 0:
+        for rank, r in enumerate(results[:3]):
+            refined, d = basin_hop(
+                r.config, family,
+                n_hops=n_basin_hops,
+                temperature=basin_temperature,
+                seed=seed + 9001 + rank,
+                cd_budget_s=basin_cd_budget_s,
+                q_max=q_max,
+                threshold_db=threshold_db_phase2,
+                eps=eps_phase2,
+                min_enabled=min_enabled,
+                max_path_depth=max_path_depth,
+                lambda_crit=lambda_crit,
+            )
+            if d < r.objective - 1e-9:
+                r.config = refined  # basin_hop returns it canonicalised
+                r.objective = d
+                sp = refined.predict(
+                    threshold_db=threshold_db_phase2, eps=eps_phase2,
+                )
+                r.family_distance = family_distance(
+                    sp, family, refined.f_carrier, q_max=q_max,
+                )
+                if lambda_crit > 0.0:
+                    from phase3.family_distance import criticality_score
+                    r.criticality = criticality_score(
+                        refined, family, q_max=q_max,
+                        threshold_db=threshold_db_phase2, eps=eps_phase2,
+                    )
+
+        # Hops can land different candidates on the same optimum —
+        # re-dedupe by fingerprint and re-sort.
+        by_fp = {}
+        for r in results:
+            fp = r.config.fingerprint()
+            if fp not in by_fp or r.objective < by_fp[fp].objective:
+                by_fp[fp] = r
+        results = list(by_fp.values())
+        results.sort(key=lambda r: r.objective)
+
     return results
