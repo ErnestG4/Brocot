@@ -1,6 +1,7 @@
 #include "Path.h"
 
 #include <cassert>
+#include <numeric>
 
 namespace brocot
 {
@@ -21,6 +22,55 @@ Path::Path (const juce::String& stepsIn)
 {
     for ([[maybe_unused]] auto c : stepsIn)
         jassert (isValidStep (c));
+}
+
+bool Path::fromRatio (int p, int q, Path& out, int maxDepth)
+{
+    if (p <= 0 || q <= 0)
+        return false;
+
+    const int g = std::gcd (p, q);
+    p /= g;
+    q /= g;
+
+    // Mirror of walk(): bisect [leftP/leftQ, rightP/rightQ] by mediants,
+    // stepping towards p/q. Cross-multiplied comparison stays exact; the
+    // wide type guards against overflow on deep descents.
+    int leftP = 0,  leftQ  = 1;
+    int rightP = 1, rightQ = 0;
+    int curP = 1,   curQ   = 1;
+
+    juce::String steps;
+    while (! (curP == p && curQ == q))
+    {
+        if (steps.length() >= maxDepth)
+            return false;
+
+        if ((juce::int64) p * curQ < (juce::int64) curP * q)
+        {
+            steps += 'L';
+            rightP = curP;
+            rightQ = curQ;
+        }
+        else
+        {
+            steps += 'R';
+            leftP = curP;
+            leftQ = curQ;
+        }
+        curP = leftP + rightP;
+        curQ = leftQ + rightQ;
+    }
+
+    out = Path (steps);
+    return true;
+}
+
+Path Path::fromRatio (int p, int q, int maxDepth)
+{
+    Path result;
+    fromRatio (p, q, result, maxDepth);
+    return result;
 }
 
 Path Path::extended (juce::juce_wchar step) const

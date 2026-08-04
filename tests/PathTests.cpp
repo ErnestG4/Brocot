@@ -209,3 +209,57 @@ TEST_CASE ("Path navigator example: extend root by R, then L, then L → 4/3", "
     REQUIRE (r.p == 4);
     REQUIRE (r.q == 3);
 }
+
+// ----------------------------------------------------------------------------
+// fromRatio — inverse of walk() via Stern-Brocot descent.
+// ----------------------------------------------------------------------------
+
+TEST_CASE ("fromRatio round-trips every coprime p/q up to 16", "[Path]")
+{
+    // Both orientations cover all reduced ratios in [1/16, 16]. Depth is
+    // bounded by the continued-fraction sum (≤ 16 here), well under the
+    // default cap.
+    for (int p = 1; p <= 16; ++p)
+        for (int q = 1; q <= 16; ++q)
+        {
+            if (std::gcd (p, q) != 1)
+                continue;
+
+            Path path;
+            REQUIRE (Path::fromRatio (p, q, path));
+            auto r = walk (path);
+            REQUIRE (r.p == p);
+            REQUIRE (r.q == q);
+        }
+}
+
+TEST_CASE ("fromRatio of 1/1 succeeds with the empty (root) path", "[Path]")
+{
+    Path path ("RLL");   // pre-set to prove `out` is written
+    REQUIRE (Path::fromRatio (1, 1, path));
+    REQUIRE (path.isEmpty());
+}
+
+TEST_CASE ("fromRatio reduces non-lowest-terms input: 6/4 == 3/2", "[Path]")
+{
+    REQUIRE (Path::fromRatio (6, 4) == Path::fromRatio (3, 2));
+    REQUIRE (Path::fromRatio (6, 4).toString() == "RL");
+}
+
+TEST_CASE ("fromRatio fails past maxDepth, leaving out untouched", "[Path]")
+{
+    // 1000/999 = [1; 999] → depth 1000, far beyond a cap of 8.
+    Path path ("RLL");
+    REQUIRE_FALSE (Path::fromRatio (1000, 999, path, 8));
+    REQUIRE (path.toString() == "RLL");
+    REQUIRE (Path::fromRatio (1000, 999, 8).isEmpty());
+}
+
+TEST_CASE ("fromRatio rejects non-positive p or q", "[Path]")
+{
+    Path path;
+    REQUIRE_FALSE (Path::fromRatio (0, 5, path));
+    REQUIRE_FALSE (Path::fromRatio (5, 0, path));
+    REQUIRE_FALSE (Path::fromRatio (-3, 2, path));
+    REQUIRE (Path::fromRatio (0, 5).isEmpty());
+}

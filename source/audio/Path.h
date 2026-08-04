@@ -23,6 +23,16 @@ public:
     Path() = default;
     explicit Path (const juce::String& stepsIn);
 
+    // Stern-Brocot descent from 1/1 to p/q, reduced to lowest terms first.
+    // Returns false — leaving `out` untouched — for p or q ≤ 0, or when the
+    // descent exceeds maxDepth; success with an empty `out` is therefore
+    // only ever the genuine root 1/1.
+    static bool fromRatio (int p, int q, Path& out, int maxDepth = 32);
+
+    // Convenience overload: failure collapses to the empty path, which is
+    // indistinguishable from root 1/1 — use the bool form when that matters.
+    static Path fromRatio (int p, int q, int maxDepth = 32);
+
     Path extended (juce::juce_wchar step) const;
     Path parent() const;
 
