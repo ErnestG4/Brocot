@@ -1,5 +1,6 @@
 #include "CloudView.h"
 #include "../PluginProcessor.h"
+#include "../audio/Path.h"
 #include "../util/CloudMath.h"
 #include "../util/Colors.h"
 #include "../util/DensityGrid.h"
@@ -10,6 +11,25 @@
 
 namespace brocot
 {
+
+namespace
+{
+    // Depth-weighted mean denominator q̄ of a node's active ops — the
+    // simplicity descriptor. The Path::walk happens here (bake time / single
+    // hover node); the weighting math is pure (util/CloudMath.h).
+    float meanQOfNode (const Landscape::Node& n)
+    {
+        std::vector<viz::OpQ> ops;
+        ops.reserve (n.ops.size());
+        for (const auto& o : n.ops)
+        {
+            int p = 1, q = 1;
+            Path (o.path).walk (p, q);
+            ops.push_back ({ q, o.depth, o.enabled });
+        }
+        return viz::meanQOfOps (ops);
+    }
+}
 
 CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
 {
@@ -32,6 +52,7 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     colourModeCombo.addItem ("hollowness", 5);
     colourModeCombo.addItem ("musicality", 6);
     colourModeCombo.addItem ("criticality/voids", 7);
+    colourModeCombo.addItem ("simplicity", 8);
     colourModeCombo.setSelectedId (1, juce::dontSendNotification);
     colourModeCombo.onChange = [this]
     {
@@ -253,9 +274,36 @@ void CloudView::rebuildImage()
         }
     }
 
+    // Simplicity only: cache per-node q̄ + the map's p2..p98 scaling. The
+    // shipped feature fields arrive pre-scaled to 0..1; q̄ is derived here
+    // from the op paths, so it gets the same percentile treatment at bake
+    // time. Config-derived descriptor only — no butterfly claim.
+    simpMeanQ.clear();
+    if (colourMode == ColourMode::Simplicity)
+    {
+        simpMeanQ.resize (nodes.size(), -1.0f);
+        std::vector<float> valid;
+        valid.reserve (nodes.size());
+        for (size_t i = 0; i < nodes.size(); ++i)
+        {
+            simpMeanQ[i] = meanQOfNode (nodes[i]);
+            if (simpMeanQ[i] >= 0.0f) valid.push_back (simpMeanQ[i]);
+        }
+        simpQLo = 0.0f; simpQHi = 1.0f;
+        if (! valid.empty())
+        {
+            std::sort (valid.begin(), valid.end());
+            simpQLo = valid[(size_t) (0.02 * (double) (valid.size() - 1))];
+            simpQHi = valid[(size_t) (0.98 * (double) (valid.size() - 1))];
+            if (simpQHi <= simpQLo) simpQHi = simpQLo + 1.0f;   // flat map guard
+        }
+    }
+
     // Dots, coloured by family or by a measured characteristic. Small +
     // translucent so density reads as shading and tails/outliers stay visible.
-    auto dotColour = [this, fcount] (const Landscape::Node& n) -> juce::Colour
+    // Simplicity keeps the ramp convention (blue→red = low→high): blue =
+    // simple (low q̄), red = complex; inactive nodes go grey.
+    auto dotColour = [this, fcount] (const Landscape::Node& n, size_t i) -> juce::Colour
     {
         switch (colourMode)
         {
@@ -265,14 +313,19 @@ void CloudView::rebuildImage()
             case ColourMode::Hollow:     return featureColour (n.odd);
             case ColourMode::Musicality: return featureColour (n.tonal);
             case ColourMode::Criticality:return featureColour (n.crit);
+            case ColourMode::Simplicity:
+                return simpMeanQ[i] < 0.0f
+                           ? colors::disabled
+                           : featureColour ((simpMeanQ[i] - simpQLo) / (simpQHi - simpQLo));
             case ColourMode::Family:
             default:                     return familyColour (n.family, fcount);
         }
     };
-    for (const auto& n : nodes)
+    for (size_t i = 0; i < nodes.size(); ++i)
     {
+        const auto& n = nodes[i];
         const auto pt = mapToScreen (n.x, n.y);
-        g.setColour (dotColour (n).withAlpha (0.45f));
+        g.setColour (dotColour (n, i).withAlpha (0.45f));
         g.fillEllipse (pt.x - 1.6f, pt.y - 1.6f, 3.2f, 3.2f);
     }
 
@@ -512,8 +565,14 @@ void CloudView::paint (juce::Graphics& g)
                     + "  critical " + pct (n.crit),
                     box.reduced (8, 6).withTrimmedTop (20).removeFromTop (15),
                     juce::Justification::topLeft);
+        // q̄ = the simplicity descriptor, recomputed for just this node (a
+        // handful of Path::walks — nothing like the bake-time full pass).
+        const float mq = meanQOfNode (n);
         g.drawText ("feedback " + pct (n.feedback) + "  hollow " + pct (n.odd)
-                    + "  musical " + pct (n.tonal),
+                    + "  musical " + pct (n.tonal)
+                    + juce::String (juce::CharPointer_UTF8 ("  q\xcc\x84 "))
+                    + (mq >= 0.0f ? juce::String (juce::roundToInt (mq))
+                                  : juce::String (juce::CharPointer_UTF8 ("\xe2\x80\x94"))),
                     box.reduced (8, 6).withTrimmedTop (36).removeFromTop (15),
                     juce::Justification::topLeft);
     }

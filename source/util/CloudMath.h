@@ -60,4 +60,25 @@ inline std::vector<int> topCritIndices (const std::vector<float>& crit, int n)
     return idx;
 }
 
+/** One operator's contribution to the simplicity descriptor: its resolved
+    Stern-Brocot denominator q (the caller does the Path::walk) plus the
+    depth/enabled state that gates and weights it. */
+struct OpQ { int q { 1 }; float depth { 0.0f }; bool enabled { false }; };
+
+/** Depth-weighted mean denominator q̄ over the ACTIVE ops (enabled, depth
+    > 0) — the per-node "simplicity" descriptor. Config-derived only (q is
+    read straight off each op's path); NOT a butterfly/prominence claim. −1
+    when no op is active (colour that grey, don't scale it). */
+inline float meanQOfOps (const std::vector<OpQ>& ops)
+{
+    double wSum = 0.0, qSum = 0.0;
+    for (const auto& o : ops)
+        if (o.enabled && o.depth > 0.0f)
+        {
+            wSum += (double) o.depth;
+            qSum += (double) o.depth * (double) o.q;
+        }
+    return wSum > 0.0 ? (float) (qSum / wSum) : -1.0f;
+}
+
 } // namespace brocot::viz

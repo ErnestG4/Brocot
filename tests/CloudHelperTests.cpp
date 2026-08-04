@@ -137,3 +137,31 @@ TEST_CASE ("topCritIndices clamps N to the population", "[CloudMath]")
     REQUIRE (topCritIndices (crit, 0).empty());
     REQUIRE (topCritIndices ({}, 400).empty());
 }
+
+// ----------------------------------------------------------------------------
+// meanQOfOps — the simplicity descriptor
+// ----------------------------------------------------------------------------
+
+TEST_CASE ("meanQOfOps is the depth-weighted mean q over active ops", "[CloudMath]")
+{
+    // (1·2 + 3·4) / (1 + 3) = 3.5
+    const std::vector<OpQ> ops { { 2, 1.0f, true }, { 4, 3.0f, true } };
+    REQUIRE (meanQOfOps (ops) == Approx (3.5f));
+}
+
+TEST_CASE ("meanQOfOps skips disabled and zero-depth ops", "[CloudMath]")
+{
+    const std::vector<OpQ> ops {
+        { 2, 1.0f, true  },
+        { 99, 5.0f, false },   // disabled — ignored
+        { 77, 0.0f, true  },   // zero depth — ignored
+    };
+    REQUIRE (meanQOfOps (ops) == Approx (2.0f));
+}
+
+TEST_CASE ("meanQOfOps flags no-active-ops with -1", "[CloudMath]")
+{
+    REQUIRE (meanQOfOps ({}) == Approx (-1.0f));
+    const std::vector<OpQ> ops { { 5, 0.0f, true }, { 3, 2.0f, false } };
+    REQUIRE (meanQOfOps (ops) == Approx (-1.0f));
+}

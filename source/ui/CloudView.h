@@ -40,7 +40,10 @@ public:
 
     // How the dots are coloured — by imposed family, or by a measured spectral
     // characteristic (to reveal the real axes / fine structure of the cloud).
-    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow, Musicality, Criticality };
+    // Simplicity is the SCIENCE-GATED fallback (phase3/butterfly.md): a
+    // config-derived depth-weighted mean denominator q̄ — no prominence /
+    // butterfly overlay ships (that study came back NO-GO).
+    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow, Musicality, Criticality, Simplicity };
 
 private:
     void timerCallback() override;
@@ -84,6 +87,12 @@ private:
     // the toggle; the full smoothest-200 layer is opt-in.
     juce::ToggleButton wormholeToggle;
     void drawJumpArcs (juce::Graphics&);
+
+    // Simplicity mode cache: per-node q̄ plus the map's p2/p98 scaling, built
+    // at image-rebuild time (the Path::walk pass is a bake cost, not a paint
+    // cost). Empty in every other mode.
+    std::vector<float> simpMeanQ;          // −1 = no active ops → grey
+    float simpQLo { 0.0f }, simpQHi { 1.0f };
 
     ColourMode colourMode { ColourMode::Family };
     juce::ComboBox colourModeCombo;
