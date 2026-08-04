@@ -114,3 +114,36 @@ is why ranking uses rendered values only. Shipped in the `jumps` block of
 `resources/landscape_graph.json.gz`; A/B WAVs in `derived/jumps_audio/`
 (top wormholes vs random cross-family morphs, same pacing) for the by-ear
 check of the metric itself.
+
+## Fleet mining (same day) — every map now carries wormholes
+
+All 15 remaining maps mined with the base-trained proposer, each verified
+against **its own** τ (25th pct of its rendered k-NN-edge roughness).
+Pass-rate = how useful the (out-of-distribution) proposer was there; shipped
+numbers are rendered regardless.
+
+| map | τ | proposal pass | shipped | median r | median g |
+|---|---|---|---|---|---|
+| base 6-op | 0.275 | 45% | 1,385 | 0.002 | 1.6 |
+| 4 | 0.248 | — | 1,266 | — | — |
+| 8 | 0.291 | 49% | 1,407 | 0.008 | 1.7 |
+| 16 | 0.279 | 34% | 1,251 | 0.090 | 1.5 |
+| 32 | 0.259 | 26% | 1,034 | 0.071 | 1.3 |
+| 64 | 0.245 | 25% | 939 | 0.063 | 1.1 |
+| 4mix | 0.290 | 12% | 1,095 | 0.069 | 1.6 |
+| 6mix | 0.307 | 24% | 1,296 | 0.058 | 1.6 |
+| 8mix | 0.296 | 22% | 1,286 | 0.098 | 1.6 |
+| 16mix | 0.270 | 20% | 1,191 | 0.144 | 1.8 |
+| 32mix | 0.253 | 19% | 1,114 | 0.139 | 1.6 |
+| 64mix | 0.241 | 12% | 1,078 | 0.141 | 1.7 |
+| 6sine | 0.279 | 50% | 1,375 | 0.002 | 1.9 |
+| 6tri | 0.265 | 30% | 1,179 | 0.005 | 1.6 |
+| 6saw | 0.252 | 15% | 1,190 | 0.075 | 1.6 |
+| 6sqr | 0.236 | 11% | 1,055 | 0.062 | 1.1 |
+
+(4-op pass/median columns lost to a mid-run reboot — its jumps block is
+intact and re-derivable by re-running emit.) Reading: near-distribution
+maps (6/8-op sine-ish) pass ~50% with near-zero medians; mix/high-op maps
+degrade to ~12-25% as the proposer leaves its training regime, exactly as
+flagged — a per-map fine-tune is the obvious lever if more/smoother edges
+are wanted there. **18,731 verified wormholes across 16 maps.**
