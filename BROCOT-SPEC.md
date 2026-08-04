@@ -1130,6 +1130,23 @@ The discoveries that produced this design:
 9. **Do not add presets that aren't in one of the four documented categories.** Eight per category, 32 total. Trim later if any are weak.
 10. **Do not let scope creep extend v1.** If a feature isn't in this spec, it's v2. Write it down in `BROCOT-V2-IDEAS.md` and move on.
 
+## Appendix B½ — v1 constraints deliberately superseded since ship
+
+The v1 spec froze; the instrument kept moving. These Appendix B lines were
+consciously retired in later phases (each with its own tests), not violated:
+
+- **B1 (no mod matrix) / B2 (amp env only)** — superseded by the v2 universal
+  modulator bank (16 modulators, source/target routing, `.brocotmod` files).
+- **B6 (no polyphony beyond duo)** — superseded: mono/duo/poly up to 16 voices
+  with equal-power per-voice level.
+- **B9 (32 presets, four categories)** — superseded by the Phase-3 factory
+  packs (~4.3k files; the menu shows the ~47 curated anchors).
+- **§2 "8 operators"-era sizing** — the engine now carries 64 operators; the
+  render benchmark showed 64 costs only ~1.5× of 32.
+- Still standing: B3 (no snap-to-interval shortcuts), B4 (no typed path
+  strings), B5 (no nested FM — op-0 *self*-feedback shipped, which is
+  self-PM, not a modulator chain), B8, B10.
+
 ## Appendix C — V2 / Future roadmap (informational only)
 
 - Lab mode: ARS integration. Farey-PLL bank, NNS classifier, spectral analyzers as modulation sources.
@@ -1145,6 +1162,86 @@ The discoveries that produced this design:
 - Preset sharing site at `presets.brocot.fm`.
 
 V2 is not v1's problem. Do not let it become v1's problem.
+
+---
+
+## Addendum D — The butterfly / lattice pass (Phase 4, 2026-07)
+
+The 2026-07 refinement pass was driven by a separate handoff spec (the
+Hofstadter / almost-Mathieu ↔ Brocot ratio-axis programme) whose section
+numbers were cited throughout the code but never committed to this repo.
+This addendum reproduces that numbering so every citation resolves. **Any
+`§0/§1/§2/§4.x/§6/§P·` citation in `BrocotLattice.h`, `Coherence.h`,
+`CoherenceSuggest.h`, `RatioReadout`, `FareyView`, `brocot_lattice.py`, or
+`butterfly_map_study.py` refers to THIS addendum, not the v1 sections above.**
+
+### D§0 — Central claim (tested, mostly falsified)
+
+The navigation map's ratio axis θ = p/q *is* the almost-Mathieu (Harper)
+model's magnetic-flux axis, so the measured timbre landscape should exhibit
+the butterfly's band/gap structure; corollary (the "criticality insight"):
+deep-CF ratios should line the measured voids. **Status:** tested
+falsifiably in `phase3/butterfly.md` across six maps. The aggregate map is
+NOT the butterfly (op-count dominates). Single-op, gap prominence correlates
+with the measured geometry with the predicted sign — but is fully shadowed
+by plain Farey simplicity (q). The cfDepth↔voids corollary is not confirmed.
+
+### D§1 — Do-not-overclaim
+
+No association ships as a visual layer unless it beats a shuffle null AND a
+non-negligible effect-size floor AND the trivial baselines. Negative results
+are written down and gate future work (see D§P0-b).
+
+### D§2 — Lattice foundation
+
+`source/audio/BrocotLattice.h` (header-only, self-contained Jacobi
+eigensolver) and its Python mirror `phase3/brocot_lattice.py`: almost-Mathieu
+spectrum via the q×q Harper matrix evaluated at the 4 magnetic-BZ corners
+(band-edge method), gaps, Chern integers via j·modinv(p,q), prominence.
+
+### D§4 — Tenets (cited as §4.1–§4.5)
+
+- **§4.1 Structural, not literal.** The butterfly is an organizing /
+  annotation layer over ratio space — never a claim that a played note "is a
+  band or a gap."
+- **§4.2 Precise notions only.** `cfDepth` is the continued-fraction
+  partial-quotient SUM (= SB path depth + 1), NOT liminf-K or
+  Borel–Bernstein; do not substitute look-alike quantities.
+- **§4.3 Test-earns-it.** Every proposed map↔butterfly link is tested against
+  a permutation null with effect size read ahead of significance
+  (`butterfly_map_study.py`), and only what survives may drive UI.
+- **§4.4 Four quantities, kept strictly distinct.** `simplicity(q) = q`;
+  `cfDepth`; `prominence` (widest spectral gap); `chern` (Wannier/Středa
+  integer). Each owns exactly one concept; no conflation (and none with
+  GrooveField's 1/(p·q) well weight).
+- **§4.5 λ is a parameter.** The almost-Mathieu coupling defaults to the
+  self-dual critical point λ = 1 but is never hardcoded as a constant.
+
+### D§6 — Regression fixtures
+
+Hand-derived almost-Mathieu fixtures (θ = 1/3 band edges; Chern sequences
+via modular inverse) enforced by `tests/BrocotLatticeTests.cpp` and
+`phase3/tests/test_brocot_lattice.py` — the C++ and Python implementations
+must agree with the fixtures and with each other.
+
+### D§P — The prioritized programme
+
+- **P0-a — Path-prefix coherence (SHIPPED 2026-07-20).** `Coherence.h`
+  meter (fraction of sideband energy on partials shared by ≥ 2 modulators,
+  cents-binned, scale-invariant) in `RatioReadout`; `CoherenceSuggest.h`
+  suggest-mode (#1) with clickable prefix-extension chips on the drive tab.
+- **P0-b — Prominence terrain overlay (CLOSED as a documented negative,
+  2026-08-04).** The pre-registered gate failed: simplicity beats prominence
+  on every map, both fields, both low-op subsets. Earned fallback: a
+  no-claims "simplicity" colour mode on the cloud.
+- **P1-a — Farey navigator (SHIPPED 2026-07-20).** `FareyView`: baked
+  butterfly (q ≤ 32, gaps Chern-tinted), per-op flux columns, SB cursor with
+  clickable L/R children sized by prominence; plus the map study itself.
+- **P1-b — Criticality shimmer (this pass).** Voids/criticality rendering on
+  the cloud from MEASURED per-node fields only (density underlay + high-crit
+  twinkle) — no butterfly quantities involved, per the P0-b verdict.
+- **P2 — Chern-timbre and near-unity experiments (OPEN).** No committed
+  design; must clear D§1/D§4.3 before any of it reaches the UI.
 
 ---
 
