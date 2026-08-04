@@ -48,6 +48,8 @@ private:
     void syncCursorFromProcessor();
     void rebuildNodes();                   // recompute cursor + child viz (on cursor change)
     void rebuildTargets();                 // recompute hit-rects (on cursor change / resize)
+    void rescaleButterfly();               // re-derive scaledButterfly (resize only)
+    juce::String computeFluxSig() const;   // cheap state hash for the repaint gate
 
     // θ ∈ [0,1] → x, E ∈ [-kEMax,kEMax] → y within the plot rectangle.
     float thetaToX (double theta) const;
@@ -57,8 +59,12 @@ private:
 
     BrocotAudioProcessor& proc;
 
-    juce::Image butterfly;                 // baked band/gap image
+    juce::Image butterfly;                 // baked band/gap image (fixed size)
+    juce::Image scaledButterfly;           // pre-scaled to plot (resize only) —
+                                           // never stretch-blit per frame
     juce::Rectangle<float> plot;           // drawing rect (set in resized)
+    juce::String fluxSig;                  // repaint gate: shared path + per-op
+                                           // enabled/path signature
 
     Path cursor;                           // navigation position = shared path
     juce::String lastSharedPath;           // to detect external path changes

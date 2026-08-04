@@ -196,8 +196,41 @@ void FareyView::rebuildTargets()
 
 void FareyView::timerCallback()
 {
+    // Repaint only when the navigation state actually changed: an idle farey
+    // tab must cost nothing (a large resizable window makes unconditional
+    // 10 Hz full-view blits read as memory pressure on soft renderers).
+    if (! isShowing())
+        return;
     syncCursorFromProcessor();
-    repaint();
+    const auto sig = computeFluxSig();
+    if (sig != fluxSig)
+    {
+        fluxSig = sig;
+        repaint();
+    }
+}
+
+juce::String FareyView::computeFluxSig() const
+{
+    auto& apvts = proc.getAPVTS();
+    juce::String sig (lastSharedPath);
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        bool enabled = false;
+        if (auto* pr = apvts.getRawParameterValue (params::opId (i, "enabled")))
+            enabled = (pr->load() > 0.5f);
+        if (enabled)
+            sig << '|' << i << ':' << proc.getOpPath (i);
+    }
+    return sig;
+}
+
+void FareyView::rescaleButterfly()
+{
+    const int w = juce::roundToInt (plot.getWidth());
+    const int h = juce::roundToInt (plot.getHeight());
+    scaledButterfly = (w > 0 && h > 0) ? butterfly.rescaled (w, h)
+                                       : juce::Image();
 }
 
 // ----------------------------------------------------------------------------
@@ -214,8 +247,10 @@ void FareyView::paint (juce::Graphics& g)
     g.drawText ("farey", getLocalBounds().reduced (24, 14).removeFromTop (36),
                 juce::Justification::topLeft);
 
-    // The baked butterfly, scaled into the plot rectangle.
-    g.drawImage (butterfly, plot, juce::RectanglePlacement::stretchToFit);
+    // The baked butterfly, pre-scaled at resize — a per-frame stretch blit
+    // of the bake would dominate paint cost at large window sizes.
+    if (scaledButterfly.isValid())
+        g.drawImageAt (scaledButterfly, (int) plot.getX(), (int) plot.getY());
     g.setColour (colors::borderAtAlpha (0.4f));
     g.drawRect (plot, 1.0f);
 
@@ -313,6 +348,7 @@ void FareyView::resized()
     b.removeFromTop (48.0f);       // title + cursor label
     b.removeFromBottom (44.0f);    // θ axis labels + Chern legend strip
     plot = b.withTrimmedLeft (8.0f).withTrimmedRight (8.0f);
+    rescaleButterfly();
     rebuildTargets();
 }
 
