@@ -896,6 +896,74 @@ def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
 
 
 # ---------------------------------------------------------------------------
+# Perceptual spot-check — the metric's claim is itself falsifiable by ear.
+# ---------------------------------------------------------------------------
+
+def render_audio(map_path: FsPath, n_each: int = 10, seconds: float = 2.5,
+                 sr: int = 44100, seed: int = 0) -> None:
+    """WAV renders of the top-N shipped wormholes vs N random cross-family
+    morphs (same duration/pacing) into derived/jumps_audio/ for A/B listening.
+    Chunked render (30 alpha steps/s) with 5 ms crossfades; the modulator
+    phases are t-continuous so seams carry only the param step the runtime
+    smoother would also see."""
+    from scipy.io import wavfile
+
+    rng = np.random.default_rng(seed + 13)
+    doc = load_map(map_path)
+    ops_all, fb, fam = node_states(doc)
+    jumps = (doc.get("jumps") or {}).get("edges", [])[:n_each]
+    if not jumps:
+        print("no jumps block in map — run emit first"); return
+
+    rand_pairs = []
+    n = len(ops_all)
+    while len(rand_pairs) < n_each:
+        i, j = rng.integers(0, n, 2)
+        if i != j and fam[i] != fam[j]:
+            rand_pairs.append((int(i), int(j)))
+
+    out_dir = DERIVED / "jumps_audio"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    steps = int(seconds * 30)
+    seg = int(sr / 30)
+    fade = int(sr * 0.005)
+    ramp = np.linspace(0.0, 1.0, fade)
+
+    def render_pair(ai, bi, name):
+        pl = PairLadder(ops_all[ai], ops_all[bi], fb[ai], fb[bi])
+        alphas = np.linspace(0.0, 1.0, steps)
+        ratio, depth, wave, fbv = pl.sample(alphas)
+        audio = np.zeros(steps * seg + fade, np.float32)
+        for s in range(steps):
+            t0 = s * seg / sr
+            t = torch.arange(seg + fade, device=DEVICE,
+                             dtype=torch.float32) / sr + t0
+            lr = torch.log(torch.as_tensor(ratio[s:s + 1], dtype=torch.float32,
+                                           device=DEVICE))
+            dp = torch.as_tensor(depth[s:s + 1], dtype=torch.float32, device=DEVICE)
+            wv = torch.as_tensor(wave[s:s + 1], dtype=torch.float32, device=DEVICE)
+            bt = torch.as_tensor(fbv[s:s + 1], dtype=torch.float32,
+                                 device=DEVICE) * float(np.pi)
+            x = render_batch(lr, dp, torch.zeros_like(lr), t, F_CARRIER,
+                             feedback=bt, waves=wv)[0].cpu().numpy()
+            x[:fade] *= ramp
+            x[-fade:] *= ramp[::-1]
+            audio[s * seg: s * seg + seg + fade] += x
+        peak = np.abs(audio).max()
+        if peak > 0:
+            audio *= 0.7 / peak
+        wavfile.write(out_dir / f"{name}.wav", sr,
+                      (audio * 32767).astype(np.int16))
+
+    for k, e in enumerate(jumps):
+        render_pair(e["a"], e["b"], f"wormhole_{k:02d}_r{e['r']:.2f}")
+    for k, (ai, bi) in enumerate(rand_pairs):
+        render_pair(ai, bi, f"random_{k:02d}")
+    print(f"wrote {len(jumps)} wormhole + {len(rand_pairs)} random morph "
+          f"renders → {out_dir}")
+
+
+# ---------------------------------------------------------------------------
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -928,8 +996,13 @@ def main() -> None:
     e.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
     e.add_argument("--out", type=FsPath, default=None)
 
+    au = sub.add_parser("audio", help="A/B WAVs: top wormholes vs random")
+    au.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
+
     args = ap.parse_args()
-    if args.cmd == "dataset":
+    if args.cmd == "audio":
+        render_audio(args.map)
+    elif args.cmd == "dataset":
         dataset(args.map, args.pairs, args.seed, args.out, args.ratio_mode)
     elif args.cmd == "calibrate":
         calibrate(args.dataset)
