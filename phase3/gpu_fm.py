@@ -66,10 +66,14 @@ def interp_matrix(n_fft: int, sr: int, q_max: int, f_carrier: float,
 # Differentiable render + fingerprint
 # ---------------------------------------------------------------------------
 
-def _wave(arg_turns: torch.Tensor, wcode: torch.Tensor | None) -> torch.Tensor:
+def _wave(arg_turns: torch.Tensor, wcode: torch.Tensor | None,
+          duty: torch.Tensor | float | None = None) -> torch.Tensor:
     """Operator waveform of a phase given in TURNS (arg = 2π·turns). wcode (B,1)
-    selects per-config 0=sine 1=triangle 2=saw 3=square (None ⇒ all sine).
-    Matches Operator::wave in the engine so the maps reflect what's heard."""
+    selects per-config 0=sine 1=triangle 2=saw 3=square 4=pulse (None ⇒ all
+    sine). `duty` is the pulse high-fraction — (B,1) tensor or scalar, None ⇒
+    the engine's 0.25 default; only wcode==4 slots feel it (duty 0.5 = square,
+    harmonic n scales as |sin(πn·duty)|). Matches Operator::wave in the engine
+    so the maps reflect what's heard."""
     two_pi = 2.0 * np.pi
     if wcode is None:
         return torch.sin(two_pi * arg_turns)
@@ -79,9 +83,11 @@ def _wave(arg_turns: torch.Tensor, wcode: torch.Tensor | None) -> torch.Tensor:
     tri = 1.0 - 4.0 * (tri_t - 0.5).abs()
     saw = 2.0 * p - 1.0
     sq = torch.where(p < 0.5, 1.0, -1.0)
+    pulse = torch.where(p < (0.25 if duty is None else duty), 1.0, -1.0)
     out = torch.where(wcode == 1, tri, out)
     out = torch.where(wcode == 2, saw, out)
     out = torch.where(wcode == 3, sq, out)
+    out = torch.where(wcode == 4, pulse, out)
     return out
 
 
@@ -90,14 +96,17 @@ def render_batch(log_ratio: torch.Tensor, depth: torch.Tensor,
                  f_carrier: float = F_CARRIER,
                  feedback: torch.Tensor | None = None,
                  fb_iters: int = 4,
-                 waves: torch.Tensor | None = None) -> torch.Tensor:
+                 waves: torch.Tensor | None = None,
+                 duties: torch.Tensor | None = None) -> torch.Tensor:
     """Batched sine-FM render. Shapes: params (B, K), t (T,) → (B, T).
     K-loop accumulation keeps memory at O(B·T) (no B·K·T tensor).
 
     `feedback` (B,), if given, is op 0's self-PM index in radians (matches the
     engine's single-op feedback). `waves` (B, K), if given, selects each op's
-    waveform (0=sine,1=tri,2=saw,3=square) — a non-sine modulator reshapes the
-    sidebands. Both default None ⇒ pure parallel sine FM (unchanged callers)."""
+    waveform (0=sine,1=tri,2=saw,3=square,4=pulse) — a non-sine modulator
+    reshapes the sidebands. `duties` (B, K), if given, sets each op's pulse
+    duty cycle (only wcode-4 slots feel it; None ⇒ the engine's 0.25
+    default). All default None ⇒ pure parallel sine FM (unchanged callers)."""
     B, K = log_ratio.shape
     two_pi = 2.0 * np.pi
     ratio = torch.exp(log_ratio) * torch.pow(2.0, detune_cents / 1200.0)  # (B,K)
@@ -106,14 +115,15 @@ def render_batch(log_ratio: torch.Tensor, depth: torch.Tensor,
         fmod = (f_carrier * ratio[:, k]).unsqueeze(1)                      # (B,1)
         turns = fmod * t                                                  # (B,T), arg/2π
         wk = waves[:, k].unsqueeze(1) if waves is not None else None       # (B,1)
+        dk = duties[:, k].unsqueeze(1) if duties is not None else None     # (B,1)
         if k == 0 and feedback is not None:
             beta = feedback.unsqueeze(1) * (1.0 / two_pi)                 # rad→turns
-            y = _wave(turns, wk)
+            y = _wave(turns, wk, dk)
             for _ in range(fb_iters):
-                y = _wave(turns + beta * y, wk)                          # self-PM
+                y = _wave(turns + beta * y, wk, dk)                      # self-PM
             phase = phase + depth[:, 0].unsqueeze(1) * y
         else:
-            phase = phase + depth[:, k].unsqueeze(1) * _wave(turns, wk)
+            phase = phase + depth[:, k].unsqueeze(1) * _wave(turns, wk, dk)
     return torch.sin(phase)
 
 

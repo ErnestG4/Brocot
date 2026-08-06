@@ -44,7 +44,10 @@ def bank_path(n_ops: int = 6) -> Path:
 def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
           n_ops: int = 6, out: Path = None, mod_budget: float = 12.0,
           waveform: int = 0):
-    # waveform: 0..3 = SOLO (every op that shape) ; -1 = MIX (per-op random).
+    # waveform: 0..4 = SOLO (every op that shape; 4 = pulse with a per-config
+    # duty ~ U(0.08, 0.45), saved under "duties") ; -1 = MIX (per-op random
+    # sine/tri/saw/sqr — pulse joins the mix only after the engine change
+    # ships and the maps regen, so existing mix banks stay reproducible).
     out = out or bank_path(n_ops)
     paths, rv = _ratio_values()
     rvt = torch.from_numpy(rv).to(DEVICE)
@@ -59,6 +62,7 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
     depths = np.empty((n_total, n_ops), dtype=np.float16)
     feedback = np.empty((n_total,), dtype=np.float16)
     waves = np.empty((n_total, n_ops), dtype=np.uint8)
+    duties = np.full((n_total,), 0.25, dtype=np.float16)   # per-CONFIG pulse duty
     t0 = time.time()
     done = 0
     while done < n_total:
@@ -85,9 +89,18 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
             wv = torch.randint(0, 4, (b, n_ops), generator=g, device=DEVICE)
         else:
             wv = torch.full((b, n_ops), int(waveform), device=DEVICE, dtype=torch.long)
+        # Solo-pulse banks sample one duty per config (the PW comb is the
+        # config's timbre axis, shared by its ops); other builds keep the
+        # duties=None render path, byte-identical to pre-pulse banks.
+        dt = None
+        if waveform == 4:
+            dt = torch.empty(b, device=DEVICE).uniform_(0.08, 0.45, generator=g)
+            duties[done:done + b] = dt.half().cpu().numpy()
         fp = fingerprint_batch(
             render_batch(torch.log(rvt[ri]), dp, torch.zeros(b, n_ops, device=DEVICE),
-                         t, F_CARRIER, feedback=fb, waves=wv), W, win)
+                         t, F_CARRIER, feedback=fb, waves=wv,
+                         duties=(None if dt is None
+                                 else dt.unsqueeze(1).expand(b, n_ops))), W, win)
         amps[done:done + b] = fp.half().cpu().numpy()
         ridx[done:done + b] = ri.byte().cpu().numpy()
         depths[done:done + b] = dp.half().cpu().numpy()
@@ -99,7 +112,8 @@ def build(n_total: int = 5_000_000, chunk: int = 50_000, seed: int = 0,
                   f"{done/(time.time()-t0):,.0f}/s)")
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(out, amps=amps, ridx=ridx, depths=depths, feedback=feedback, waves=waves)
+    np.savez(out, amps=amps, ridx=ridx, depths=depths, feedback=feedback, waves=waves,
+             duties=duties)
     print(f"\nGPU bank: {n_total:,} fingerprints @ {n_ops} ops, q_max={Q_MAX}  "
           f"({out.stat().st_size/1e9:.2f} GB) in {time.time()-t0:.0f}s -> {out}")
 
@@ -167,7 +181,9 @@ def main():
     b.add_argument("--mod-budget", type=float, default=12.0,
                    help="total modulation budget — lower = more tonal dense maps")
     b.add_argument("--waveform", type=int, default=0,
-                   help="0-3 = solo (all ops sine/tri/saw/sqr); -1 = per-op mix")
+                   help="0-4 = solo (all ops sine/tri/saw/sqr/pulse; pulse "
+                        "samples per-config duty ~ U(0.08,0.45), npz key "
+                        "'duties'); -1 = per-op mix (pulse not in the mix yet)")
     b.add_argument("--out", type=str, default=None, help="explicit bank .npz path")
     c = sub.add_parser("coverage"); c.add_argument("--n-probe", type=int, default=1000)
     a = ap.parse_args()
