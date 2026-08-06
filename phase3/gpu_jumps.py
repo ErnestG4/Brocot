@@ -31,6 +31,10 @@ Run (GPU venv):
   phase3/.venv-gpu/bin/python -m phase3.gpu_jumps dataset \
       --map resources/landscape_graph.json.gz --pairs 300000
   phase3/.venv-gpu/bin/python -m phase3.gpu_jumps calibrate
+
+Per-map fine-tune (workstream J; one chained command per non-base map):
+  phase3/.venv-gpu/bin/python -m phase3.gpu_jumps finetune-map \
+      --map resources/landscape_graph_64mix.json.gz
 """
 
 from __future__ import annotations
@@ -50,6 +54,9 @@ from scipy.stats import rankdata
 from phase3.gpu_fm import (DEVICE, F_CARRIER, SAMPLE_RATE, fingerprint_batch,
                            interp_matrix, render_batch)
 from phase3.gpu_paths import _knn_graph
+from phase3.jumps_naming import (dataset_name, emit_summary_name,
+                                 eval_json_name, jumpnet_name, map_tag,
+                                 mined_name, resolve_jumpnet)
 from phase3.morph_walk import (FEATURE_NAMES, Op, events, feature_vector,
                                morph, path_walk)
 
@@ -554,7 +561,10 @@ def _spearman_np(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def train(ds_path: FsPath, map_path: FsPath, epochs: int = 15,
-          batch: int = 8192, lr: float = 2e-3, seed: int = 0) -> dict:
+          batch: int = 8192, lr: float = 2e-3, seed: int = 0,
+          init_path: FsPath | None = None, out_path: FsPath | None = None,
+          skip_baselines: bool = False) -> dict:
+    out_path = out_path or JUMPNET_PT
     d = np.load(ds_path, allow_pickle=False)
     doc = load_map(map_path)
     ops_all, fb, _fam = node_states(doc)
@@ -579,6 +589,10 @@ def train(ds_path: FsPath, map_path: FsPath, epochs: int = 15,
 
     torch.manual_seed(seed)
     net = JumpNet().to(DEVICE)
+    if init_path is not None:
+        ck = torch.load(init_path, map_location=DEVICE, weights_only=False)
+        net.load_state_dict(ck["state"])
+        print(f"init from {init_path.name} (fine-tune, lr={lr:g})")
     opt = torch.optim.AdamW(net.parameters(), lr=lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(
         opt, T_max=epochs * (len(tr_idx) // batch + 1))
@@ -603,7 +617,8 @@ def train(ds_path: FsPath, map_path: FsPath, epochs: int = 15,
             preds.append(net(X[ta[idx]], X[tb[idx]], feats[idx]))
         pred = torch.cat(preds).cpu().numpy()
     torch.save({"state": net.state_dict(), "seed": seed,
-                "map": str(map_path.name)}, JUMPNET_PT)
+                "map": str(map_path.name),
+                "init": str(init_path.name) if init_path else None}, out_path)
 
     # --- Baselines on the SAME val pairs -----------------------------------
     vy = y[va_idx, 0].cpu().numpy()                     # log R_max target
@@ -613,39 +628,52 @@ def train(ds_path: FsPath, map_path: FsPath, epochs: int = 15,
     rho_gd = _spearman_np(d["graph_dist"][va_np], vy)
 
     # Engineered-only MLP, same protocol (the ablation that decides whether
-    # the towers add anything beyond the hand physics).
-    torch.manual_seed(seed)
-    eng = torch.nn.Sequential(
-        torch.nn.Linear(len(FEATURE_NAMES), 128), torch.nn.GELU(),
-        torch.nn.Linear(128, 128), torch.nn.GELU(),
-        torch.nn.Linear(128, 1)).to(DEVICE)
-    eopt = torch.optim.AdamW(eng.parameters(), lr=lr)
-    for ep in range(epochs):
-        perm = tr_idx[torch.randperm(len(tr_idx), device=DEVICE)]
-        for c in range(0, len(perm), batch):
-            idx = perm[c:c + batch]
-            loss = huber(eng(feats[idx])[:, 0], y[idx, 0])
-            eopt.zero_grad(); loss.backward(); eopt.step()
-    eng.eval()
-    with torch.no_grad():
-        epred = torch.cat([eng(feats[va_idx[c:c + 65536]])[:, 0]
-                           for c in range(0, len(va_idx), 65536)]).cpu().numpy()
-    rho_eng = _spearman_np(epred, vy)
+    # the towers add anything beyond the hand physics). Fine-tune runs may
+    # skip it — the base-map run already established the hierarchy.
+    rho_eng = None
+    if skip_baselines:
+        print("(--skip-baselines: engineered-MLP ablation skipped)")
+    else:
+        torch.manual_seed(seed)
+        eng = torch.nn.Sequential(
+            torch.nn.Linear(len(FEATURE_NAMES), 128), torch.nn.GELU(),
+            torch.nn.Linear(128, 128), torch.nn.GELU(),
+            torch.nn.Linear(128, 1)).to(DEVICE)
+        eopt = torch.optim.AdamW(eng.parameters(), lr=lr)
+        for ep in range(epochs):
+            perm = tr_idx[torch.randperm(len(tr_idx), device=DEVICE)]
+            for c in range(0, len(perm), batch):
+                idx = perm[c:c + batch]
+                loss = huber(eng(feats[idx])[:, 0], y[idx, 0])
+                eopt.zero_grad(); loss.backward(); eopt.step()
+        eng.eval()
+        with torch.no_grad():
+            epred = torch.cat([eng(feats[va_idx[c:c + 65536]])[:, 0]
+                               for c in range(0, len(va_idx), 65536)]).cpu().numpy()
+        rho_eng = _spearman_np(epred, vy)
 
-    best_base = max(abs(rho_l1), abs(rho_gd), abs(rho_eng))
+    bases = [abs(rho_l1), abs(rho_gd)]
+    if rho_eng is not None:
+        bases.append(abs(rho_eng))
+    best_base = max(bases)
     verdict = ("SUCCESS" if rho_net >= 0.90 and rho_net - best_base >= 0.05
-               else "ENGINEERED-TIES" if rho_net - rho_eng < 0.02
+               else "ENGINEERED-TIES" if rho_eng is not None
+               and rho_net - rho_eng < 0.02
                else "PARTIAL")
     out = {
         "n_train": int(len(tr_idx)), "n_val": int(len(va_idx)),
+        "checkpoint": out_path.name, "dataset": ds_path.name,
+        "init": init_path.name if init_path else None,
         "spearman_val_logRmax": {
             "jumpnet": round(rho_net, 4), "endpoint_l1": round(rho_l1, 4),
             "graph_dist_landmark": round(rho_gd, 4),
-            "engineered_mlp": round(rho_eng, 4)},
+            "engineered_mlp": round(rho_eng, 4)
+            if rho_eng is not None else None},
         "pre_registered": "net >= 0.90 and net - best_baseline >= 0.05",
         "verdict": verdict,
     }
-    EVAL_JSON.write_text(json.dumps(out, indent=1) + "\n")
+    eval_path = DERIVED / eval_json_name(out_path.name)
+    eval_path.write_text(json.dumps(out, indent=1) + "\n")
     print(json.dumps(out, indent=1))
     return out
 
@@ -689,12 +717,19 @@ def _pool_features(ops_all, pairs: np.ndarray, workers: int = 10) -> np.ndarray:
 
 def mine(map_path: FsPath, pool_size: int = 20_000_000,
          keep_top: int = 30_000, seed: int = 0,
-         hop_floor: float = 8.0, out_npz: FsPath | None = None) -> None:
+         hop_floor: float = 8.0, out_npz: FsPath | None = None,
+         net_path: FsPath | None = None) -> None:
     """Propose smooth cross-family candidates with the trained scorer.
     Sampled mining (not exhaustive): `pool_size` random cross-family pairs
     are screened — log what that leaves behind, no silent caps."""
     rng = np.random.default_rng(seed + 7)
     t0 = time.time()
+    if net_path is None:
+        net_path, per_map = resolve_jumpnet(map_path.name, DERIVED)
+        print(f"scorer: {net_path.name} (auto-resolved: "
+              f"{'per-map fine-tune' if per_map else 'base checkpoint'})")
+    else:
+        print(f"scorer: {net_path} (explicit --net)")
     doc = load_map(map_path)
     ops_all, fb, fam = node_states(doc)
     n = len(ops_all)
@@ -741,7 +776,7 @@ def mine(map_path: FsPath, pool_size: int = 20_000_000,
     # Score with the trained net (or engineered head if that's the verdict).
     feats = _pool_features(ops_all, pairs)
     print(f"features for {len(pairs):,} pairs  [{time.time()-t0:.1f}s]")
-    ckpt = torch.load(JUMPNET_PT, map_location=DEVICE, weights_only=False)
+    ckpt = torch.load(net_path, map_location=DEVICE, weights_only=False)
     net = JumpNet().to(DEVICE); net.load_state_dict(ckpt["state"]); net.eval()
     scal = torch.as_tensor(_node_scalars(ops_all, fb), device=DEVICE)
     X = torch.cat([node_fps, scal], dim=1)
@@ -916,11 +951,58 @@ def verify_and_emit(map_path: FsPath, out_path: FsPath | None = None,
                if edges else None,
                "median_shipped_g": float(np.median([e["g"] for e in edges]))
                if edges else None}
-    stem = map_path.name.replace("landscape_graph", "jumps_emit") \
-                        .replace(".json.gz", "") or "jumps_emit"
-    (DERIVED / f"{stem}.json").write_text(json.dumps(summary, indent=1) + "\n")
+    (DERIVED / emit_summary_name(map_path.name)).write_text(
+        json.dumps(summary, indent=1) + "\n")
     print(json.dumps(summary, indent=1))
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Per-map fine-tune chain (workstream J). The base JumpNet was trained on the
+# 6-op base map; mix/high-op maps are out-of-distribution (11-25% proposal
+# pass rates vs ~50% in-distribution — see jumps.md census). One command per
+# map: dataset → fine-tune from the base checkpoint → mine with the tuned
+# net → render-verify + emit. Every artefact is per-map-suffixed, so the
+# base checkpoint/dataset/emit files are never overwritten.
+# ---------------------------------------------------------------------------
+
+
+def finetune_map(map_path: FsPath, pairs: int = 80_000, epochs: int = 6,
+                 lr: float = 5e-4, seed: int = 0,
+                 pool_size: int = 20_000_000, keep_top: int = 30_000) -> None:
+    tag = map_tag(map_path.name)
+    if not tag:
+        raise SystemExit("finetune-map targets non-base maps; the base map "
+                         "IS the pretraining distribution — use `train`.")
+    if not JUMPNET_PT.exists():
+        raise SystemExit(f"base checkpoint {JUMPNET_PT} missing — "
+                         "train the base JumpNet first.")
+    ds_path = DERIVED / dataset_name(map_path.name)
+    ckpt_path = DERIVED / jumpnet_name(map_path.name)
+    mined_path = DERIVED / mined_name(map_path.name)
+    emit_json = DERIVED / emit_summary_name(map_path.name)
+
+    # Capture the base-net pass rate BEFORE verify_and_emit overwrites it.
+    old_rate = None
+    if emit_json.exists():
+        prev = json.loads(emit_json.read_text())
+        if prev.get("n_proposed"):
+            old_rate = 100.0 * prev["n_pass"] / prev["n_proposed"]
+
+    print(f"=== finetune-map {tag}: ds={ds_path.name} ckpt={ckpt_path.name} "
+          f"mined={mined_path.name} ===")
+    dataset(map_path, pairs, seed, ds_path)
+    train(ds_path, map_path, epochs=epochs, lr=lr, seed=seed,
+          init_path=JUMPNET_PT, out_path=ckpt_path, skip_baselines=True)
+    mine(map_path, pool_size=pool_size, keep_top=keep_top, seed=seed,
+         out_npz=mined_path, net_path=ckpt_path)
+    summary = verify_and_emit(map_path, mined_npz=mined_path, seed=seed)
+
+    new_rate = (100.0 * summary["n_pass"] / summary["n_proposed"]
+                if summary["n_proposed"] else 0.0)
+    old_s = f"{old_rate:.1f}%" if old_rate is not None else "n/a"
+    print(f"FINETUNE {tag}: proposal pass rate {old_s} (base net) -> "
+          f"{new_rate:.1f}% (fine-tuned)")
 
 
 # ---------------------------------------------------------------------------
@@ -1012,6 +1094,18 @@ def main() -> None:
     t.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
     t.add_argument("--epochs", type=int, default=15)
     t.add_argument("--seed", type=int, default=0)
+    t.add_argument("--init", type=FsPath, default=None,
+                   help="checkpoint to load before training (fine-tune), "
+                        "e.g. derived/jumpnet.pt")
+    t.add_argument("--out", type=FsPath, default=JUMPNET_PT,
+                   help="checkpoint to write (per-map: derived/jumpnet_<tag>.pt"
+                        "; eval JSON name follows the checkpoint name)")
+    t.add_argument("--lr", type=float, default=2e-3,
+                   help="learning rate (2e-3 from scratch; 5e-4 recommended "
+                        "with --init fine-tunes)")
+    t.add_argument("--skip-baselines", action="store_true",
+                   help="skip the engineered-MLP ablation (fine-tune runs: "
+                        "the base-map run already established the hierarchy)")
 
     m = sub.add_parser("mine", help="propose smooth cross-family candidates")
     m.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
@@ -1019,12 +1113,27 @@ def main() -> None:
     m.add_argument("--top", type=int, default=30_000)
     m.add_argument("--seed", type=int, default=0)
     m.add_argument("--mined-out", type=FsPath, default=None)
+    m.add_argument("--net", type=FsPath, default=None,
+                   help="scorer checkpoint (default: auto — "
+                        "derived/jumpnet_<maptag>.pt if it exists, "
+                        "else derived/jumpnet.pt)")
 
     e = sub.add_parser("emit", help="render-verify mined candidates and "
                                     "write the jumps block into the map")
     e.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
     e.add_argument("--out", type=FsPath, default=None)
     e.add_argument("--mined", type=FsPath, default=None)
+
+    f = sub.add_parser(
+        "finetune-map",
+        help="per-map chain: dataset → fine-tune (--init base) → mine → emit")
+    f.add_argument("--map", type=FsPath, required=True)
+    f.add_argument("--pairs", type=int, default=80_000)
+    f.add_argument("--epochs", type=int, default=6)
+    f.add_argument("--lr", type=float, default=5e-4)
+    f.add_argument("--seed", type=int, default=0)
+    f.add_argument("--pool", type=int, default=20_000_000)
+    f.add_argument("--top", type=int, default=30_000)
 
     au = sub.add_parser("audio", help="A/B WAVs: top wormholes vs random")
     au.add_argument("--map", type=FsPath, default=DEFAULT_MAP)
@@ -1037,12 +1146,18 @@ def main() -> None:
     elif args.cmd == "calibrate":
         calibrate(args.dataset)
     elif args.cmd == "train":
-        train(args.dataset, args.map, epochs=args.epochs, seed=args.seed)
+        train(args.dataset, args.map, epochs=args.epochs, seed=args.seed,
+              lr=args.lr, init_path=args.init, out_path=args.out,
+              skip_baselines=args.skip_baselines)
     elif args.cmd == "mine":
         mine(args.map, pool_size=args.pool, keep_top=args.top, seed=args.seed,
-             out_npz=args.mined_out)
+             out_npz=args.mined_out, net_path=args.net)
     elif args.cmd == "emit":
         verify_and_emit(args.map, args.out, mined_npz=args.mined)
+    elif args.cmd == "finetune-map":
+        finetune_map(args.map, pairs=args.pairs, epochs=args.epochs,
+                     lr=args.lr, seed=args.seed, pool_size=args.pool,
+                     keep_top=args.top)
 
 
 if __name__ == "__main__":
