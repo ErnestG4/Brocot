@@ -101,6 +101,9 @@ private:
     void seekToCritical();
     juce::TextButton   critButton;
     juce::ToggleButton rimSnapToggle;      // default OFF
+    juce::ToggleButton familyToggle;       // default OFF: hover lights only the
+                                           // hovered node unless toggled on
+                                           // (pure UI — no APVTS param)
     juce::String flashHint;                // transient hint-line override
     juce::uint32 flashHintUntilMs { 0 };   // 0 = inactive
 

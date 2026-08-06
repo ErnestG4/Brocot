@@ -95,6 +95,14 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
     rimSnapToggle.setTooltip (juce::CharPointer_UTF8 ("Snap clicks to a nearby critical node (tight radius)."));
     addAndMakeVisible (rimSnapToggle);
 
+    // Family-wide hover highlight is opt-in (default OFF): lighting every
+    // node of the hovered family repaints half the cloud per mouse move and
+    // buries the local structure; off, hover lights just the hovered node.
+    familyToggle.setButtonText ("family");
+    familyToggle.setTooltip (juce::CharPointer_UTF8 ("hover lights the whole family"));
+    familyToggle.onClick = [this] { repaint(); };
+    addAndMakeVisible (familyToggle);
+
     setWantsKeyboardFocus (true);          // for the 'c' shortcut
 
     startTimerHz (30);
@@ -176,6 +184,7 @@ void CloudView::resized()
     wormholeToggle.setBounds (276, 8, 100, 22);
     critButton.setBounds (380, 8, 44, 22);
     rimSnapToggle.setBounds (430, 8, 80, 22);
+    familyToggle.setBounds (514, 8, 72, 22);
     rebuildImage();
 }
 
@@ -600,21 +609,31 @@ void CloudView::paint (juce::Graphics& g)
     g.setColour (colors::primaryText);
     g.fillEllipse (pt.x - 2.0f, pt.y - 2.0f, 4.0f, 4.0f);
 
-    // Hover inspect: profile of the node nearest the mouse, and — to reveal how
-    // a sound type spreads — light up every node in that family (its scattered
-    // pockets). Only while idle-hovering, so it never runs during drag/seek.
+    // Hover inspect: light the hovered node — and, only when the "family"
+    // toggle is on, every node of its family (revealing a sound type's
+    // scattered pockets). Only while idle-hovering, so it never runs during
+    // drag/seek.
     if (hovering && hoverNode >= 0 && hoverNode < ls.getNodeCount())
     {
         const auto& nodes = ls.getNodes();
         const int fam = nodes[(size_t) hoverNode].family;
         const auto col = familyColour (fam, ls.getFamilyCount());
-        for (const auto& nn : nodes)
-            if (nn.family == fam)
-            {
-                const auto p = mapToScreen (nn.x, nn.y);
-                g.setColour (col.withAlpha (0.9f));
-                g.fillEllipse (p.x - 2.4f, p.y - 2.4f, 4.8f, 4.8f);
-            }
+        auto light = [&g, this, &col] (const Landscape::Node& nn)
+        {
+            const auto p = mapToScreen (nn.x, nn.y);
+            g.setColour (col.withAlpha (0.9f));
+            g.fillEllipse (p.x - 2.4f, p.y - 2.4f, 4.8f, 4.8f);
+        };
+        if (familyToggle.getToggleState())
+        {
+            for (const auto& nn : nodes)
+                if (nn.family == fam)
+                    light (nn);
+        }
+        else
+        {
+            light (nodes[(size_t) hoverNode]);
+        }
     }
 
     // Hover inspect readout.
