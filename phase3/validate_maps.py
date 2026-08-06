@@ -59,6 +59,25 @@ def validate(path: Path) -> list[str]:
     bad_ops = sum(1 for n in nodes if len(n["ops"]) != nops)
     if bad_ops:
         errs.append(f"{bad_ops} nodes whose ops length != n_ops ({nops})")
+    # Mod maps (doc "mod_map": 1) additionally carry per-node modulator state +
+    # motion descriptors; validate those without touching the base contract.
+    if d.get("mod_map"):
+        bad_mods = sum(
+            1 for n in nodes
+            if not (isinstance(n.get("mods"), list) and n["mods"]
+                    and all(m.get("kind") in ("depth", "feedback")
+                            and m.get("shape") in ("sine", "tri")
+                            and 0 <= m.get("op", -1) < nops
+                            and isinstance(m.get("rate"), (int, float))
+                            and isinstance(m.get("depth"), (int, float))
+                            for m in n["mods"])))
+        if bad_mods:
+            errs.append(f"{bad_mods} nodes with missing/invalid 'mods'")
+        bad_motion = sum(1 for n in nodes
+                         if not (0.0 <= n.get("motion", -1) <= 1.0
+                                 and 0.0 <= n.get("rate_n", -1) <= 1.0))
+        if bad_motion:
+            errs.append(f"{bad_motion} nodes with motion/rate_n outside [0,1]")
     nh = d.get("next_hop", {})
     if set(nh.keys()) != set(fn):
         errs.append(f"next_hop keys != family_names "

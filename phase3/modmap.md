@@ -96,3 +96,36 @@ statically-labelled "modulated" nodes would pollute the motion geometry.
 Classification (`classify` subcommand) runs on the PHASE-0 frame only, so
 families stay timbre-defined; labels npz mirrors gpu_landscape.classify's
 keys. 2M rows in 2 s.
+
+**M2 SHIPPED** — `phase3/gpu_modbank.py map`: the "6op mod" map,
+`resources/landscape_graph_6mod.json.gz` (3.1 MB, 30k nodes, k=12, built
+in **93 s**). Mirrors gpu_paths.gradients (imports its _subsample /
+_knn_graph / _embed2d / criticality / _reconstruct machinery unchanged)
+with the mod-map twist: k-NN graph, t-SNE embedding and criticality run on
+the FULL flattened (n, 256) trajectory vector — neighbourhoods are
+motion-aware — while families, gradient-field anchors and spectral
+descriptors use the phase-0 frame. Per-node extras: `mods` (one
+{kind, op, shape, rate, depth} entry), `motion` (mean frame-to-frame L1,
+p98-normalised) and `rate_n` (log-mapped rate over 0.3–7 Hz); doc-level
+`"mod_map": 1` gates mod-specific runtime UI. `validate_maps` extended
+additively (mod_map-gated checks on mods/motion/rate_n); all 17 maps
+valid, the original 16 unchanged.
+
+Honest numbers (2M bank / 30k map):
+
+- family skew mirrors the plain 6-op space: Sawtooth 69.9% / Bell 16.9% /
+  Pulse-PW 9.6% of the bank; on the stratified map Sawtooth 62.9%, Bell
+  15.7%, Pulse-PW 9.4%, everything else 0.5–2.1% (Prime 7 thinnest at 153
+  nodes — every bank instance taken).
+- frame variation (raw mean frame-to-frame L1): p10 0.016, p50 0.134,
+  p90 0.517, p98 0.820 — same regime as the probe's 0.21 median; ~1%
+  of configs are near-static (<1e-3), the slow-rate/low-target tail.
+- motion_n histogram (5 bins over 0..1): 56 / 21 / 12 / 6 / 5 % — most of
+  the space wobbles gently, a real high-motion tail exists.
+- mod balance: depth 15,098 / feedback 14,902; sine 15,069 / tri 14,931.
+- origin routes: Sawtooth 26, Square 20, Triangle 11, Pulse-PW 19 hops.
+
+**No jumps block** in the mod map, deliberately: wormhole semantics under
+time-varying modulation is a different space (a "smooth" jump between two
+LFO states is undefined until morphing modulator state is specced), so the
+map ships without one rather than with a wrong one.
