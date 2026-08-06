@@ -73,3 +73,26 @@ Verdict: a mod map is buildable with existing machinery. `derived/modmap_probe.j
 
 Nothing here ships in this pass — this is the design + the feasibility
 evidence, per "consider a map with mod options and different oscillators".
+
+## Pipeline status (2026-08-06 — workstream M)
+
+**M1 SHIPPED** — `phase3/gpu_modbank.py build`: 2,000,000 6-op configs
+(gpu_bank sampling style, sine ops only this pass) + ONE modulator each
+(target uniformly depth-of-a-random-active-op or op-0 feedback; shape
+sine/tri; rate ln-uniform 0.3–7 Hz; mod depth U(0.3, 1.0)). Trajectory
+fingerprint = 4 frames at real-time offsets dt = 120 ms (frame 0 at LFO
+phase 0 = the unmodulated timbre). Saved as `derived/gpu_modbank.npz`
+(1.09 GB): `amps` (N, 4, 64) fp16 plus gpu_bank's ridx/depths/feedback/
+waves keys (so `gpu_paths._subsample` reads it unchanged) plus
+`mod_kind/mod_op/mod_shape/mod_rate/mod_mdepth`. Build wall time: **20 s**
+on the 4090 (~107k cfg/s × 4 frames). Frame-scaling math is in pure numpy
+helpers, unit-tested CPU-side in `tests/test_modbank.py`.
+
+One deliberate deviation from gpu_bank's sampler: configs whose modulator
+targets feedback always get nonzero feedback (the 50% feedback gate applies
+only to depth-target configs) — an LFO on zero feedback is silent, and
+statically-labelled "modulated" nodes would pollute the motion geometry.
+
+Classification (`classify` subcommand) runs on the PHASE-0 frame only, so
+families stay timbre-defined; labels npz mirrors gpu_landscape.classify's
+keys. 2M rows in 2 s.
