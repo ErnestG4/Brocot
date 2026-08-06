@@ -28,6 +28,20 @@ namespace brocot
 class Landscape
 {
 public:
+    /** One modulator assignment shipped on a mod-map node (phase3/modmap.md):
+        an LFO of `shape` at `rate` Hz driving either op-`op`'s depth
+        (kind 0) or op-0 feedback (kind 1) with modulation depth `depth`.
+        Exactly one entry per node in the first mod-map pass; parsed
+        tolerantly — entries with an unknown kind/shape string are dropped. */
+    struct ModSpec
+    {
+        int   kind  { 0 };      // 0 = op depth, 1 = op-0 feedback
+        int   op    { 0 };      // target operator index (kind 0)
+        int   shape { 0 };      // 0 = sine, 1 = tri
+        float rate  { 0.0f };   // LFO rate, Hz
+        float depth { 0.0f };   // modulation depth, 0..1
+    };
+
     struct Node
     {
         std::vector<PullIndex::OpState> ops;     // reconstructable synth state
@@ -39,6 +53,12 @@ public:
         float              odd    { 0.0f };      // odd-harmonic fraction, 0..1
         float              tonal  { 0.0f };      // musical(1) ↔ chaotic(0)
         float              crit   { 0.0f };      // criticality: lines/junctions/rims
+        // Mod-map extras (absent on ordinary maps): motion = mean
+        // frame-to-frame L1 of the trajectory fingerprint (p98-normalised),
+        // rateN = log-mapped LFO rate. −1 = the field wasn't shipped.
+        float              motion { -1.0f };
+        float              rateN  { -1.0f };
+        std::vector<ModSpec> mods;               // modulator assignments
         std::vector<float> ratioHist;            // param-space locate signature
     };
 
@@ -93,6 +113,12 @@ public:
     int  getNOps()       const noexcept { return nOps; }
     /** Display label for the map selector (e.g. "6-op saw", "4-op mix"). */
     juce::String getName() const { return mapName; }
+    /** True when the doc carries "mod_map": 1 — nodes ship modulator
+        assignments and the mod-specific runtime UI is enabled. */
+    bool isModulationMap() const noexcept { return isModMap; }
+    /** True when any node shipped a motion descriptor (≥ 0) — gates the
+        motion/rate colour modes. */
+    bool hasMotion() const noexcept { return anyMotion; }
     juce::StringArray getFamilyNames() const;
     int  getFamilyCount() const noexcept { return familyNames.size(); }
     bool hasFamily (const juce::String& name) const;
@@ -148,6 +174,8 @@ private:
     std::vector<Jump>             jumps;
     float                         jumpTau { 0.0f };
     int                           nOps { 6 };   // map depth (nested prefix)
+    bool                          isModMap { false };
+    bool                          anyMotion { false };
     juce::String                  mapName;      // selector label
     juce::StringArray             familyNames;
     std::vector<std::vector<int>> nextHop;   // [familyIdx][node] → next node

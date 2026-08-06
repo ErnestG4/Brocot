@@ -26,6 +26,24 @@ namespace
         }
         return o;
     }
+
+    // Tolerant string→enum parses for the mod-map "mods" entries. Unknown
+    // strings return −1 and the caller drops the entry — a future producer
+    // adding a kind/shape must never make an old build misapply it.
+    int modKindIndex (const juce::String& s)
+    {
+        const auto lower = s.toLowerCase();
+        if (lower == "depth")    return 0;
+        if (lower == "feedback") return 1;
+        return -1;
+    }
+    int modShapeIndex (const juce::String& s)
+    {
+        const auto lower = s.toLowerCase();
+        if (lower == "sine")                        return 0;
+        if (lower == "tri" || lower == "triangle")  return 1;
+        return -1;
+    }
 }
 
 std::vector<float> Landscape::ratioHistogram (const std::vector<PullIndex::OpState>& ops)
@@ -170,6 +188,8 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
     nOps = (int) root->getProperty ("n_ops");
     if (nOps <= 0) nOps = 6;          // older graphs without the field
     mapName = makeMapName (nOps, root->getProperty ("name").toString());
+    isModMap  = (int) root->getProperty ("mod_map") != 0;   // absent ⇒ 0
+    anyMotion = false;
 
     if (auto* fnArr = root->getProperty ("family_names").getArray())
         for (const auto& v : *fnArr)
@@ -195,6 +215,30 @@ bool Landscape::load (const juce::File& file, juce::String* outError)
                 if (auto* opsArr = no->getProperty ("ops").getArray())
                     for (const auto& opv : *opsArr)
                         n.ops.push_back (parseOp (opv));
+
+                // Mod-map extras (phase3/modmap.md M2). All optional: absent
+                // keys keep the −1 / empty defaults, so ordinary maps pay two
+                // failed property lookups per node and nothing else.
+                if (const auto mv = no->getProperty ("motion"); ! mv.isVoid())
+                    n.motion = (float) (double) mv;
+                if (const auto rv = no->getProperty ("rate_n"); ! rv.isVoid())
+                    n.rateN = (float) (double) rv;
+                if (auto* modsArr = no->getProperty ("mods").getArray())
+                    for (const auto& mv2 : *modsArr)
+                        if (auto* mo = asObject (mv2))
+                        {
+                            ModSpec m;
+                            m.kind  = modKindIndex  (mo->getProperty ("kind").toString());
+                            m.shape = modShapeIndex (mo->getProperty ("shape").toString());
+                            if (m.kind < 0 || m.shape < 0)
+                                continue;               // unknown → drop entry
+                            m.op    = (int) mo->getProperty ("op");
+                            m.rate  = (float) (double) mo->getProperty ("rate");
+                            m.depth = (float) (double) mo->getProperty ("depth");
+                            n.mods.push_back (m);
+                        }
+                if (n.motion >= 0.0f)
+                    anyMotion = true;
             }
             n.ratioHist = ratioHistogram (n.ops);
             nodes.push_back (std::move (n));

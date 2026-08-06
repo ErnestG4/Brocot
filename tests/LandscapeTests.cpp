@@ -311,6 +311,76 @@ TEST_CASE ("bestCritNode picks by criticality with a distance penalty", "[Landsc
     f.deleteFile();
 }
 
+TEST_CASE ("mod-map fields parse: mods / motion / rate_n / doc flag", "[Landscape]")
+{
+    // A doc with "mod_map": 1 and one node carrying every mod-map extra,
+    // plus tolerant-parse fodder: an unknown-kind entry and an unknown-shape
+    // entry (both must be dropped, never misapplied), and "triangle" as an
+    // accepted alias for "tri".
+    const char* json = R"JSON(
+    {
+      "version": "1.0", "name": "6op mod", "n_ops": 6, "mod_map": 1,
+      "family_names": ["Bright"],
+      "nodes": [
+        {"family": 0, "feedback": 0.5, "motion": 0.62, "rate_n": 0.31,
+         "mods": [
+           {"kind": "depth",    "op": 3, "shape": "sine",     "rate": 1.7,  "depth": 0.8},
+           {"kind": "feedback", "op": 0, "shape": "triangle", "rate": 0.33, "depth": 0.45},
+           {"kind": "warp",     "op": 1, "shape": "sine",     "rate": 1.0,  "depth": 0.5},
+           {"kind": "depth",    "op": 1, "shape": "spiral",   "rate": 1.0,  "depth": 0.5}
+         ],
+         "ops": [{"path": "R", "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.0,
+         "ops": [{"path": "RR", "depth": 1.0, "enabled": true}]}
+      ],
+      "next_hop": { "Bright": [1, -1] }
+    })JSON";
+    auto f = writeTemp (json);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+    REQUIRE (ls.isModulationMap());
+    REQUIRE (ls.hasMotion());
+    REQUIRE (ls.getName() == "6-op mod");
+
+    const auto& n0 = ls.getNodes()[0];
+    CHECK (n0.motion == Catch::Approx (0.62f));
+    CHECK (n0.rateN  == Catch::Approx (0.31f));
+    REQUIRE (n0.mods.size() == 2);          // unknown kind + shape dropped
+    CHECK (n0.mods[0].kind  == 0);
+    CHECK (n0.mods[0].op    == 3);
+    CHECK (n0.mods[0].shape == 0);
+    CHECK (n0.mods[0].rate  == Catch::Approx (1.7f));
+    CHECK (n0.mods[0].depth == Catch::Approx (0.8f));
+    CHECK (n0.mods[1].kind  == 1);
+    CHECK (n0.mods[1].shape == 1);          // "triangle" alias
+    CHECK (n0.mods[1].rate  == Catch::Approx (0.33f));
+
+    // Node 1 ships no extras → the absent defaults.
+    const auto& n1 = ls.getNodes()[1];
+    CHECK (n1.motion == Catch::Approx (-1.0f));
+    CHECK (n1.rateN  == Catch::Approx (-1.0f));
+    CHECK (n1.mods.empty());
+    f.deleteFile();
+}
+
+TEST_CASE ("non-mod maps stay mod-free: no flag, no motion, no mods", "[Landscape]")
+{
+    // kJson predates the mod map entirely — every mod accessor must report
+    // absence (and a stale mod map's state must not leak across load()).
+    auto f = writeTemp (kJson);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+    CHECK_FALSE (ls.isModulationMap());
+    CHECK_FALSE (ls.hasMotion());
+    for (const auto& n : ls.getNodes())
+    {
+        CHECK (n.motion == Catch::Approx (-1.0f));
+        CHECK (n.rateN  == Catch::Approx (-1.0f));
+        CHECK (n.mods.empty());
+    }
+    f.deleteFile();
+}
+
 TEST_CASE ("shipped base map's jumps block loads when present", "[Landscape]")
 {
     // Guarded end-to-end check of the real artifact: if the shipped 6-op map
