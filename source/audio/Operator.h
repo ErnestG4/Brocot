@@ -42,13 +42,16 @@ public:
     /** Operator oscillator waveform. A non-sine MODULATOR reshapes the FM
         sidebands — far more timbre per op than a sine (the "full FM program"
         move), at low op count. Order matches the `waveform` choice param. */
-    enum class Wave { Sine = 0, Triangle, Saw, Square };
+    enum class Wave { Sine = 0, Triangle, Saw, Square, Pulse };
 
     /** Unit-amplitude waveform sample for a phase given in TURNS (the argument
         to 2π). Sine is exact; the others wrap to [0,1). Naive shapes — fine for
         the modulator role (their aliasing barely reaches the output, unlike a
-        non-sine carrier). */
-    static inline float wave (Wave w, float turns) noexcept
+        non-sine carrier; the carrier in BrocotVoice stays a pure sine).
+        `duty` only affects Pulse: high fraction of the cycle, so duty=0.5 is
+        exactly Square and the n-th harmonic scales as |sin(πn·duty)| (the PW
+        comb — e.g. duty 0.25 nulls every 4th harmonic). */
+    static inline float wave (Wave w, float turns, float duty = 0.25f) noexcept
     {
         constexpr float twoPi = 6.2831853071795864769f;
         if (w == Wave::Sine) return std::sin (twoPi * turns);
@@ -57,6 +60,7 @@ public:
         {
             case Wave::Saw:    return 2.0f * p - 1.0f;
             case Wave::Square: return p < 0.5f ? 1.0f : -1.0f;
+            case Wave::Pulse:  return p < duty ? 1.0f : -1.0f;
             case Wave::Triangle:
             {
                 float t = p + 0.25f; t -= std::floor (t);    // start at 0, rising
@@ -66,14 +70,22 @@ public:
         }
     }
 
-    /** Set the operator waveform (0=Sine,1=Triangle,2=Saw,3=Square). The v2
-        waveform choice param has 8 entries (engine shapes + reserved slots);
-        indices beyond the engine's known shapes fall back to Sine — inert,
-        rather than clamping onto the loudest shape. */
+    /** Set the operator waveform (0=Sine,1=Triangle,2=Saw,3=Square,4=Pulse).
+        The v2 waveform choice param has 8 entries (engine shapes + reserved
+        slots); indices beyond the engine's known shapes fall back to Sine —
+        inert, rather than clamping onto the loudest shape. */
     void setWaveform (int idx) noexcept
     {
-        waveform = (idx >= 0 && idx <= (int) Wave::Square) ? (Wave) idx
-                                                           : Wave::Sine;
+        waveform = (idx >= 0 && idx <= (int) Wave::Pulse) ? (Wave) idx
+                                                          : Wave::Sine;
+    }
+
+    /** Pulse-wave duty cycle (high fraction of the cycle). Only audible when
+        the waveform is Pulse; clamped to the param range 0.05..0.5 (0.5 =
+        square; below ~0.05 the pulse thins toward an impulse train). */
+    void setDuty (float d) noexcept
+    {
+        duty = juce::jlimit (0.05f, 0.5f, d);
     }
 
     void setPath (const Path& p) { setRatio ((float) p.ratio()); }
@@ -175,13 +187,13 @@ public:
         {
             const float fb = 0.5f * (fbPrev1 + fbPrev2);
             // feedback term is in radians → convert to turns for wave().
-            osc = wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi));
+            osc = wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi), duty);
             fbPrev2 = fbPrev1;
             fbPrev1 = osc;
         }
         else
         {
-            osc = wave (waveform, phase);
+            osc = wave (waveform, phase, duty);
         }
         const float delta = currentDepth * fMod * osc;
 
@@ -198,6 +210,7 @@ private:
     }
 
     Wave  waveform    { Wave::Sine };  // operator oscillator shape
+    float duty        { 0.25f }; // Pulse duty cycle (high fraction)
     float phase       { 0.0f };  // normalized [0,1)
     float targetDepth { 0.0f };  // the depth requested by the user / preset
     bool  enabled     { false };

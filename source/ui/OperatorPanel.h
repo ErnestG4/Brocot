@@ -59,8 +59,15 @@ private:
     juce::Slider keyScaleSlider;
     // Self-feedback — created only on op 1 (index 0); shares the bottom row.
     juce::Slider feedbackSlider;
-    // Operator waveform — compact combo on the top row.
+    // Operator waveform — compact combo on the top row. Only the engine's
+    // real shapes are added as items; the waveform param's reserved entries
+    // (indices 5..7) are deliberately absent so they can't be selected here.
     juce::ComboBox waveformCombo;
+    // Pulse duty cycle — tiny slider beside the combo, enabled only while
+    // the waveform is pulse (it's inaudible otherwise).
+    juce::Slider dutySlider;
+
+    void updateDutyEnabled();
 
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -70,6 +77,7 @@ private:
     std::unique_ptr<SliderAttach> detuneAttach;
     std::unique_ptr<SliderAttach> keyScaleAttach;
     std::unique_ptr<SliderAttach> feedbackAttach;  // op 1 (index 0) only
+    std::unique_ptr<SliderAttach> dutyAttach;
     std::unique_ptr<ButtonAttach> enabledAttach;
     std::unique_ptr<ComboAttach>  waveformAttach;
 

@@ -176,8 +176,16 @@ juce::var serialise (const BrocotAudioProcessor& proc)
             op->setProperty ("detune", (double) dt);
         if (const float ks = paramValue (apvts, params::opId (i, "keyScale")); ks != 0.0f)
             op->setProperty ("keyScale", (double) ks);
-        if (const int wf = (int) std::lround (paramValue (apvts, params::opId (i, "waveform"))); wf != 0)
-            op->setProperty ("waveform", wf);
+        {
+            const int   wf   = (int) std::lround (paramValue (apvts, params::opId (i, "waveform")));
+            const float duty = paramValue (apvts, params::opId (i, "duty"));
+            if (wf != 0)
+                op->setProperty ("waveform", wf);
+            // Pulse duty: written for every pulse op (explicit is kinder to
+            // hand-edited presets) and whenever it's off the 0.25 default.
+            if (wf == 4 || duty != 0.25f)
+                op->setProperty ("duty", (double) duty);
+        }
         // Self-feedback exists on op 1 (index 0) only; written when non-zero.
         if (i == 0)
             if (const float fb = paramValue (apvts, params::opId (0, "feedback")); fb != 0.0f)
@@ -305,6 +313,10 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "waveform"),
                           op->hasProperty ("waveform")
                               ? (float) (int) op->getProperty ("waveform") : 0.0f, false);
+                // Pulse duty — absent ⇒ the 0.25 default (pre-pulse presets).
+                setParam (apvts, params::opId (i, "duty"),
+                          op->hasProperty ("duty")
+                              ? (float) (double) op->getProperty ("duty") : 0.25f, false);
                 // Self-feedback (op 1 / index 0 only) — absent ⇒ 0 (clean sine).
                 if (i == 0)
                     setParam (apvts, params::opId (0, "feedback"),
@@ -329,6 +341,7 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "detune"),   0.0f, false);
                 setParam (apvts, params::opId (i, "keyScale"), 0.0f, false);
                 setParam (apvts, params::opId (i, "waveform"), 0.0f, false);
+                setParam (apvts, params::opId (i, "duty"),     0.25f, false);
                 if (i == 0)
                     setParam (apvts, params::opId (0, "feedback"), 0.0f, false);
                 if (! sharedMode)

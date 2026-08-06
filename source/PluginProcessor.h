@@ -147,6 +147,7 @@ private:
         std::atomic<float>* detune   { nullptr };
         std::atomic<float>* keyScale { nullptr };
         std::atomic<float>* waveform { nullptr };
+        std::atomic<float>* duty     { nullptr };
     };
     std::array<OpParamPtrs, params::kNumOperators> opParams {};
     std::atomic<float>* op0FeedbackParam { nullptr };

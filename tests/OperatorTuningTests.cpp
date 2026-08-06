@@ -173,6 +173,85 @@ TEST_CASE ("operator waveform reshapes the oscillator spectrum")
     REQUIRE (harmonicMag (*make (2), 220.0f, 1.0f, 2) > 0.1f);
 }
 
+TEST_CASE ("pulse at duty 0.5 is exactly the square wave")
+{
+    // Same comparator (p < 0.5), so sample-for-sample identity, not just
+    // spectral similarity.
+    for (int i = 0; i < 1000; ++i)
+    {
+        const float turns = (float) i * 0.0173f;             // irrational-ish sweep
+        REQUIRE (Operator::wave (Operator::Wave::Pulse, turns, 0.5f)
+                     == Operator::wave (Operator::Wave::Square, turns));
+    }
+
+    // And through the full operator path: identical odd-harmonic content.
+    auto make = [] (int wf, float duty)
+    {
+        auto op = std::make_unique<Operator>();
+        op->prepare (kSampleRate);
+        op->setEnabled (true);
+        op->snapRatio (1.0f);
+        op->setDepth (1.0f);
+        op->setWaveform (wf);
+        op->setDuty (duty);
+        return op;
+    };
+    const float sq3 = harmonicMag (*make (3, 0.25f), 220.0f, 1.0f, 3);
+    const float pl3 = harmonicMag (*make (4, 0.5f),  220.0f, 1.0f, 3);
+    REQUIRE (pl3 == Approx (sq3).epsilon (0.02));
+}
+
+TEST_CASE ("pulse duty 0.25 nulls the 4th harmonic (the sin(pi*n*duty) comb)")
+{
+    // Pulse harmonic amplitudes go as (4/(pi*n))*|sin(pi*n*duty)|: at duty
+    // 0.25 the n=4 term is sin(pi) = 0 while the n=3/n=5 neighbours sit at
+    // sin(0.75pi) = sin(1.25pi) = 0.707 — the audible PW comb.
+    auto make = [] (float duty)
+    {
+        auto op = std::make_unique<Operator>();
+        op->prepare (kSampleRate);
+        op->setEnabled (true);
+        op->snapRatio (1.0f);
+        op->setDepth (1.0f);
+        op->setWaveform (4);                        // pulse
+        op->setDuty (duty);
+        return op;
+    };
+    const float m3 = harmonicMag (*make (0.25f), 220.0f, 1.0f, 3);
+    const float m4 = harmonicMag (*make (0.25f), 220.0f, 1.0f, 4);
+    const float m5 = harmonicMag (*make (0.25f), 220.0f, 1.0f, 5);
+    REQUIRE (m3 > 0.1f);                            // ~0.15 predicted
+    REQUIRE (m5 > 0.06f);                           // ~0.09 predicted
+    REQUIRE (m4 < 0.02f);                           // nulled
+    REQUIRE (m4 < m3 / 4.0f);
+    REQUIRE (m4 < m5 / 3.0f);
+
+    // Square (duty 0.5) has NO such null — its 4th harmonic is absent too
+    // (even), so contrast against duty where n=4 is live: duty 0.375 gives
+    // |sin(1.5pi)| = 1, the strongest possible 4th-harmonic weighting.
+    const float live4 = harmonicMag (*make (0.375f), 220.0f, 1.0f, 4);
+    REQUIRE (live4 > 0.05f);
+    REQUIRE (m4 < live4 / 3.0f);
+}
+
+TEST_CASE ("setWaveform maps reserved/unknown indices to sine")
+{
+    auto make = [] (int wf)
+    {
+        auto op = std::make_unique<Operator>();
+        op->prepare (kSampleRate);
+        op->setEnabled (true);
+        op->snapRatio (1.0f);
+        op->setDepth (1.0f);
+        op->setWaveform (wf);
+        return op;
+    };
+    // Reserved choice slots (5..7) and garbage must play as a pure sine —
+    // no 3rd harmonic — not clamp onto square/pulse.
+    for (int wf : { 5, 6, 7, 42, -3 })
+        REQUIRE (harmonicMag (*make (wf), 220.0f, 1.0f, 3) < 0.02f);
+}
+
 TEST_CASE ("feedback=0 reproduces the pure-sine path exactly")
 {
     Operator clean, fbZero;

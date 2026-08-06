@@ -226,3 +226,38 @@ TEST_CASE ("Free-mode v2 preset uses 'path' instead of 'position'", "[Preset]")
     const auto* ops = engine->getProperty ("operators").getArray();
     REQUIRE ((*ops)[1].getDynamicObject()->getProperty ("path").toString() == "RLL");
 }
+
+TEST_CASE ("Pulse op carries waveform 4 + duty; absent duty means default", "[Preset]")
+{
+    // Shape contract for the pulse-PW addition: a pulse op stores the raw
+    // waveform index 4 (indices, never normalized values — the preset-format
+    // guarantee that made growing the waveform choice preset-safe) plus its
+    // duty; older ops without "duty" load at the 0.25 engine default (the
+    // fallback lives in PresetSchema::apply).
+    static constexpr auto json = R"({
+        "name": "pw demo", "version": "2.0",
+        "provenance": {"kind": "manual"},
+        "engine": {
+            "pathMode": "shared",
+            "sharedPath": "RLL",
+            "operators": [
+                {"enabled": true, "position": 1, "depth": 1.0, "waveform": 4, "duty": 0.3},
+                {"enabled": true, "position": 2, "depth": 0.5, "waveform": 3}
+            ]
+        }
+    })";
+
+    juce::var parsed;
+    REQUIRE (juce::JSON::parse (json, parsed).wasOk());
+    auto* engine = parsed.getDynamicObject()->getProperty ("engine").getDynamicObject();
+    const auto* ops = engine->getProperty ("operators").getArray();
+
+    auto* pulseOp = (*ops)[0].getDynamicObject();
+    REQUIRE ((int) pulseOp->getProperty ("waveform") == 4);
+    REQUIRE (pulseOp->hasProperty ("duty"));
+    REQUIRE ((double) pulseOp->getProperty ("duty") == Catch::Approx (0.3).margin (1e-9));
+
+    auto* squareOp = (*ops)[1].getDynamicObject();
+    REQUIRE ((int) squareOp->getProperty ("waveform") == 3);
+    REQUIRE (! squareOp->hasProperty ("duty"));
+}

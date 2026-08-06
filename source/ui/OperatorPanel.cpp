@@ -86,15 +86,34 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
 
     auto& apvts = proc.getAPVTS();
     // Operator waveform — compact combo (short labels for the dense grid).
+    // Item index == choice index (the ComboBoxAttachment contract). The v2
+    // param's reserved entries (5..7) are NOT added: they can't be picked
+    // from the UI, and if the host parks the param on one the combo simply
+    // shows no selection (the engine plays them as sine).
     addAndMakeVisible (waveformCombo);
     waveformCombo.addItem ("sin", 1);
     waveformCombo.addItem ("tri", 2);
     waveformCombo.addItem ("saw", 3);
     waveformCombo.addItem ("sqr", 4);
+    waveformCombo.addItem ("pls", 5);
     waveformCombo.setTooltip (juce::CharPointer_UTF8 ("Operator waveform — non-sine modulators reshape "
                               "the FM sidebands (more timbre per op)."));
     waveformAttach = std::make_unique<ComboAttach> (
         apvts, params::opId (opIndex, "waveform"), waveformCombo);
+
+    // Pulse duty — audible only for the pulse shape, so it's enabled only
+    // while the combo sits on pulse (updated on change + by the timer, which
+    // also catches host-driven parameter flips while the editor is open).
+    addAndMakeVisible (dutySlider);
+    dutySlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    dutySlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    dutySlider.setTooltip (juce::CharPointer_UTF8 ("Pulse duty cycle: 0.5 = square; narrower combs the "
+                           "sidebands — harmonic n scales as |sin(\xcf\x80\xc2\xb7n\xc2\xb7"
+                           "duty)|."));
+    dutyAttach = std::make_unique<SliderAttach> (
+        apvts, params::opId (opIndex, "duty"), dutySlider);
+    waveformCombo.onChange = [this] { updateDutyEnabled(); };
+    updateDutyEnabled();
 
     enabledAttach  = std::make_unique<ButtonAttach> (
         apvts, params::opId (opIndex, "enabled"), enabledToggle);
@@ -176,10 +195,17 @@ void OperatorPanel::mutatePath (const std::function<juce::String (const juce::St
     refreshFromProcessor();
 }
 
+void OperatorPanel::updateDutyEnabled()
+{
+    // Index 4 = "pulse" in the waveform choice (see ParameterTree.cpp).
+    dutySlider.setEnabled (waveformCombo.getSelectedItemIndex() == 4);
+}
+
 void OperatorPanel::timerCallback()
 {
     setFreeModeWidgetsVisible (! proc.isSharedMode());
     refreshFromProcessor();
+    updateDutyEnabled();
 }
 
 void OperatorPanel::paint (juce::Graphics& g)
@@ -217,6 +243,7 @@ void OperatorPanel::resized()
     {
         auto topRow = r.removeFromTop (18);
         waveformCombo.setBounds (topRow.removeFromRight (46));   // right of the toggle
+        dutySlider.setBounds (topRow.removeFromRight (44).reduced (2, 1));
         enabledToggle.setBounds (topRow);
     }
     r.removeFromTop (4);

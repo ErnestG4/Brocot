@@ -122,6 +122,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             juce::StringArray { "sine", "triangle", "saw", "square", "pulse",
                                 "(reserved 1)", "(reserved 2)", "(reserved 3)" },
             0));
+
+        // Pulse duty cycle (high fraction). Audible only when the waveform
+        // is "pulse". 0.5 = square; the n-th harmonic scales as
+        // |sin(πn·duty)|, so sweeping duty combs the sideband recipe (the
+        // classic PW timbre axis). A plain new param — state-safe: states
+        // saved without it load at the 0.25 default.
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (opId (i, "duty"), 1),
+            "Op " + juce::String (i + 1) + " Pulse Duty",
+            juce::NormalisableRange<float> (0.05f, 0.5f), 0.25f));
     }
 
     // Single-op self-feedback on op 1 (index 0) only — the one topology the
