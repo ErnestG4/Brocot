@@ -195,6 +195,7 @@ if(BROCOT_BUILD_TESTS)
         tests/PresetFamilyTests.cpp
         tests/PullIndexTests.cpp
         tests/LandscapeTests.cpp
+        tests/ModApplyTests.cpp
         tests/UniversalModulatorTests.cpp
         tests/OperatorTuningTests.cpp
         tests/GrooveFieldTests.cpp
