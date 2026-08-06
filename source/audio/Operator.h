@@ -66,10 +66,14 @@ public:
         }
     }
 
-    /** Set the operator waveform (0=Sine,1=Triangle,2=Saw,3=Square). */
+    /** Set the operator waveform (0=Sine,1=Triangle,2=Saw,3=Square). The v2
+        waveform choice param has 8 entries (engine shapes + reserved slots);
+        indices beyond the engine's known shapes fall back to Sine — inert,
+        rather than clamping onto the loudest shape. */
     void setWaveform (int idx) noexcept
     {
-        waveform = (Wave) juce::jlimit (0, 3, idx);
+        waveform = (idx >= 0 && idx <= (int) Wave::Square) ? (Wave) idx
+                                                           : Wave::Sine;
     }
 
     void setPath (const Path& p) { setRatio ((float) p.ratio()); }

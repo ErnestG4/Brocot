@@ -201,6 +201,7 @@ if(BROCOT_BUILD_TESTS)
         tests/GrooveFieldTests.cpp
         tests/SteerLockTests.cpp
         tests/FareyMathTests.cpp
+        tests/WaveMigrationTests.cpp
         tests/RenderBenchmark.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp

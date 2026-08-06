@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "audio/Path.h"
+#include "params/WaveMigration.h"
 
 namespace brocot
 {
@@ -602,6 +603,12 @@ void BrocotAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
     // but state persistence still round-trips them.
     auto state = apvts.copyState();
 
+    // Stamp the waveform-choice generation (WaveMigration.h). States without
+    // this property predate the 8-entry waveform param and get their stored
+    // waveform values migrated in setStateInformation.
+    state.setProperty (params::wavemigration::kWaveVersionProperty,
+                       params::wavemigration::kWaveVersion, nullptr);
+
     juce::ValueTree paths ("Paths");
     paths.setProperty ("shared", sharedPath, nullptr);
     for (int i = 0; i < params::kNumOperators; ++i)
@@ -628,6 +635,30 @@ void BrocotAudioProcessor::setStateInformation (const void* data, int sizeInByte
             opPaths[(size_t) i] = paths.getProperty ("op" + juce::String (i),
                                                      opPaths[(size_t) i]).toString();
         state.removeChild (paths, nullptr);
+    }
+
+    // Waveform v1→v2 migration — BEFORE the state is applied. Pre-pulse
+    // states (no waveVersion property) stored their waveform values against
+    // the 4-entry choice; the APVTS tree stores the DENORMALISED value (the
+    // raw index — verified in WaveMigration.h), so well-formed v1 values
+    // pass through unchanged and the remap defensively rounds + clamps into
+    // the v1 index range (a corrupt v1 value must never select pulse or a
+    // reserved slot). v2 states pass through untouched.
+    if ((int) state.getProperty (params::wavemigration::kWaveVersionProperty, 1)
+            < params::wavemigration::kWaveVersion)
+    {
+        for (auto param : state)
+        {
+            const auto id = param.getProperty ("id").toString();
+            if (id.startsWith ("op") && id.endsWith (".waveform")
+                && param.hasProperty ("value"))
+            {
+                param.setProperty ("value",
+                                   params::wavemigration::migrateWaveformStored (
+                                       (float) param.getProperty ("value")),
+                                   nullptr);
+            }
+        }
     }
 
     apvts.replaceState (state);

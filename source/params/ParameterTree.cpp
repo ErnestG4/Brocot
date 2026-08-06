@@ -110,10 +110,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
 
         // Operator waveform — a non-sine modulator reshapes the FM sidebands
         // (more timbre per op). Default sine = pre-existing behaviour.
+        // v2 (ParameterID version 2): grown from 4 entries to 8 — "pulse"
+        // plus three inert reserved slots, so the NEXT waveform addition
+        // won't change the choice count (= won't renormalize host-side
+        // values) again. v1 states are remapped in setStateInformation via
+        // WaveMigration.h; entry count changes here must keep
+        // wavemigration::kNumWaveChoicesV2 in sync.
         layout.add (std::make_unique<ChoiceParam> (
-            juce::ParameterID (opId (i, "waveform"), 1),
+            juce::ParameterID (opId (i, "waveform"), 2),
             "Op " + juce::String (i + 1) + " Waveform",
-            juce::StringArray { "sine", "triangle", "saw", "square" }, 0));
+            juce::StringArray { "sine", "triangle", "saw", "square", "pulse",
+                                "(reserved 1)", "(reserved 2)", "(reserved 3)" },
+            0));
     }
 
     // Single-op self-feedback on op 1 (index 0) only — the one topology the
