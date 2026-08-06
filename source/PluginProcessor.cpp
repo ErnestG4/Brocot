@@ -824,7 +824,17 @@ void BrocotAudioProcessor::setSharedPath (const juce::String& pathString)
         const juce::ScopedLock lock (pathsLock);
         sharedPath = pathString;
     }
-    refreshSharedRatios();
+    // INVARIANT: refreshSharedRatios overwrites EVERY op's path from the
+    // shared path — in free mode that destroys the free-mode patch, so it is
+    // gated on isSharedMode() here exactly as handleAsyncUpdate gates it. The
+    // stored sharedPath always updates: flipping pathMode back to shared goes
+    // through the pathMode parameter listener → handleAsyncUpdate →
+    // refreshSharedRatios, which applies it then.
+    // No unit test (BrocotTests doesn't link the processor); manual QA: free
+    // mode → click a FareyView node → op paths unchanged, then switch to
+    // shared → the clicked path applies.
+    if (isSharedMode())
+        refreshSharedRatios();
 }
 
 bool BrocotAudioProcessor::isSharedMode() const
