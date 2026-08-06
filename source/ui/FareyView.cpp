@@ -39,6 +39,14 @@ namespace
 FareyView::FareyView (BrocotAudioProcessor& processor) : proc (processor)
 {
     bakeButterfly();
+
+    // Resolve the 64 enabled-param pointers once: the 10 Hz flux signature
+    // (and the flux-column paint loop) must not pay 64 String builds + APVTS
+    // map lookups per tick.
+    for (int i = 0; i < params::kNumOperators; ++i)
+        opEnabledRaw[(size_t) i] =
+            proc.getAPVTS().getRawParameterValue (params::opId (i, "enabled"));
+
     lastSharedPath = proc.getSharedPath();
     cursor = cappedPrefix (Path (lastSharedPath), kQMax);
     rebuildNodes();
@@ -61,41 +69,64 @@ juce::Colour FareyView::chernColour (int chern)
 
 void FareyView::bakeButterfly()
 {
-    butterfly = juce::Image (juce::Image::ARGB, kBakeW, kBakeH, true);
-    juce::Graphics g (butterfly);
-    g.fillAll (colors::background);
-
-    auto xOf = [] (double theta) { return (float) (theta * (kBakeW - 1)); };
-    auto yOf = [] (double e)
+    // The bake depends only on kQMax/kBakeW/kBakeH (λ = 1), never on the
+    // patch, so it is PROCESS-static: FareyView is a direct editor member, and
+    // without this every editor open re-ran 323 coprime-pair eigensolves
+    // (~230 ms on the message thread). First open pays once; juce::Image is
+    // ref-counted so the member is a shallow handle onto the shared bake.
+    static const juce::Image baked = []
     {
-        return (float) ((1.0 - (e + kEMax) / (2.0 * kEMax)) * (kBakeH - 1));
-    };
+        juce::Image img (juce::Image::ARGB, kBakeW, kBakeH, true);
+        juce::Graphics g (img);
+        g.fillAll (colors::background);
 
-    const float w = 2.0f;   // column width in px
-
-    for (int q = 2; q <= kQMax; ++q)
-    {
-        for (int p = 1; p < q; ++p)
+        auto xOf = [] (double theta) { return (float) (theta * (kBakeW - 1)); };
+        auto yOf = [] (double e)
         {
-            if (std::gcd (p, q) != 1) continue;
-            const float x = xOf ((double) p / q);
+            return (float) ((1.0 - (e + kEMax) / (2.0 * kEMax)) * (kBakeH - 1));
+        };
 
-            // Gaps first (tinted by Chern), then bands on top (cream) so the
-            // allowed spectrum reads as the solid wing.
-            for (const auto& gap : lattice::gaps (p, q))
+        const float w = 2.0f;   // column width in px
+
+        for (int q = 2; q <= kQMax; ++q)
+        {
+            for (int p = 1; p < q; ++p)
             {
-                g.setColour (chernColour (gap.chern).withAlpha (0.55f));
-                const float y0 = yOf (gap.hi), y1 = yOf (gap.lo);
-                g.fillRect (x - w * 0.5f, y0, w, y1 - y0);
-            }
-            for (const auto& band : lattice::almostMathieuBands (p, q))
-            {
-                g.setColour (colors::primaryText.withAlpha (0.85f));
-                const float y0 = yOf (band.hi), y1 = yOf (band.lo);
-                g.fillRect (x - w * 0.5f, y0, w, juce::jmax (1.0f, y1 - y0));
+                if (std::gcd (p, q) != 1) continue;
+                const float x = xOf ((double) p / q);
+
+                // ONE almostMathieuBands per pair. The gaps are derived from
+                // the same band vector (complements between the sorted bands,
+                // chern = folded Wannier index — mirrors lattice::gaps
+                // exactly); calling lattice::gaps here would re-run the
+                // eigensolves and double the bake cost.
+                const auto bands = lattice::almostMathieuBands (p, q);
+                const int  inv   = lattice::modinv (p, q);
+
+                // Gaps first (tinted by Chern), then bands on top (cream) so
+                // the allowed spectrum reads as the solid wing.
+                for (int j = 1; j < q; ++j)
+                {
+                    const double lo = bands[(size_t) (j - 1)].hi;
+                    const double hi = bands[(size_t) j].lo;
+                    if (hi - lo <= 1.0e-6) continue;   // closed gap
+                    const int chern = lattice::foldChern ((j * inv) % q, q);
+                    g.setColour (chernColour (chern).withAlpha (0.55f));
+                    const float y0 = yOf (hi), y1 = yOf (lo);
+                    g.fillRect (x - w * 0.5f, y0, w, y1 - y0);
+                }
+                for (const auto& band : bands)
+                {
+                    g.setColour (colors::primaryText.withAlpha (0.85f));
+                    const float y0 = yOf (band.hi), y1 = yOf (band.lo);
+                    g.fillRect (x - w * 0.5f, y0, w, juce::jmax (1.0f, y1 - y0));
+                }
             }
         }
-    }
+        return img;
+    }();
+
+    butterfly = baked;
 }
 
 // ----------------------------------------------------------------------------
@@ -162,12 +193,17 @@ void FareyView::rebuildNodes()
         child.walk (p, q);
         float radius = 5.0f;
         juce::Colour col = colors::secondaryText;
-        if (q <= 256)
+        // ONE gaps() per child: the vector carries both prominence (= max
+        // width) and the widest gap's Chern — a separate prominence() call
+        // would re-run the same eigensolves. Guard at kChildQMax: this runs
+        // per cursor move on the message thread, and q ≥ 233 solves cost
+        // hundreds of ms (children past the guard keep default size/colour).
+        if (q <= kChildQMax)
         {
-            radius = juce::jlimit (4.0f, 16.0f, 4.0f + 9.0f * (float) lattice::prominence (p, q));
             int widest = 0; double best = 0.0;
             for (const auto& gp : lattice::gaps (p, q))
                 if (gp.width > best) { best = gp.width; widest = gp.chern; }
+            radius = juce::jlimit (4.0f, 16.0f, 4.0f + 9.0f * (float) best);
             col = chernColour (widest);
         }
         nodeVis.push_back ({ child, child, fracTheta (p, q), radius, col,
@@ -201,6 +237,19 @@ void FareyView::timerCallback()
     // 10 Hz full-view blits read as memory pressure on soft renderers).
     if (! isShowing())
         return;
+
+    // Debounced butterfly rescale: resized() only marks dirty (live-resize
+    // fires per drag event; a full software resample of the bake per event
+    // stalls the drag at large window sizes). The real rescale runs once the
+    // size has held still for ≥ 1 full tick; paint() stretch-blits the raw
+    // bake meanwhile.
+    if (rescalePending && ++rescaleStableTicks >= 2)
+    {
+        rescaleButterfly();
+        rescalePending = false;
+        repaint();
+    }
+
     syncCursorFromProcessor();
     const auto sig = computeFluxSig();
     if (sig != fluxSig)
@@ -212,14 +261,14 @@ void FareyView::timerCallback()
 
 juce::String FareyView::computeFluxSig() const
 {
-    auto& apvts = proc.getAPVTS();
+    // Enabled flags come from the pointers cached in the ctor (atomic loads,
+    // no per-tick String/map work); only enabled ops pay the getOpPath
+    // lock + copy.
     juce::String sig (lastSharedPath);
     for (int i = 0; i < params::kNumOperators; ++i)
     {
-        bool enabled = false;
-        if (auto* pr = apvts.getRawParameterValue (params::opId (i, "enabled")))
-            enabled = (pr->load() > 0.5f);
-        if (enabled)
+        const auto* pr = opEnabledRaw[(size_t) i];
+        if (pr != nullptr && pr->load() > 0.5f)
             sig << '|' << i << ':' << proc.getOpPath (i);
     }
     return sig;
@@ -247,10 +296,15 @@ void FareyView::paint (juce::Graphics& g)
     g.drawText ("farey", getLocalBounds().reduced (24, 14).removeFromTop (36),
                 juce::Justification::topLeft);
 
-    // The baked butterfly, pre-scaled at resize — a per-frame stretch blit
-    // of the bake would dominate paint cost at large window sizes.
-    if (scaledButterfly.isValid())
+    // The baked butterfly, pre-scaled once the size settles — a per-frame
+    // stretch blit of the bake would dominate paint cost at large window
+    // sizes. While a live resize is in flight (rescalePending) a stretch blit
+    // of the raw bake is the fallback: one frame of soft edges beats a full
+    // software resample per drag event.
+    if (! rescalePending && scaledButterfly.isValid())
         g.drawImageAt (scaledButterfly, (int) plot.getX(), (int) plot.getY());
+    else if (butterfly.isValid())
+        g.drawImage (butterfly, plot);
     g.setColour (colors::borderAtAlpha (0.4f));
     g.drawRect (plot, 1.0f);
 
@@ -297,13 +351,11 @@ void FareyView::paint (juce::Graphics& g)
     }
 
     // Flux columns for every enabled operator: where the live sound sits.
-    auto& apvts = proc.getAPVTS();
+    // Same ctor-cached enabled pointers as computeFluxSig.
     for (int i = 0; i < params::kNumOperators; ++i)
     {
-        bool enabled = false;
-        if (auto* pr = apvts.getRawParameterValue (params::opId (i, "enabled")))
-            enabled = (pr->load() > 0.5f);
-        if (! enabled) continue;
+        const auto* pr = opEnabledRaw[(size_t) i];
+        if (pr == nullptr || pr->load() <= 0.5f) continue;
 
         int p, q;
         Path (proc.getOpPath (i)).walk (p, q);
@@ -348,7 +400,10 @@ void FareyView::resized()
     b.removeFromTop (48.0f);       // title + cursor label
     b.removeFromBottom (44.0f);    // θ axis labels + Chern legend strip
     plot = b.withTrimmedLeft (8.0f).withTrimmedRight (8.0f);
-    rescaleButterfly();
+    // Rescale is DEFERRED (live-resize fires this per drag event): mark dirty
+    // and let the 10 Hz timer resample once the size holds still.
+    rescalePending = true;
+    rescaleStableTicks = 0;
     rebuildTargets();
 }
 

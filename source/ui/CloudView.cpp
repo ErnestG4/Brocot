@@ -406,6 +406,22 @@ void CloudView::rebuildImage()
 
 void CloudView::timerCallback()
 {
+    // A hidden tab must cost nothing: the passive branch's getCurrentOps +
+    // 64-op signature is real work at 30 Hz. On the hidden→showing transition
+    // force one passive re-locate (locatedSig reset) so the dot resyncs to
+    // whatever the patch became while this tab was away.
+    if (! isShowing())
+    {
+        wasShowing = false;
+        return;
+    }
+    if (! wasShowing)
+    {
+        wasShowing = true;
+        locatedSig = 0;
+        repaint();
+    }
+
     const auto& ls = proc.getLandscape();
     if (ls.isEmpty()) return;
 

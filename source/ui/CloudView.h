@@ -61,6 +61,9 @@ private:
     int  currentNode { -1 };        // node nearest the dot (drives the patch)
     juce::int64 locatedSig { 0 };   // ops signature at the last passive locate
                                     // (skips the full-cloud scan when unchanged)
+    bool wasShowing { false };      // hidden→showing edge detector: the timer
+                                    // early-outs while hidden, then forces one
+                                    // re-locate/repaint on the transition
     juce::Rectangle<float> plot;    // drawing area inside the margin
 
     // Direct-manipulation steering across the map. The dot is the cursor: it

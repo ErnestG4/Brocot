@@ -1,9 +1,12 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <array>
+#include <atomic>
 #include <vector>
 
 #include "../audio/Path.h"
+#include "../params/ParameterTree.h"
 
 namespace brocot
 {
@@ -59,12 +62,21 @@ private:
 
     BrocotAudioProcessor& proc;
 
-    juce::Image butterfly;                 // baked band/gap image (fixed size)
-    juce::Image scaledButterfly;           // pre-scaled to plot (resize only) —
-                                           // never stretch-blit per frame
+    juce::Image butterfly;                 // baked band/gap image (fixed size;
+                                           // ref to the process-wide bake)
+    juce::Image scaledButterfly;           // pre-scaled to plot — never
+                                           // stretch-blit per steady-state frame
+    bool rescalePending { true };          // live-resize debounce: paint
+                                           // stretch-blits the raw bake until
+                                           // the size holds still for a tick
+    int  rescaleStableTicks { 0 };
     juce::Rectangle<float> plot;           // drawing rect (set in resized)
     juce::String fluxSig;                  // repaint gate: shared path + per-op
                                            // enabled/path signature
+
+    // Raw enabled-param pointers, resolved once — the 10 Hz signature must not
+    // build 64 param-ID strings + map lookups per tick.
+    std::array<std::atomic<float>*, params::kNumOperators> opEnabledRaw {};
 
     Path cursor;                           // navigation position = shared path
     juce::String lastSharedPath;           // to detect external path changes
@@ -91,6 +103,10 @@ private:
 
     // q ceiling for the drawn wing and for keeping the cursor legible/cheap.
     static constexpr int    kQMax        = 32;
+    // Eigensolve ceiling for CHILD nodes: children of a q ≤ 32 cursor solve in
+    // ~10 ms; q ≥ 233 solves cost hundreds of ms and stalled the message
+    // thread per cursor move. Beyond this, children keep default size/colour.
+    static constexpr int    kChildQMax   = 64;
     static constexpr double kEMax        = 4.0;    // |E| ≤ 2λ+2 at λ=1
     static constexpr int    kBakeW       = 1000;
     static constexpr int    kBakeH       = 640;

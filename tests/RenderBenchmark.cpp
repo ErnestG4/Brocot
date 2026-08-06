@@ -12,7 +12,9 @@
 
 #include <chrono>
 #include <cstdio>
+#include <numeric>
 
+#include "audio/BrocotLattice.h"
 #include "audio/BrocotVoice.h"
 
 using brocot::BrocotVoice;
@@ -93,5 +95,49 @@ TEST_CASE ("BrocotVoice render cost", "[.bench]")
     report ("64 ops",            64, 0.0f);
     report ("64 ops + feedback", 64, 0.7f);
     std::printf ("\n  (mods are global/shared, not per-voice; duo = 2 voices max today)\n\n");
+    SUCCEED();
+}
+
+// Pins the FareyView performance claims (workstream F1): the butterfly bake is
+// one almostMathieuBands per coprime pair q ≤ 32 (323 pairs), and child-node
+// solves must stay under the kChildQMax = 64 guard — the q = 233 row shows why
+// (it used to run per cursor move on the message thread).
+TEST_CASE ("Farey lattice solve cost", "[.bench]")
+{
+    using clock = std::chrono::steady_clock;
+    auto ms = [] (clock::time_point t0, clock::time_point t1)
+    {
+        return std::chrono::duration<double, std::milli> (t1 - t0).count();
+    };
+
+    std::printf ("\nFarey lattice solve cost (one pass; lower ms is better):\n");
+
+    {
+        volatile double sink = 0.0;
+        int pairs = 0;
+        const auto t0 = clock::now();
+        for (int q = 2; q <= 32; ++q)
+            for (int p = 1; p < q; ++p)
+                if (std::gcd (p, q) == 1)
+                {
+                    sink = sink + brocot::lattice::almostMathieuBands (p, q)[0].lo;
+                    ++pairs;
+                }
+        const auto t1 = clock::now();
+        std::printf ("  bake sweep (q<=32, %3d pairs, 1 bands call each) %9.1f ms\n",
+                     pairs, ms (t0, t1));
+    }
+
+    for (const auto& [p, q] : { std::pair { 21, 55 }, std::pair { 89, 233 } })
+    {
+        volatile double sink = 0.0;
+        const auto t0 = clock::now();
+        sink = sink + (double) brocot::lattice::gaps (p, q).size();
+        const auto t1 = clock::now();
+        std::printf ("  gaps(%d,%d) child-class solve %26.1f ms%s\n",
+                     p, q, ms (t0, t1),
+                     q > 64 ? "   (beyond the kChildQMax=64 guard)" : "");
+    }
+    std::printf ("\n");
     SUCCEED();
 }
