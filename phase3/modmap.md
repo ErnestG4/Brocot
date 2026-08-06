@@ -52,16 +52,17 @@ Verdict: a mod map is buildable with existing machinery. `derived/modmap_probe.j
   (`duty` 0.05–0.5). Engine: `Operator::Wave::Pulse` + `_wave` case in
   `gpu_fm` + duty param + UI combo entry. Solo/mix map variants follow the
   existing waveform-variant pattern (`--waveform 4`, duty sampled).
-  **⚠ State-compat gate (verified, do not skip):** `opId(i,"waveform")` is
-  a 4-entry `AudioParameterChoice`; host-saved APVTS state stores the
-  NORMALISED value, so extending to 5 entries remaps every saved
-  square (3/3 = 1.0) to the new top index — the same hazard class as the
-  old polyphony choice. Preset files are safe (they store the raw index),
-  but host sessions are not. Ship pulse only with a migration: a
-  version-bumped replacement parameter (e.g. `waveform` v2 with headroom
-  to 8 entries) plus a `setStateInformation` remap of v1 values. That
-  design decision wants Will's sign-off, which is why pulse did not ship
-  in this pass.
+  **State-compat gate — CLOSED (shipped with pulse, see
+  source/params/WaveMigration.h).** The original note here claimed APVTS
+  state stores NORMALISED values; implementation verified (JUCE source +
+  a decoded real settings blob) that the tree stores **denormalised**
+  values — a v1 square is `3.0` and survives the 8-entry grow unchanged.
+  The normalized-corruption hazard exists only for host automation lanes,
+  where `migrateWaveformNormalized` applies. `setStateInformation` runs an
+  identity-defensive clamp on v1 states (gated by the new `waveVersion`
+  root property), reserved entries 5..7 play as sine, and blindly applying
+  the originally-prescribed normalized remap to the tree would itself have
+  corrupted v1 states — the lesson is recorded in WaveMigration.h.
 - **Noise-tinted modulator** (white noise × depth into the phase) — cheap,
   gives breath/texture axes the bank lacks entirely; worth a probe before
   committing (may just read as the chaos bulk).
