@@ -44,6 +44,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void mouseDown (const juce::MouseEvent&) override;
+    bool keyPressed (const juce::KeyPress&) override;
 
 private:
     void timerCallback() override;
@@ -75,8 +76,33 @@ private:
                                            // enabled/path signature
 
     // Raw enabled-param pointers, resolved once — the 10 Hz signature must not
-    // build 64 param-ID strings + map lookups per tick.
+    // build 64 param-ID strings + map lookups per tick. Positions are cached
+    // alongside for the partial-plan gestures.
     std::array<std::atomic<float>*, params::kNumOperators> opEnabledRaw {};
+    std::array<std::atomic<float>*, params::kNumOperators> opPositionRaw {};
+
+    // ------------------------------------------------------------------
+    // Shared-path tool row (workstream F4). All gestures act through the
+    // params / setSharedPath, so undo-less but host-visible; every action
+    // confirms (or explains a refusal) via the transient hint line.
+    // ------------------------------------------------------------------
+    void ascend();                           // cursor.parent()
+    void descend (juce::juce_wchar step);    // cursor + L/R, q ≤ kChildQMax
+    void dive();                             // descend the more prominent child
+    void addPartial();                       // viz::addPartialPlan → params
+    void removePartial();                    // viz::removePartialPlan → params
+    void stepLandmark (int direction);       // outermost partial's depth →
+                                             // prev/next Bessel landmark
+    void commitCursor();                     // setSharedPath + local rebuild
+    void setHint (const juce::String& text);
+    void updateToolEnablement (bool force);  // enabled only in shared mode
+
+    juce::TextButton ascendBtn, leftBtn, rightBtn, diveBtn,
+                     addPartBtn, removePartBtn, jPrevBtn, jNextBtn;
+    juce::Rectangle<int> hintArea;           // strip remainder, right of buttons
+    bool sharedToolsEnabled { true };        // last-seen mode (change-gated)
+    juce::String flashHint;                  // transient action confirmation
+    juce::uint32 flashHintUntilMs { 0 };     // 0 = inactive
 
     Path cursor;                           // navigation position = shared path
     juce::String lastSharedPath;           // to detect external path changes

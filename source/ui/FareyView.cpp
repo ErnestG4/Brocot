@@ -6,6 +6,7 @@
 #include "../util/Fonts.h"
 
 #include <cmath>
+#include <functional>
 #include <numeric>
 
 namespace brocot
@@ -18,12 +19,54 @@ FareyView::FareyView (BrocotAudioProcessor& processor) : proc (processor)
 {
     bakeButterfly();
 
-    // Resolve the 64 enabled-param pointers once: the 10 Hz flux signature
-    // (and the flux-column paint loop) must not pay 64 String builds + APVTS
-    // map lookups per tick.
+    // Resolve the 64 enabled/position-param pointers once: the 10 Hz flux
+    // signature (and the flux-column paint loop) must not pay 64 String
+    // builds + APVTS map lookups per tick.
     for (int i = 0; i < params::kNumOperators; ++i)
+    {
         opEnabledRaw[(size_t) i] =
             proc.getAPVTS().getRawParameterValue (params::opId (i, "enabled"));
+        opPositionRaw[(size_t) i] =
+            proc.getAPVTS().getRawParameterValue (params::opId (i, "position"));
+    }
+
+    // Shared-path tool row. LnF styles TextButtons; the editor owns the
+    // TooltipWindow. Every gesture is also on the keyboard (keyPressed).
+    auto initButton = [this] (juce::TextButton& b, const char* text,
+                              const char* tip, std::function<void()> fn)
+    {
+        b.setButtonText (juce::CharPointer_UTF8 (text));
+        b.setTooltip (juce::CharPointer_UTF8 (tip));
+        b.onClick = std::move (fn);
+        addAndMakeVisible (b);
+    };
+    initButton (ascendBtn, "\xe2\x86\x91",
+                "Ascend: move the cursor to its parent node (key: Up).",
+                [this] { ascend(); });
+    initButton (leftBtn, "\xe2\x97\x80L",
+                "Descend to the LEFT child (cursor path + L; skipped past q = 64) (key: Left).",
+                [this] { descend ('L'); });
+    initButton (rightBtn, "R\xe2\x96\xb6",
+                "Descend to the RIGHT child (cursor path + R; skipped past q = 64) (key: Right).",
+                [this] { descend ('R'); });
+    initButton (diveBtn, "dive",
+                "Descend into the more PROMINENT child — the one with the widest spectral gap (key: d).",
+                [this] { dive(); });
+    initButton (addPartBtn, "+part",
+                "Add a partial: enable the first free operator, one position past the outermost partial (key: +).",
+                [this] { addPartial(); });
+    initButton (removePartBtn, "\xe2\x88\x92part",
+                "Remove the OUTERMOST partial — the enabled op highest on the shared path (key: -).",
+                [this] { removePartial(); });
+    initButton (jPrevBtn, "J\xe2\x88\x92",
+                "Step the outermost partial's depth DOWN to the previous Bessel landmark (acts on the same op \xe2\x88\x92part removes) (key: [).",
+                [this] { stepLandmark (-1); });
+    initButton (jNextBtn, "J+",
+                "Step the outermost partial's depth UP to the next Bessel landmark (acts on the same op \xe2\x88\x92part removes) (key: ]).",
+                [this] { stepLandmark (+1); });
+
+    setWantsKeyboardFocus (true);
+    updateToolEnablement (true);
 
     lastSharedPath = proc.getSharedPath();
     cursor = cappedPrefix (Path (lastSharedPath), kQMax);
@@ -216,6 +259,18 @@ void FareyView::timerCallback()
     if (! isShowing())
         return;
 
+    // Tool row follows the path mode (change-gated: setEnabled + the
+    // persistent free-mode hint repaint only when the mode actually flips).
+    updateToolEnablement (false);
+
+    // Expire the transient action hint (one repaint to clear it).
+    if (flashHintUntilMs != 0
+        && juce::Time::getMillisecondCounter() >= flashHintUntilMs)
+    {
+        flashHintUntilMs = 0;
+        repaint();
+    }
+
     // Debounced butterfly rescale: resized() only marks dirty (live-resize
     // fires per drag event; a full software resample of the bake per event
     // stalls the drag at large window sizes). The real rescale runs once the
@@ -273,6 +328,25 @@ void FareyView::paint (juce::Graphics& g)
     g.setFont (fonts::serifItalic (24.0f));
     g.drawText ("farey", getLocalBounds().reduced (24, 14).removeFromTop (36),
                 juce::Justification::topLeft);
+
+    // Tool-row hint line: the persistent free-mode notice wins, else the
+    // transient action confirmation (expired by the timer).
+    {
+        const bool flashing = flashHintUntilMs != 0
+                           && juce::Time::getMillisecondCounter() < flashHintUntilMs;
+        juce::String hintLine;
+        if (! sharedToolsEnabled)
+            hintLine = juce::CharPointer_UTF8 ("shared-path tools \xe2\x80\x94 switch path mode to shared");
+        else if (flashing)
+            hintLine = flashHint;
+        if (hintLine.isNotEmpty())
+        {
+            g.setColour (colors::secondaryText.withAlpha (0.8f));
+            g.setFont (fonts::serifItalic (12.0f));
+            g.drawText (hintLine, hintArea.reduced (8, 0),
+                        juce::Justification::centredLeft);
+        }
+    }
 
     // The baked butterfly, pre-scaled once the size settles — a per-frame
     // stretch blit of the bake would dominate paint cost at large window
@@ -376,6 +450,26 @@ void FareyView::resized()
 {
     auto b = getLocalBounds().toFloat().reduced (24.0f);
     b.removeFromTop (48.0f);       // title + cursor label
+
+    // Tool row: a 34 px strip between the title block and the plot (the plot
+    // shrinks; the title/legend rows keep their existing budgets).
+    auto strip = b.removeFromTop (34.0f).toNearestInt();
+    auto row = strip.withTrimmedBottom (8);
+    auto place = [&row] (juce::TextButton& btn, int w)
+    {
+        btn.setBounds (row.removeFromLeft (w));
+        row.removeFromLeft (6);
+    };
+    place (ascendBtn,     46);
+    place (leftBtn,       46);
+    place (rightBtn,      46);
+    place (diveBtn,       50);
+    place (addPartBtn,    56);
+    place (removePartBtn, 56);
+    place (jPrevBtn,      46);
+    place (jNextBtn,      46);
+    hintArea = row;                // whatever is left carries the hint line
+
     b.removeFromBottom (44.0f);    // θ axis labels + Chern legend strip
     plot = b.withTrimmedLeft (8.0f).withTrimmedRight (8.0f);
     // Rescale is DEFERRED (live-resize fires this per drag event): mark dirty
@@ -393,13 +487,189 @@ void FareyView::mouseDown (const juce::MouseEvent& e)
         if (t.hit.contains (pos))
         {
             cursor = t.path;
-            proc.setSharedPath (cursor.toString());
-            lastSharedPath = cursor.toString();
-            rebuildNodes();
-            repaint();
+            commitCursor();
             return;
         }
     }
+}
+
+// ----------------------------------------------------------------------------
+// Shared-path tool row + keyboard
+// ----------------------------------------------------------------------------
+
+namespace
+{
+    // Snapshot of the 64 ops' enabled/position state for the partial plans —
+    // reads the ctor-cached raw pointers, so a click costs 128 atomic loads.
+    std::vector<viz::OpPartial> collectPartials (
+        const std::array<std::atomic<float>*, params::kNumOperators>& enabledRaw,
+        const std::array<std::atomic<float>*, params::kNumOperators>& positionRaw)
+    {
+        std::vector<viz::OpPartial> ops ((size_t) params::kNumOperators);
+        for (size_t i = 0; i < (size_t) params::kNumOperators; ++i)
+        {
+            const auto* en  = enabledRaw[i];
+            const auto* pos = positionRaw[i];
+            ops[i].enabled  = en != nullptr && en->load() > 0.5f;
+            ops[i].position = pos != nullptr ? (int) std::round (pos->load()) : 0;
+        }
+        return ops;
+    }
+}
+
+void FareyView::commitCursor()
+{
+    proc.setSharedPath (cursor.toString());
+    lastSharedPath = cursor.toString();
+    rebuildNodes();
+    repaint();
+}
+
+void FareyView::setHint (const juce::String& text)
+{
+    flashHint = text;
+    flashHintUntilMs = juce::Time::getMillisecondCounter() + 2200;
+    repaint();
+}
+
+void FareyView::updateToolEnablement (bool force)
+{
+    const bool shared = proc.isSharedMode();
+    if (! force && shared == sharedToolsEnabled)
+        return;
+    sharedToolsEnabled = shared;
+    for (auto* b : { &ascendBtn, &leftBtn, &rightBtn, &diveBtn,
+                     &addPartBtn, &removePartBtn, &jPrevBtn, &jNextBtn })
+        b->setEnabled (shared);
+    repaint();   // the persistent free-mode hint line
+}
+
+void FareyView::ascend()
+{
+    if (cursor.isEmpty())
+    {
+        setHint ("already at the root 1/1");
+        return;
+    }
+    cursor = cursor.parent();
+    commitCursor();
+}
+
+void FareyView::descend (juce::juce_wchar step)
+{
+    const Path child = cursor.extended (step);
+    int p, q;
+    child.walk (p, q);
+    if (q > kChildQMax)
+    {
+        setHint (juce::CharPointer_UTF8 ("beyond the drawn wing (q > 64)"));
+        return;
+    }
+    cursor = child;
+    commitCursor();
+}
+
+void FareyView::dive()
+{
+    const auto pick = viz::pickProminentChild (cursor, kChildQMax);
+    if (! pick.valid)
+    {
+        setHint ("both children beyond the drawn wing");
+        return;
+    }
+    setHint (juce::String::charToString ((juce::juce_wchar) pick.side)
+             + " (prom " + juce::String (pick.prominence, 2) + ")");
+    descend ((juce::juce_wchar) pick.side);
+}
+
+void FareyView::addPartial()
+{
+    const auto plan = viz::addPartialPlan (collectPartials (opEnabledRaw, opPositionRaw));
+    if (! plan.valid)
+    {
+        setHint ("all 64 partials in use");
+        return;
+    }
+    // applyOps does NOT write position — set the params directly. Position
+    // first so the op enables already in place; the position listener then
+    // refreshes the derived ratios (handleAsyncUpdate).
+    auto& apvts = proc.getAPVTS();
+    if (auto* posParam = apvts.getParameter (params::opId (plan.opIndex, "position")))
+        posParam->setValueNotifyingHost (posParam->convertTo0to1 ((float) plan.position));
+    if (auto* enParam = apvts.getParameter (params::opId (plan.opIndex, "enabled")))
+        enParam->setValueNotifyingHost (1.0f);
+    setHint ("partial " + juce::String (plan.opIndex + 1)
+             + " @ position " + juce::String (plan.position));
+}
+
+void FareyView::removePartial()
+{
+    const auto plan = viz::removePartialPlan (collectPartials (opEnabledRaw, opPositionRaw));
+    if (! plan.valid)
+    {
+        setHint ("no partials to remove");
+        return;
+    }
+    auto& apvts = proc.getAPVTS();
+    if (auto* enParam = apvts.getParameter (params::opId (plan.opIndex, "enabled")))
+        enParam->setValueNotifyingHost (0.0f);
+    setHint ("removed partial " + juce::String (plan.opIndex + 1));
+}
+
+void FareyView::stepLandmark (int direction)
+{
+    // Acts on the OUTERMOST partial — the same op −part would remove (the two
+    // gestures deliberately share a target; the tooltips say so).
+    const auto plan = viz::removePartialPlan (collectPartials (opEnabledRaw, opPositionRaw));
+    if (! plan.valid)
+    {
+        setHint ("no enabled partial");
+        return;
+    }
+
+    auto& apvts = proc.getAPVTS();
+    const auto depthId = params::opId (plan.opIndex, "depth");
+    float depth = 0.0f;
+    if (auto* raw = apvts.getRawParameterValue (depthId))
+        depth = raw->load();
+
+    const auto* lm = direction > 0 ? viz::nextLandmark (depth)
+                                   : viz::prevLandmark (depth);
+    if (lm == nullptr)
+    {
+        setHint (direction > 0 ? "past the last landmark"
+                               : "below the first landmark");
+        return;
+    }
+    if (auto* param = apvts.getParameter (depthId))
+        param->setValueNotifyingHost (param->convertTo0to1 (lm->value));
+    setHint (juce::String (lm->label)
+             + juce::String (juce::CharPointer_UTF8 (" \xc2\xb7 "))
+             + bessel::regimeLabel (lm->value)
+             + "  (partial " + juce::String (plan.opIndex + 1) + ")");
+}
+
+bool FareyView::keyPressed (const juce::KeyPress& key)
+{
+    // Keyboard mirrors the tool row — shared mode only (free mode ignores,
+    // so keys fall through to whatever else wants them).
+    if (! proc.isSharedMode())
+        return false;
+
+    if (key.getKeyCode() == juce::KeyPress::upKey)    { ascend();        return true; }
+    if (key.getKeyCode() == juce::KeyPress::leftKey)  { descend ('L');   return true; }
+    if (key.getKeyCode() == juce::KeyPress::rightKey) { descend ('R');   return true; }
+
+    switch (key.getTextCharacter())
+    {
+        case 'd':           dive();              return true;
+        case '+': case '=': addPartial();        return true;
+        case '-':           removePartial();     return true;
+        case '[':           stepLandmark (-1);   return true;
+        case ']':           stepLandmark (+1);   return true;
+        default: break;
+    }
+    return false;
 }
 
 } // namespace brocot
