@@ -2,6 +2,7 @@
 #include "../PluginProcessor.h"
 #include "../audio/BrocotLattice.h"
 #include "../util/Colors.h"
+#include "../util/FareyMath.h"
 #include "../util/Fonts.h"
 
 #include <cmath>
@@ -10,31 +11,8 @@
 namespace brocot
 {
 
-namespace
-{
-    // Longest prefix of `p` whose resolved denominator q stays ≤ qMax, so the
-    // navigation cursor sits on the drawn wing and its lattice math stays cheap.
-    Path cappedPrefix (const Path& p, int qMax, int hardDepth = 40)
-    {
-        Path best;
-        const int maxLen = juce::jmin (p.depth(), hardDepth);
-        for (int len = 1; len <= maxLen; ++len)
-        {
-            const Path cand = p.prefix (len);
-            int pp, qq;
-            cand.walk (pp, qq);
-            if (qq > qMax) break;
-            best = cand;
-        }
-        return best;
-    }
-
-    double fracTheta (int p, int q)
-    {
-        const double r = (double) p / (double) q;
-        return r - std::floor (r);
-    }
-}
+using viz::cappedPrefix;
+using viz::fracTheta;
 
 FareyView::FareyView (BrocotAudioProcessor& processor) : proc (processor)
 {
@@ -61,10 +39,10 @@ FareyView::~FareyView() { stopTimer(); }
 
 juce::Colour FareyView::chernColour (int chern)
 {
-    // Diverging hue by signed Chern integer; magnitude deepens saturation.
-    const float t = 0.5f + (float) chern / (float) (2 * kQMax);   // ~[0.25,0.75]
+    // Diverging hue by signed Chern integer (viz::chernHue, spread = kQMax);
+    // magnitude deepens saturation.
     const float sat = juce::jlimit (0.35f, 0.9f, 0.35f + 0.06f * (float) std::abs (chern));
-    return juce::Colour::fromHSV (juce::jlimit (0.0f, 1.0f, t), sat, 0.85f, 1.0f);
+    return juce::Colour::fromHSV (viz::chernHue (chern, kQMax), sat, 0.85f, 1.0f);
 }
 
 void FareyView::bakeButterfly()

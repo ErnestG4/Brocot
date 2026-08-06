@@ -199,6 +199,7 @@ if(BROCOT_BUILD_TESTS)
         tests/OperatorTuningTests.cpp
         tests/GrooveFieldTests.cpp
         tests/SteerLockTests.cpp
+        tests/FareyMathTests.cpp
         tests/RenderBenchmark.cpp
         source/audio/DepthRatio.cpp
         source/audio/Path.cpp
