@@ -44,11 +44,15 @@ public:
     // Simplicity is the SCIENCE-GATED fallback (phase3/butterfly.md): a
     // config-derived depth-weighted mean denominator q̄ — no prominence /
     // butterfly overlay ships (that study came back NO-GO).
-    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow, Musicality, Criticality, Simplicity };
+    // Motion/Rate are mod-map-only (Landscape::hasMotion gates them into the
+    // combo): motion = mean frame-to-frame L1 of the trajectory fingerprint,
+    // rate = the assignment's log-mapped LFO rate.
+    enum class ColourMode { Family, Brightness, Density, Feedback, Hollow, Musicality, Criticality, Simplicity, Motion, Rate };
 
 private:
     void timerCallback() override;
     void rebuildImage();
+    void refreshColourModes();   // gates motion/rate items on hasMotion()
     juce::Point<float> mapToScreen (float x, float y) const;
     juce::Point<float> screenToMap (juce::Point<float> px) const;
     int  nearestNodeToDot() const;

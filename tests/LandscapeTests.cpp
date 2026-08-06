@@ -381,6 +381,34 @@ TEST_CASE ("non-mod maps stay mod-free: no flag, no motion, no mods", "[Landscap
     f.deleteFile();
 }
 
+TEST_CASE ("shipped mod map's mod layer loads when present", "[Landscape]")
+{
+    // Guarded end-to-end check of the real artifact (phase3/gpu_modbank.py
+    // map): every node of the shipped mod map must carry exactly one parsed
+    // ModSpec inside the mined ranges, plus 0..1 motion/rate descriptors.
+    const juce::File f (juce::String (BROCOT_SOURCE_DIR)
+                            + "/resources/landscape_graph_6mod.json.gz");
+    if (! f.existsAsFile())
+        SKIP ("shipped mod map not present");
+    Landscape ls;
+    REQUIRE (ls.load (f));
+    REQUIRE (ls.isModulationMap());
+    REQUIRE (ls.hasMotion());
+    REQUIRE (ls.getName() == "6-op mod");
+    REQUIRE (ls.getJumps().empty());   // deliberately ships without wormholes
+    for (const auto& n : ls.getNodes())
+    {
+        REQUIRE (n.mods.size() == 1);  // exactly one assignment this pass
+        const auto& m = n.mods.front();
+        CHECK ((m.kind == 0 || m.kind == 1));
+        CHECK ((m.shape == 0 || m.shape == 1));
+        CHECK (m.rate >= 0.3f);  CHECK (m.rate <= 7.0f);
+        CHECK (m.depth >= 0.3f); CHECK (m.depth <= 1.0f);
+        CHECK (n.motion >= 0.0f); CHECK (n.motion <= 1.0f);
+        CHECK (n.rateN >= 0.0f);  CHECK (n.rateN <= 1.0f);
+    }
+}
+
 TEST_CASE ("shipped base map's jumps block loads when present", "[Landscape]")
 {
     // Guarded end-to-end check of the real artifact: if the shipped 6-op map

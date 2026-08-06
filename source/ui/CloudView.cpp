@@ -1,6 +1,7 @@
 #include "CloudView.h"
 #include "../PluginProcessor.h"
 #include "../audio/Path.h"
+#include "../pull/ModApply.h"
 #include "../util/CloudMath.h"
 #include "../util/Colors.h"
 #include "../util/DensityGrid.h"
@@ -45,15 +46,9 @@ CloudView::CloudView (BrocotAudioProcessor& p) : proc (p)
 
     // Colour the cloud by family or by a measured spectral characteristic, to
     // explore the real structure (axes, small clusters, tails, outliers).
-    colourModeCombo.addItem ("family",     1);
-    colourModeCombo.addItem ("brightness", 2);
-    colourModeCombo.addItem ("density",    3);
-    colourModeCombo.addItem ("feedback",   4);
-    colourModeCombo.addItem ("hollowness", 5);
-    colourModeCombo.addItem ("musicality", 6);
-    colourModeCombo.addItem ("criticality/voids", 7);
-    colourModeCombo.addItem ("simplicity", 8);
-    colourModeCombo.setSelectedId (1, juce::dontSendNotification);
+    // Items are (re)populated by refreshColourModes(), which appends the
+    // mod-map-only motion/rate modes when the active map ships them.
+    refreshColourModes();
     colourModeCombo.onChange = [this]
     {
         colourMode = (ColourMode) (colourModeCombo.getSelectedId() - 1);
@@ -173,6 +168,49 @@ void CloudView::applyNode (int nodeIndex)
     const auto& n = ls.getNodes()[(size_t) nodeIndex];
     proc.applyOps (n.ops);             // smoothers glide ratios/depths
     proc.applyOp0Feedback (n.feedback);
+
+    // Mod maps additionally realize the node's shipped modulator assignment
+    // in the universal bank (reset-then-overlay inside applyModsToAPVTS, so
+    // the previous node's motion never leaks). Deliberately NOT cleared when
+    // the user later switches to a normal map: the motion may be part of the
+    // sound they like, and carrying a mod layer over any tone is exactly the
+    // .brocotmod philosophy — the bank stays until another mod node, preset
+    // or .brocotmod replaces it.
+    if (ls.isModulationMap())
+        modapply::applyModsToAPVTS (proc.getAPVTS(), n.mods);
+}
+
+void CloudView::refreshColourModes()
+{
+    // Motion/rate colour modes exist only on maps that ship the motion
+    // descriptors — the same show-it-only-when-real pattern as the wormhole
+    // toggle (rebuildImage keeps both in sync with the active map). Item ids
+    // stay ColourMode+1, so the onChange mapping is untouched.
+    const bool wantMotion = proc.getLandscape().hasMotion();
+    const int  wantItems  = wantMotion ? 10 : 8;
+    if (colourModeCombo.getNumItems() == wantItems)
+        return;
+
+    const int prevId = colourModeCombo.getSelectedId();
+    colourModeCombo.clear (juce::dontSendNotification);
+    colourModeCombo.addItem ("family",     1);
+    colourModeCombo.addItem ("brightness", 2);
+    colourModeCombo.addItem ("density",    3);
+    colourModeCombo.addItem ("feedback",   4);
+    colourModeCombo.addItem ("hollowness", 5);
+    colourModeCombo.addItem ("musicality", 6);
+    colourModeCombo.addItem ("criticality/voids", 7);
+    colourModeCombo.addItem ("simplicity", 8);
+    if (wantMotion)
+    {
+        colourModeCombo.addItem ("motion", 9);
+        colourModeCombo.addItem ("rate",   10);
+    }
+    // Keep the selection when it still exists; a motion/rate mode left over
+    // from a mod map falls back to family on an ordinary one.
+    const int sel = (prevId >= 1 && prevId <= wantItems) ? prevId : 1;
+    colourModeCombo.setSelectedId (sel, juce::dontSendNotification);
+    colourMode = (ColourMode) (sel - 1);
 }
 
 void CloudView::resized()
@@ -277,6 +315,7 @@ void CloudView::rebuildImage()
 
     const auto& ls = proc.getLandscape();
     wormholeToggle.setVisible (! ls.getJumps().empty());
+    refreshColourModes();
     if (ls.isEmpty())
     {
         g.setColour (colors::secondaryText);
@@ -380,6 +419,12 @@ void CloudView::rebuildImage()
                 return simpMeanQ[i] < 0.0f
                            ? colors::disabled
                            : featureColour ((simpMeanQ[i] - simpQLo) / (simpQHi - simpQLo));
+            // Mod-map descriptors ship pre-scaled to 0..1; −1 = absent → grey
+            // (unreachable in practice — the modes are gated on hasMotion()).
+            case ColourMode::Motion:
+                return n.motion < 0.0f ? colors::disabled : featureColour (n.motion);
+            case ColourMode::Rate:
+                return n.rateN < 0.0f ? colors::disabled : featureColour (n.rateN);
             case ColourMode::Family:
             default:                     return familyColour (n.family, fcount);
         }
@@ -647,7 +692,10 @@ void CloudView::paint (juce::Graphics& g)
         g.setColour (colors::primaryText.withAlpha (0.6f));
         g.drawEllipse (hp.x - 4.0f, hp.y - 4.0f, 8.0f, 8.0f, 1.0f);
 
-        juce::Rectangle<int> box (10, getHeight() - 78, 290, 66);
+        // Mod maps get a fourth readout row (motion/rate), so the box grows.
+        const bool modMap = ls.isModulationMap();
+        juce::Rectangle<int> box (10, getHeight() - (modMap ? 94 : 78),
+                                  290, modMap ? 82 : 66);
         g.setColour (colors::surface.withAlpha (0.9f));
         g.fillRoundedRectangle (box.toFloat(), 4.0f);
         g.setColour (colors::borderAtAlpha (0.5f));
@@ -672,6 +720,21 @@ void CloudView::paint (juce::Graphics& g)
                                   : juce::String (juce::CharPointer_UTF8 ("\xe2\x80\x94"))),
                     box.reduced (8, 6).withTrimmedTop (36).removeFromTop (15),
                     juce::Justification::topLeft);
+        // Mod-map row: the node's shipped motion descriptor + LFO rate
+        // (both pre-scaled to 0..1; "—" if a node somehow lacks them).
+        if (modMap)
+        {
+            auto pctOrDash = [&pct] (float v)
+            {
+                return v >= 0.0f ? pct (v) + "%"
+                                 : juce::String (juce::CharPointer_UTF8 ("\xe2\x80\x94"));
+            };
+            g.drawText ("motion " + pctOrDash (n.motion)
+                        + juce::String (juce::CharPointer_UTF8 (" \xc2\xb7 rate "))
+                        + pctOrDash (n.rateN),
+                        box.reduced (8, 6).withTrimmedTop (52).removeFromTop (15),
+                        juce::Justification::topLeft);
+        }
     }
 
     // Hint — briefly overridden by a transient message (e.g. a crit-seek
