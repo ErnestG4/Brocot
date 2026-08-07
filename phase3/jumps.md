@@ -147,3 +147,27 @@ maps (6/8-op sine-ish) pass ~50% with near-zero medians; mix/high-op maps
 degrade to ~12-25% as the proposer leaves its training regime, exactly as
 flagged — a per-map fine-tune is the obvious lever if more/smoother edges
 are wanted there. **18,731 verified wormholes across 16 maps.**
+
+## Per-map fine-tunes (2026-08-06) — the OOD lever, pulled
+
+`finetune-map` (80k per-map pairs, 6 epochs from the base checkpoint,
+lr 5e-4) on the seven lowest-pass maps, each re-mined + re-verified
+against its own τ. Success bar (pre-registered): pass ≥ 1.5× or median r
+halves.
+
+| map | pass before → after | × | shipped before → after |
+|---|---|---|---|
+| 6sqr | 11.3% → 21.0% | **1.86** ✓ | 1,055 → 1,322 |
+| 4mix | 11.8% → 19.7% | **1.67** ✓ | 1,095 → 1,194 |
+| 6saw | 15.3% → 24.7% | **1.61** ✓ | 1,190 → 1,303 |
+| 8mix | 22.0% → 28.1% | 1.28 | 1,286 → 1,273 |
+| 64mix | 11.9% → 14.6% | 1.23 | 1,078 → 1,082 |
+| 32mix | 19.2% → 21.5% | 1.12 | 1,114 → 1,148 |
+| 16mix | 19.9% → 21.9% | 1.10 | 1,191 → 1,252 |
+
+Every map improved; the bar clears exactly where the distribution gap was
+waveform-shaped (sqr/saw/4mix) and only partially where it is
+op-count-shaped (16-64mix) — consistent with the aggregate finding that
+op-count is the dominant axis. More fine-tune epochs won't fix the
+high-op maps; a high-op-native pretraining set would. **Fleet total:
+19,706 verified wormholes across 16 maps.**
