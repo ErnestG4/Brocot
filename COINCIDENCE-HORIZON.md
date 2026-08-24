@@ -132,10 +132,31 @@ the horizon, so ratio space is **punctuated**, not merely steep — and `u(α)` 
 the roughness is the terrain rather than estimation noise. A densely punctuated space cannot be
 linearised by reparameterising a continuous coordinate.
 
-The redirect: choose **waypoints over tree nodes**, spaced by measured timbral distance, with the
-horizon deciding which nodes are eligible. That is what Stern–Brocot navigation already is — the
-linearisation belongs in waypoint *selection*, not in the interpolator, and all of it is
-offline-computable with nothing added to the audio thread.
+That redirect was then tested and **also failed**, twice. Three attempts, each on the same path:
+
+| method | CV reduction | bar |
+|---|---|---|
+| continuous arc-length reparameterisation | 1.6× | 3× |
+| waypoint selection over tree nodes by timbral distance | 1.31× | 3× |
+| the same, with the horizon widened by raising the index | 1.74× best | 3× |
+
+The last one is decisive. Raising the index admits more ringing nodes — measured, 9 → 16 → 22 → 32
+across I = 0.9 → 3.0 — so if the residual roughness were *granularity*, it should have smoothed.
+It did not, and the reduction is not even monotone in the index (0.92, 1.48, 1.03, 1.74). At
+I = 0.9 selecting by timbral distance is **worse** than selecting by ratio.
+
+> **The punctuation is scale-free within the instrument's range.** The space is equally rough at
+> every resolution the depth slider can reach. A smooth wormhole is not available by *any* waypoint
+> policy — this is a property of the soundspace, not a failure of method.
+
+**So the feature is not "make morphs smooth" — that is unavailable — but "show the player where the
+jumps are."** The horizon already computes it: the jumps are the coincidence events, they sit at
+the below-horizon rationals, and their positions are known in closed form before a note is played.
+An honest morph UI marks them rather than pretending to interpolate through them.
+
+One residual that *is* useful: horizon restriction gives the best worst-case step (max |Δu| 1.780
+against 2.959 unrestricted, on fewer waypoints). Excluding ratios that cannot ring does not smooth
+the path, but it does avoid its largest single jumps.
 
 ---
 
