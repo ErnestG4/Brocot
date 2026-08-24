@@ -14,10 +14,30 @@ boundary with no fit, no aggregation and no free parameter.
 For Brocot's parallel-FM topology with modulators at ratios `1` and `α = p/q` (in lowest terms),
 both at modulation index `I`:
 
-> **A sideband coincidence is reachable ⟺ max(p, q) ≤ 2·order_bound(I)**
+> **A DIRECT sideband coincidence is reachable ⟺ max(p, q) ≤ 2·order_bound(I)**
 
 `order_bound(I)` is already in the codebase — `phase3/partial_prediction.py`, the largest `|n|` with
-`|J_n(I)| > ε`. So the boundary costs nothing new to compute.
+`|J_n(I)| > ε`. So the boundary costs nothing new to compute. **ε is load-bearing and is treated
+in §Scope below.**
+
+### Which lattice — stated, because the synth folds and the proof does not
+
+`predict_partials` **reflects** negative frequencies onto the positive axis (`partial_prediction.py`
+:20–21, :117–123 — Web Audio behaviour). The statement above is about the **unfolded** lattice, and
+that scope is not cosmetic: the folded lattice has a *second* coincidence channel,
+
+```
+1 + n₁ + n₂α = −(1 + n₁′ + n₂′α)   ⟹   2 + (n₁+n₁′) + (n₂+n₂′)α = 0
+```
+
+whose `k = 0` branch — `n₁ = n₁′ = −1`, `n₂ = −n₂′ = m`, giving `+mα` and `−mα` — folds one onto the
+other **for every α whatsoever, rational or irrational**. Measured (`brocot_theorem_scope.json`): it
+fires at every node, including **89/89** above the horizon at I = 3.0.
+
+> **So a predicate stated over folded values would be vacuous** — true of every ratio, therefore
+> incapable of distinguishing any. The ratio-dependent structure lives entirely in the direct
+> channel, which is what the horizon characterises. Verified under the split: the direct channel
+> alone reproduces the horizon exactly at every node and every index.
 
 ### Proof
 
@@ -31,9 +51,28 @@ n₁ + n₂·α  =  n₁′ + n₂′·α
 Write `a = n₁ − n₁′` and `b = n₂′ − n₂`. Then `a = b·(p/q)`, so `a·q = b·p`. Since `gcd(p,q) = 1`,
 `q` divides `b` and `p` divides `a`: there is an integer `m ≠ 0` with `b = m·q` and `a = m·p`.
 
-Both differences are bounded by the sideband range: `|a| ≤ 2B` and `|b| ≤ 2B`. Taking `|m| = 1`
-(the least demanding case) gives `p ≤ 2B` **and** `q ≤ 2B`, i.e. `max(p,q) ≤ 2B`. Above that no
-integer `m` satisfies both bounds, so no coincidence exists. ∎
+**Necessity.** Both differences are bounded by the sideband range: `|a| = |m|·p ≤ 2B` and
+`|b| = |m|·q ≤ 2B`. Since `m ≠ 0`, already `|m| = 1` gives `p ≤ 2B` **and** `q ≤ 2B`, i.e.
+`max(p,q) ≤ 2B`. Above that no integer `m` satisfies both bounds, so no coincidence exists.
+
+**Sufficiency — the witness, constructed.** Suppose `max(p,q) ≤ 2B`. Take
+
+```
+(n₁, n₂)   = ( ⌈p/2⌉, −⌊q/2⌋ )
+(n₁′, n₂′) = ( −⌊p/2⌋,  ⌈q/2⌉ )
+```
+
+All four coordinates lie in `[−B, B]` precisely because `p ≤ 2B` and `q ≤ 2B`. And
+
+```
+(n₁ + n₂α) − (n₁′ + n₂′α) = (⌈p/2⌉ + ⌊p/2⌋) − (⌈q/2⌉ + ⌊q/2⌋)·(p/q) = p − q·(p/q) = 0
+```
+
+so the two distinct index pairs land on the same frequency. ∎
+
+*(Checked exhaustively: the construction is in-bounds and coincident for all 1274 `(p,q,B)` triples
+with `max(p,q) ≤ 2B`, `B ≤ 11`. Without it the 508/508 verification below would be carrying the
+sufficiency direction empirically — fine as verification, but it should not do proof work silently.)*
 
 ### Verification
 
@@ -80,15 +119,28 @@ not approximating the interesting space, it is **enumerating it exactly**.
 §1 names the defining regime by example. Those examples turn out to be sorted by the index at which
 they come alive:
 
-| spec ratio | max(p,q) | rings from |
-|---|---|---|
-| `4/3`, `3/4` | 4 | I ≥ 0.10 |
-| `9/7`, `7/9` | 9 | I ≥ 1.33 |
-| `14/11`, `11/14` | 14 | I ≥ 2.60 |
-| **`43/34`** | 43 | **I > 8 — never inside the spec's own 0.1–3.0 range** |
+**The I-column is ε-relative.** `order_bound` is defined by `|J_n(I)| > ε`, so every threshold below
+depends on that constant. Measured across two decades (`brocot_theorem_scope.json`):
 
-At the spec's typical I ≈ 0.9 only `4/3` and `3/4` can fuse. `43/34` needs `order_bound ≥ 22`,
-which the stated depth range never reaches — so it can be *played*, but it cannot *ring*.
+| spec ratio | max(p,q) | ε=10⁻² | **ε=10⁻³ (default)** | ε=10⁻⁴ |
+|---|---|---|---|---|
+| `4/3`, `3/4` | 4 | 0.29 | **0.09** | 0.05 |
+| `9/7`, `7/9` | 9 | 2.16 | **1.33** | 0.84 |
+| `14/11`, `11/14` | 14 | *3.74* | **2.60** | 1.85 |
+| **`43/34`** | 43 | >12 | **>12** | >12 |
+
+**The ordering is ε-invariant; the thresholds are not** — they move roughly 3× across two decades,
+and the ladder's *membership* moves with them: at ε = 10⁻² even `14/11` needs I = 3.74, outside the
+spec's own 0.1–3.0 range. **The ordering is the exhibit; the absolute thresholds are convention.**
+
+A perceptually-motivated ε would sit well above the default: `J₂(0.1) ≈ 0.00125` barely clears
+10⁻³, and a partial's amplitude is a *product* of Bessel terms, so a single surviving `J_n` does not
+make an audible partial. Choosing ε on hearing rather than on numerical convenience would shift
+every rung upward without reordering them.
+
+At the spec's typical I ≈ 0.9 only `4/3` and `3/4` can fuse under any ε tested. `43/34` needs
+`order_bound ≥ 22`, which the stated depth range never reaches at any ε — so it can be *played*,
+but it cannot *ring*.
 
 ### 4. It couples two controls the instrument leaves independent
 
