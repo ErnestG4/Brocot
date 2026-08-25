@@ -118,3 +118,79 @@ depth-weighted q, computable at load, no eigensolves, no butterfly claim) —
 the Farey-gravity thesis made visible with the numbers on its side.
 Prominence remains a FareyView-only quantity, where it is §6-validated as
 lattice annotation rather than a map claim.
+
+---
+
+## Prior art on the TRUNCATED butterfly — searched 2026-08-25
+
+The horizon result (`COINCIDENCE-HORIZON.md`) suggests the object to compare the
+map against is not the butterfly but the butterfly **truncated at a bounded
+denominator**, since the instrument only resolves q ≤ A = 2·order_bound(I). A
+literature scout was run on whether that object is known. Findings, with the
+scout's own confidence markings preserved.
+
+**1. Is "the butterfly at q ≤ Q" a named object?** No — but it is what every
+plot already is. At flux p/q the spectrum is exactly q bands, and Hofstadter's
+own 1976 figure (Phys. Rev. B 14, 2239) used q ≤ 50. The literature treats this
+as a plotting device rather than a studied object. What exists instead is
+*convergence theory* controlling how well a truncation approximates the whole:
+Hölder-½ continuity of the spectrum in the flux (Avron–van Mouche–Simon, CMP 132,
+1990), and Last's measure results (CMP 164, 1994). Confidence the ingredients
+are right: high. Confidence no named truncated object exists: moderate — this is
+absence of evidence after targeted searching.
+
+**2. Which gaps survive a cutoff?** The literature's version of this question is
+*gap width versus gap label*, and it is answered: gap widths decay
+**exponentially in |label|** for non-critical coupling (Leguil–You–Zhao–Zhou,
+arXiv:1712.04700; also arXiv:1311.0658). The consequence — at resolution ε only
+labels with |k| ≲ log(1/ε) survive — is a quantitative truncation rule already
+sitting in the theorems, though nobody phrases it as a Q-cutoff.
+
+> **This is the closest structural analogue to our ε.** `order_bound(I)` is
+> defined by an amplitude floor ε = 1e-3 on |J_n(I)|, and Bessel tails also decay
+> faster than exponentially in n past the turning point. Both truncations are
+> "keep what is above a floor", and both produce a cutoff that moves when the
+> control moves. That the analogy is *structural* and not an identity is the
+> point of the next item.
+
+Also relevant: total bandwidth at denominator q scales as ~1/q (Thouless's
+conjecture; Helffer–Kerdelhué, CMP 173, 335–356, 1995), so a q ≤ Q truncation
+captures essentially all spectral weight above scale ~1/Q. And experiment is
+itself a truncation — in moiré superlattices disorder broadening resolves only
+low-q gaps (Dean et al., Nature 497, 598, 2013).
+
+**3. Any Hofstadter ↔ FM synthesis connection?** **None found.** Three targeted
+searches returned nothing linking almost-Mathieu structure to FM synthesis or
+sideband coincidence. The neighbouring literatures are real and disjoint:
+Stern-Brocot in tuning theory (well-formed scale theory, just-intonation
+lattices, semiconvergents in Pythagorean tuning), mode-locking and
+devil's-staircase accounts of consonance, and Chowning-FM sideband structure
+which never invokes continued fractions. Confidence the connection is genuinely
+absent: moderate-high.
+
+**4. Arnold tongues — and a correction to an assumption we had queued.** There
+*is* a rigorous bridge between the almost-Mathieu operator and circle-map
+mode-locking: the projectivised AMO cocycle is a quasiperiodically forced circle
+map, its fibered rotation number equals the integrated density of states, and
+**spectral gaps correspond exactly to mode-locking plateaus** (Bjerklöv–Jäger,
+J. Amer. Math. Soc., 2009; arXiv:math/0607598).
+
+> **But the axes do not line up the way we assumed.** In that correspondence the
+> mode-locking parameter is **energy**, and the resonance order is the **gap
+> label** — not the flux. So a bounded denominator on the *flux* axis is **not**
+> the tongue order, and the finite-coupling Arnold-tongue truncation is not
+> formally the same object as a bounded-denominator butterfly. No theorem or
+> explicit conjecture identifying them was found. The queue entry that
+> speculated otherwise has been corrected.
+
+The quantitative parallel that *does* line up is coupling ↔ gap label: an
+order-p/q Arnold tongue has width ~K^q at small coupling K, and an AMO gap of
+label k has width ~λ^|k| at small λ. No paper was found making even this
+identification explicit.
+
+**Scout caveats, preserved.** Several attributions (Johnson–Moser, van Mouche,
+Choi–Elliott–Yui, Last–Wilkinson, and the authorship of arXiv:1005.1301 and
+arXiv:1703.09634) are from recall of standard literature and were *not*
+confirmed against a fetched source in this session. Anything above marked as
+verified was checked; the rest should be re-verified before citation in
+anything public.
