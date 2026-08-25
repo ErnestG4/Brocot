@@ -228,8 +228,34 @@ It did not, and the reduction is not even monotone in the index (0.92, 1.48, 1.0
 I = 0.9 selecting by timbral distance is **worse** than selecting by ratio.
 
 > **The punctuation is scale-free within the instrument's range.** The space is equally rough at
-> every resolution the depth slider can reach. A smooth wormhole is not available by *any* waypoint
-> policy — this is a property of the soundspace, not a failure of method.
+> every resolution the depth slider can reach. A smooth wormhole is not available by any waypoint
+> policy **on either coordinate tested** — this is a property of the soundspace, not a failure of
+> method.
+
+**Scope, stated because the first version of this sentence was a bare universal.** All three
+attempts above ran on **u**, the Brody statistic — and u is *not* what a player hears: measured
+Spearman against an ERB excitation-pattern distance is only **+0.202**, CI [+0.122, +0.282]. The two
+coordinates agree that jumps happen and disagree about where.
+
+That reopened the question properly, because ERB's roughness looked like a different *kind*: only
+**5.7%** of its top-decile jumps sit at a partial-set change (baseline 1.9%), which suggested
+continuous motion rather than discontinuity — and continuous roughness is exactly what arc-length
+reparameterisation *can* linearise. Rougher is not the same as punctuated, and ERB is rougher
+(step CV **9.553** against u's **5.022**).
+
+**Run, and it fails there too** (`brocot_linear_morph_erb.json`): reduction **0.99×** — marginally
+worse than uniform — and the worst single step **more than doubled**, 0.31528 → 0.73178.
+
+> **The inference was wrong, and the error is worth keeping: *"not at set changes" does not mean
+> "continuous."*** It means the discontinuities have a different mechanism — the natural reading
+> being partials crossing critical-band boundaries, discrete in effect though produced by smooth
+> motion. Both coordinates are punctuated, by different mechanisms, with the same failure signature:
+> arc length equalises cumulative distance, packing waypoints into a few unresolved discontinuities
+> and inflating the worst step.
+
+So the claim now rests on **two coordinates that fail differently and disagree about where the jumps
+are** — which is stronger than one statistic, and is what the sentence should have said from the
+start.
 
 **So the feature is not "make morphs smooth" — that is unavailable — but "show the player where the
 jumps are."** The horizon already computes it: the jumps are the coincidence events, they sit at
@@ -239,6 +265,25 @@ An honest morph UI marks them rather than pretending to interpolate through them
 One residual that *is* useful: horizon restriction gives the best worst-case step (max |Δu| 1.780
 against 2.959 unrestricted, on fewer waypoints). Excluding ratios that cannot ring does not smooth
 the path, but it does avoid its largest single jumps.
+
+### What the display may say — gated, not assumed
+
+The natural feature is to mark the coincidence events. Measured before writing any caption
+(`brocot_marker_erb_gate.json`), on the coordinate a player hears:
+
+| | at a coincidence marker | away | separation |
+|---|---|---|---|
+| **ERB** | 0.00010 | 0.0000064 | **16.13×** |
+| Brody u | 0.00954 | 0.00452 | 2.11× |
+
+Markers are the largest ERB steps around — **more** perceptually distinctive than statistically so.
+But the absolute scale settles the caption: a **1-cent detune** produces **0.000154** in the same
+units, so a marker event is **0.67×** a change nobody can hear.
+
+> **The display may caption these STRUCTURAL EVENTS and may not call them jumps.** "The partial count
+> drops here; these sidebands fuse" is true, closed-form, and worth showing. It is a different
+> caption, not a weaker version of the same one — and a relative separation, however large, cannot
+> carry an audibility claim on its own.
 
 ---
 
