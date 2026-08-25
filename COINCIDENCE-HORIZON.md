@@ -302,6 +302,38 @@ that missed, which is where §3 and the wording narrowing came from.
 
 ---
 
+## Prior art — what is already known, and what is not
+
+**Searched 2026-08-24. The phenomenon is known qualitatively; the boundary does not appear to be.**
+
+### Already established, and not claimed here
+
+| result | source |
+|---|---|
+| The multi-modulator spectrum is the Cartesian product of Bessel terms — **the lattice this proof runs on** | LeBrun, *A derivation of the spectrum of FM with a complex modulating wave*, CMJ 1(4), 1977; Schottstaedt, CMJ 1(4), 1977 |
+| A rational c:m gives a harmonic spectrum (single modulator), **index-independently** | Chowning 1973; Truax 1977 |
+| Farey-sequence / Stern–Brocot organisation of C:M ratios | Truax, *Organizational Techniques for C:M Ratios in Frequency Modulation*, 1977; Burraston's `FareyPreenFM2` |
+| Negative frequencies reflect, and reflection drives inharmonicity | classical |
+| **"For a clearly audible pitch, keep numerator and denominator small after dividing out common factors"** | textbook folk rule, widely stated |
+
+That last row is the important one. **It is the same insight, un-quantified** — and it is the reason this result should be read as a sharpening rather than a discovery. Every practitioner already knows complex ratios sound like noise.
+
+### What the search did not find
+
+- The **exact** threshold `max(p,q) ≤ 2·order_bound(I)`.
+- Its **index-dependence** — that the set of ratios able to fuse *grows with the depth control*, so "small enough" is not a fixed bar but a moving one.
+- The consequence that **useful tree depth is bounded by the modulation index**, which is what makes it an instrument feature rather than an observation.
+
+### Honest limits on that claim
+
+**The algebra is elementary.** `gcd(p,q)=1 ⟹ a=mp, b=mq` is Bézout-adjacent and standard; nothing here is new mathematics. The contribution, if any, is precision and the coupling — not the argument.
+
+**Absence of evidence is not evidence of absence, and the gap is specific.** Web search cannot read inside CMJ 1(4) 1977 or Truax's monograph, which are print and paywalled. **Truax 1977 is the single most likely place for this to already exist** — it is the work that organises C:M ratios by Farey sequence, which is precisely the structure the horizon cuts. Anyone with that text should check it before the claim is repeated.
+
+The result stands on its verification either way. What would change is the framing: *newly derived* versus *re-derived, and now measured*.
+
+---
+
 ## Methodology note — the reconstruction ledger
 
 Twice in this document, an idealised reconstruction of the shipped lattice was written down before
