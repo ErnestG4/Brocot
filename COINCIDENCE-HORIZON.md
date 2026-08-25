@@ -167,6 +167,38 @@ condition from (p ≤ 2B₁, q ≤ 2B₂) to (p ≤ 2B₂, q ≤ 2B₁):
 **Which operator is driven harder matters.** 468 ratios flip across that line on
 the tested grid. The symmetric theorem cannot see this at all.
 
+### Swap non-invariance is the reason to have the asymmetric form
+
+Not generality for its own sake — a degree of freedom with measured
+consequences. Index routing is a **fusion** parameter, not only a brightness
+parameter: the same two ratios, at the same two indices, fuse or do not
+depending on which operator carries which index. Nothing in the symmetric
+statement can express that, because it has only one index to give.
+
+Measured against the shipped map (`brocot_index_routing.json`, 30k patches,
+1,139,612 enabled operator pairs):
+
+| | |
+|---|---|
+| pairs that change verdict under an index swap | **6.1%** |
+| nodes whose fusion density would change | **64.0%** |
+| median change in fusion density | 0.0220 |
+| alignment rate among swap-sensitive pairs | 0.4995 ± 0.0037 |
+| higher index on the larger ratio | 0.5003 ± 0.0009 (z = +0.64) |
+
+So the effect **reaches the instrument** and **carries no convention**: the map
+is unbiased on both readings, to within a coin flip at n > 10⁶.
+
+That combination is the useful one. Because there is no bias, the fusion-density
+column is not skewed and needs no conditioning caveat. Because 6.1% of pairs are
+swap-sensitive, the column is a function of the stored operator **order**, not of
+the ratio multiset alone — well defined, since the order is stored, but not the
+invariant a reader would assume. `MAP-FIELD.md` carries that as a
+well-definedness note.
+
+For the player it is a control surface: two operators that will not fuse can be
+made to fuse by moving index between them, with the ratios untouched.
+
 ### Verification
 
 `brocot_asymmetric_horizon.json` — exact enumeration over the full (n₁, n₂)
