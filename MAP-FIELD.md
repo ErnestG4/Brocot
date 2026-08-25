@@ -198,6 +198,60 @@ A = 8. Thirteen regions, thirteen events. Separations shown at f_c = 220 Hz.
 The 1/1 region spans ±0.118, from 0.8889 to 1.1250 — nearly a quarter of the
 habitable ratio range sits nearest to unity.
 
+
+## The audible field is smaller than the structural one
+
+Everything above counts regions by the **structural** horizon, `max(p,q) ≤ 2·order_bound(I)`,
+where `order_bound` floors a **single** Bessel factor at ε = 1e-3. A coincidence witness sits at
+the *corner* of the box, where **both** factors are near-floor — so the partials doing the
+classifying can be far below anything a listener could pick out.
+
+Measured (`brocot_audible_horizon.json`): at the ε horizon the witness partials sit **−78 to
+−92 dB** below the strongest partial in the spectrum, across I = 0.9 to 3.0.
+
+Re-scoring each below-horizon ratio by whether **both** of its witness partials clear a floor
+relative to the strongest lattice partial — both, because a coincidence is two partials landing
+together:
+
+| α | max(p,q) | witness level, dB | audible at −40 dB | at −60 dB |
+|---|---|---|---|---|
+| **1** | 1 | -6.0 | yes | yes |
+| **3/4** | 4 | -37.3 | yes | yes |
+| **4/3** | 4 | -37.3 | yes | yes |
+| **4/5** | 5 | -53.6 | no | yes |
+| **5/4** | 5 | -53.6 | no | yes |
+| **5/6** | 6 | -69.9 | no | no |
+| **6/5** | 6 | -69.9 | no | no |
+| **5/7** | 7 | -72.5 | no | no |
+| **7/5** | 7 | -72.5 | no | no |
+| **6/7** | 7 | -88.8 | no | no |
+| **7/6** | 7 | -88.8 | no | no |
+| **7/8** | 8 | -107.7 | no | no |
+| **8/7** | 8 | -107.7 | no | no |
+
+| I | structural A | structural regions | audible @ −40 dB | @ −60 dB |
+|---|---|---|---|---|
+| 0.9 | 8 | 13 | 3 | 5 |
+| 1.5 | 10 | 20 | 7 | 11 |
+| 2.0 | 12 | 28 | 11 | 15 |
+| 3.0 | 14 | 38 | 18 | 26 |
+
+**At I = 0.9 the thirteen regions are three.** Only 1/1, 3/4 and 4/3 fuse audibly at a −40 dB
+floor; 4/5 and 5/4 join at −60 dB; the rest — 5/6, 6/5, 6/7, 7/6, 7/8, 8/7 and 5/7 — are
+structurally fusing and inaudibly so.
+
+**Both tables are true and they answer different questions.** The structural field is what the
+lattice does; the audible field is what a player hears. A display that draws thirteen regions is
+drawing ten that no one can hear the boundary of.
+
+**The floor is not a free parameter, and it does not cancel out.** Moving from −40 to −60 dB
+changes the audible count by 40% — this was sealed as a robustness prediction and it **failed**,
+so any audible count must travel with the floor it was computed at. What the right floor is
+depends on masking in a dense spectrum and on the playback context, and is not settled here.
+`queue.py: audible-horizon-calibration` carries the proper measurement — an excitation-pattern
+masked-threshold census, then a 2AFC detune-twin discrimination against the instrument's own
+`setDetuneCents`, which is the listening test that would fix the floor empirically.
+
 ## The depth control subdivides it
 
 A = 2·order_bound(I), so raising the modulation index moves the horizon out and
