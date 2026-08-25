@@ -34,10 +34,29 @@ whose `k = 0` branch — `n₁ = n₁′ = −1`, `n₂ = −n₂′ = m`, givin
 other **for every α whatsoever, rational or irrational**. Measured (`brocot_theorem_scope.json`): it
 fires at every node, including **89/89** above the horizon at I = 3.0.
 
-> **So a predicate stated over folded values would be vacuous** — true of every ratio, therefore
-> incapable of distinguishing any. The ratio-dependent structure lives entirely in the direct
-> channel, which is what the horizon characterises. Verified under the split: the direct channel
+Running the *same* divisibility argument on that equation: with `a = 2 + n₁ + n₁′` and
+`b = n₂ + n₂′` it reads `a·q = −b·p`, so `gcd(p,q) = 1` forces `a = mp`, `b = −mq`. Two solution
+classes, and they behave completely differently:
+
+| class | content | horizon |
+|---|---|---|
+| **m = 0** | the universal family `+mα / −mα` | **none** — fires for every α, rational or irrational (measured: every node, **89/89** above the horizon at I=3.0) |
+| **m ≠ 0** | ratio-pinned | `|mq| ≤ 2B` and `|mp| ≤ 2B+2` — **the same horizon, shifted by +2 in p** |
+
+Measured (`brocot_theorem_scope.json`, T5): 10 / 17 / 25 / 34 nodes across I = 0.9 / 1.5 / 2.0 / 3.0
+carry an `m ≠ 0` reflected coincidence, and **every one** satisfies `q ≤ 2B` and `p ≤ 2B+2`.
+Worked example: `3/4` at B=4, the pair `(−3,3)` and `(−2,1)`, giving `a = −3`, `b = 4`, `m = −1`.
+
+> **So: the reflected channel's ratio-dependent coincidences obey the same horizon; its only
+> horizon-free content is the universal m = 0 family, which is vacuous.** A predicate stated over
+> folded values would be true of every ratio and therefore incapable of distinguishing any — which
+> is why the horizon is stated over the direct channel. Verified under the split: the direct channel
 > alone reproduces the horizon exactly at every node and every index.
+
+*An earlier draft said the reflected channel "carries no ratio-dependent information at all." That
+was a universal negative resting on a measurement of the universal-**positive** family only, and it
+is corrected above. The horizon result is untouched — the sharp-boundary exhibit and the 508/508
+verification both ran on the direct channel.*
 
 ### Proof
 
@@ -131,12 +150,23 @@ depends on that constant. Measured across two decades (`brocot_theorem_scope.jso
 
 **The ordering is ε-invariant; the thresholds are not** — they move roughly 3× across two decades,
 and the ladder's *membership* moves with them: at ε = 10⁻² even `14/11` needs I = 3.74, outside the
-spec's own 0.1–3.0 range. **The ordering is the exhibit; the absolute thresholds are convention.**
+spec's own 0.1–3.0 range.
+
+> **This retracts the stronger reading of the exhibit, explicitly.** The claim had two levels.
+> *(a)* The curated ratios are **ordered** by horizon depth — ε-invariant, and it survives in full.
+> *(b)* They **sit at horizon crossings inside the spec's own playable range** — ε-dependent, and it
+> does not survive: at ε = 10⁻² the third rung leaves the range entirely.
+>
+> **The retrodiction is the ordering.** That is still a blind test passed — the spec's list was
+> curated by ear years before any of this was computed — but at one level of abstraction up from
+> where it was first claimed. The absolute thresholds are convention.
 
 A perceptually-motivated ε would sit well above the default: `J₂(0.1) ≈ 0.00125` barely clears
 10⁻³, and a partial's amplitude is a *product* of Bessel terms, so a single surviving `J_n` does not
 make an audible partial. Choosing ε on hearing rather than on numerical convenience would shift
-every rung upward without reordering them.
+every rung upward without reordering them — **which leaves the membership question open rather than
+settled by the default ε.** Whether the audible ladder still lands inside 0.1–3.0 is measurable and
+unmeasured; it needs a listening-calibrated ε, not a numerical one.
 
 At the spec's typical I ≈ 0.9 only `4/3` and `3/4` can fuse under any ε tested. `43/34` needs
 `order_bound ≥ 22`, which the stated depth range never reaches at any ε — so it can be *played*,
