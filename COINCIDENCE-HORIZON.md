@@ -254,3 +254,31 @@ the path, but it does avoid its largest single jumps.
 
 Each generator was committed before its output, and every prediction scored — including the ones
 that missed, which is where §3 and the wording narrowing came from.
+
+---
+
+## Methodology note — the reconstruction ledger
+
+Twice in this document, an idealised reconstruction of the shipped lattice was written down before
+the checker was consulted. The ledger is worth keeping honest:
+
+| reconstruction | outcome |
+|---|---|
+| single-operator topology, forcing `q ≤ 2` via `n + m = −2p/q` | **wrong** — it contradicted the measured horizon; the shipped object is parallel FM with two modulators, and under that topology the divisibility argument runs clean |
+| the reflected `m ≠ 0` class being ratio-pinned on the same horizon | **right** — confirmed at 10 / 17 / 25 / 34 nodes across the four indices, every one obeying `q ≤ 2B`, `p ≤ 2B+2` |
+
+**The discipline was identical in both cases: the reconstruction is a hypothesis for the checker,
+never a correction to the document.** It produced the correct outcome both times regardless of which
+way the reconstruction went — and that is the property that makes it a rule rather than a habit.
+*It does not require the reconstructor to be right, only checkable.*
+
+The corresponding rule on the other side is `certifier imports the predicate`. It paid out twice
+here too: first catching that the idealised topology was not the shipped one, then that the unfolded
+checker was not the shipped frequency convention. Both times the divergence between the idealised
+model and the shipped object was exactly where the mathematics turned out to live.
+
+And one defect worth recording against this document specifically: the sentence *"the reflected
+channel carries no ratio-dependent information at all"* was a **universal negative resting on a
+measurement of the universal-positive family only**. The run that produced it had already collected
+the refuting data and buried it under a median. The structural fix is `existence.py` — an existence
+question now needs an existence statistic, typed at the reporting site rather than remembered.
