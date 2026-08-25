@@ -122,6 +122,67 @@ I=3.0  B=7   at the horizon (max==14): 11/14 ✓ 13/14 ✓ 14/13 ✓ 14/11 ✓
 
 ---
 
+## Corollary — operators at different indices
+
+The statement above assumes both modulators at the same index. A real patch does
+not, and the generalisation is not cosmetic: it introduces an asymmetry the
+symmetric form cannot express.
+
+Let the modulators sit at ratios r₁, r₂ with indices I₁, I₂, and write
+B₁ = order_bound(I₁), B₂ = order_bound(I₂). Scale so r₁ = 1 and α = r₂/r₁ = p/q
+in lowest terms.
+
+> **A direct coincidence is reachable ⟺ `p ≤ 2B₁` and `q ≤ 2B₂`.**
+
+*Necessity.* Two distinct index pairs coincide iff a + bα = 0 with a = n₁ − n₁′
+and b = n₂ − n₂′, so |a| ≤ 2B₁ and |b| ≤ 2B₂. Then aq + bp = 0, and gcd(p,q) = 1
+forces a = mp, b = −mq. The smallest admissible |m| is 1.
+
+*Sufficiency, witness re-derived.* The symmetric proof's witness survives, but
+only because **each half is checked against its own box** — and that is the step
+where "it obviously carries over" would have been wrong:
+
+```
+n1  =  ceil(p/2)     n1' = -floor(p/2)     n1  - n1'  =  p     [box 1, needs p <= 2B1]
+n2  = -floor(q/2)    n2' =  ceil(q/2)      n2  - n2'  = -q     [box 2, needs q <= 2B2]
+```
+
+`p ≤ 2B₁` gives ⌈p/2⌉, ⌊p/2⌋ ≤ B₁; `q ≤ 2B₂` gives the other pair box 2. Assign
+p's half to B₂ and the construction fails precisely when the boxes differ —
+which is the entire asymmetric case. ∎
+
+**Relabelling is invariant.** Calling the other operator "first" sends α → q/p
+and swaps B₁ ↔ B₂, giving the same condition. Nothing depends on the naming.
+
+**Moving the index is not**, and this is the physical content. Holding the two
+ratios fixed and moving the *higher index* to the other operator changes the
+condition from (p ≤ 2B₁, q ≤ 2B₂) to (p ≤ 2B₂, q ≤ 2B₁):
+
+| α | I = (0.9, 1.5) | I = (1.5, 0.9) |
+|---|---|---|
+| 1/9 | **fuses** | silent |
+| 2/9 | **fuses** | silent |
+| 3/10 | **fuses** | silent |
+
+**Which operator is driven harder matters.** 468 ratios flip across that line on
+the tested grid. The symmetric theorem cannot see this at all.
+
+### Verification
+
+`brocot_asymmetric_horizon.json` — exact enumeration over the full (n₁, n₂)
+grid in rational arithmetic, against the predicate, over every combination of
+I ∈ {0.9, 1.5, 2.0, 3.0}:
+
+| check | result |
+|---|---|
+| predicate vs exact enumeration | **4784/4784**, accuracy 1.0000 in all 16 cells |
+| sufficiency witness in-box and telescoping | 1250/1250 |
+| relabelling invariance | node by node |
+| asymmetric line non-empty | 468 ratios flip |
+
+The same footing as the symmetric theorem's 508/508. `MAP-FIELD.md`'s
+fusion-density column depends on this corollary and on nothing weaker.
+
 ## Why it matters for the instrument
 
 ### 1. It explains why complex ratios sound like noise
