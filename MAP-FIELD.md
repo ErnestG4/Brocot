@@ -85,7 +85,7 @@ they resolve differently.
 |---|---|
 | the parent lies below the horizon | **definitional** — the box forces `max(p,q) ≤ A`. Never evidence; the constraint restated. Kept as a wiring check. |
 | the parent is a Stern-Brocot ancestor | **theorem on α ∈ (1/A, A)** — in fact a *convergent*. Confirmed on 37 023 ratios across three populations and three horizons. |
-| ties select a convergent too | **empirical, n = 304** — Lagrange needs a strict minimum, so the tie case is unproved. It never failed. |
+| ties select a convergent too | **theorem** — `max(p,q)` is strictly increasing in q, so the tie-break selects the smallest-*q* minimiser and Lagrange applies. 545/545 over 546 exercised ties; three decoy tie-breaks select non-convergents at 0% / 2.4% / 2.4%, so the rule is load-bearing. |
 | α outside (1/A, A) | **boundary, characterised** — the parent degenerates to 0: no in-box ringing ratio, nearest lattice point is the carrier. |
 
 *Proof sketch.* Take a₂ > 0 and write q = a₂, p = −a₁, so the objective is
@@ -98,6 +98,27 @@ convergent lies on the Stern-Brocot descent to α. ∎
 So `332/332` was confirmation of a proof, not evidence for a rate. The
 distinction matters because it removes the boundary case someone would otherwise
 probe: the theorem says exactly where it stops, and what happens there.
+
+### The three descriptions agree
+
+The upgrade from *ancestor* to *convergent* is not a technicality. Convergents of
+a continued fraction are the canonical answer to "which simple ratio is this
+number nearest, for its size" — the object mathematics has used to resolve
+irrationals since the continued fraction existed, and the reason best
+approximation of the second kind is the right notion rather than plain
+closeness.
+
+So three independent descriptions of the same space turn out to coincide:
+
+* **the instrument's parameterisation** — `Operator.h` stores base rational ×
+  detune, chosen from the ear years ago;
+* **the ear's resolution** — the nearest ringing ratio plus a separation, which
+  is what the horizon and the gap measure;
+* **Lagrange's theorem** — the minimiser over a bounded denominator is a
+  convergent.
+
+Lagrange is now doing the display's correctness proof. The instrument was not
+merely built the way the space is organised; it was built by convergents.
 
 ### Not the nearest ancestor
 
