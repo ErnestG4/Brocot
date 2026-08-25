@@ -14,7 +14,11 @@ boundary with no fit, no aggregation and no free parameter.
 For Brocot's parallel-FM topology with modulators at ratios `1` and `α = p/q` (in lowest terms),
 both at modulation index `I`:
 
-> **A DIRECT sideband coincidence is reachable ⟺ max(p, q) ≤ 2·order_bound(I)**
+> **For two sine modulators, a DIRECT sideband coincidence is reachable
+> ⟺ max(p, q) ≤ 2·order_bound(I)**
+
+The two-operator sine qualifier is not a hedge — it is a **measured validity
+boundary with a mechanism**, and it has its own section below.
 
 `order_bound(I)` is already in the codebase — `phase3/partial_prediction.py`, the largest `|n|` with
 `|J_n(I)| > ε`. So the boundary costs nothing new to compute. **ε is load-bearing and is treated
@@ -331,6 +335,69 @@ That last row is the important one. **It is the same insight, un-quantified** �
 **Absence of evidence is not evidence of absence, and the gap is specific.** Web search cannot read inside CMJ 1(4) 1977 or Truax's monograph, which are print and paywalled. **Truax 1977 is the single most likely place for this to already exist** — it is the work that organises C:M ratios by Farey sequence, which is precisely the structure the horizon cuts. Anyone with that text should check it before the claim is repeated.
 
 The result stands on its verification either way. What would change is the framing: *newly derived* versus *re-derived, and now measured*.
+
+---
+
+## The validity boundary — where the theorem stops, and why
+
+**Measured 2026-08-24, `brocot_horizon_extensions.json`.** The theorem was derived
+and verified entirely at N = 2 sine modulators. The shipped instrument is not
+mostly that: `landscape_graph_16mix` carries **n_ops = 16** with active counts
+running roughly uniformly from 1 to 16, and `Operator.h` ships **five waveforms**
+while the analysis is sine-only. So the boundary had to be measured before the
+result became a feature.
+
+### More operators dissolve it — and the mechanism says why
+
+| operators | above-horizon ratio sets that coincide anyway |
+|---|---|
+| **N = 2** | **4.7%** — the horizon predicts |
+| N = 3 | 17.3% |
+| N = 4 | 44.5% |
+| N = 5 | **65.9%** — it predicts nothing |
+
+**The mechanism is dimensional.** A coincidence needs Σ aᵢrᵢ = 0, whose solution
+lattice has dimension **N − 1**. At N = 2 that is a single line, which the box can
+miss — *and the miss is the horizon.* By N ≥ 4 the solution space is a plane or
+larger and a nonzero solution inside the box is generic.
+
+That argument does double duty: it explains **why the theorem exists at all** —
+only the two-operator case has codimension enough to exclude solutions — and it
+**predicts the shape of the failure**, monotone in N, which the series confirms.
+
+### A richer waveform extends it, modestly
+
+Ratio-pinned coincidences, with the universal family quotiented out:
+
+| wave | harmonics | ratios ringing | largest max(p,q) |
+|---|---|---|---|
+| sine | [1] | 13 / 90 | **8** |
+| triangle | [1,3,5] | 17 / 90 | **11** |
+| square | [1,3,5,7] | 17 / 90 | 11 |
+| saw | [1,2,3,4] | 17 / 90 | 11 |
+
+A harmonic stack reaches further in the α direction, so the horizon moves 8 → 11 —
+a real extension, not a dissolution.
+
+> **A first run reported 90/90 ringing under every non-sine wave.** That was a
+> false positive: a harmonic stack cancels against *itself* — with [1,3,5],
+> a₁ = 3 and a₂ = −1 give 3α − 1·(3α) = 0 for **any** α. Third instance of the
+> universal-family defect, now quotiented centrally in `ratiopinned.py`, which
+> ships the irrational-α red path: at 1/φ the pinned count must be zero.
+
+### What this means for the instrument
+
+**The honest statement is not "an exact law of the instrument" but "an exact law
+of the two-operator sine core, with a measured dissolution profile as operators
+are added."** That is also the correct engineering statement: the horizon
+annotation must check the patch configuration and show only where the theorem
+holds — exact at two sine operators, extended-but-modest for harmonic waves,
+**absent at N ≥ 4** — stated in the interface rather than discovered by a player
+on a twelve-operator patch.
+
+*One prediction is scored as missed and stays that way:* the seal said >50% at
+N = 4 and it read 44.5%. The crossing is between N = 4 and N = 5. The trend is
+the finding; the miss is the score; both are true.
 
 ---
 
