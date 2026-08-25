@@ -25,6 +25,15 @@ asserts every claim below and fails its run if any is false. Field data:
 > `COINCIDENCE-HORIZON.md`. The fusion-density column depends on it and on
 > nothing weaker.
 >
+> **Fusion density is a function of the stored operator ORDER**, not of the
+> ratio multiset alone: 6.1% of the shipped map's 1,139,612 enabled pairs change
+> verdict when the two indices are exchanged, and 64.0% of nodes would change
+> value. The order is stored, so the field is well defined — but it is not the
+> invariant a reader would assume, and a patch reordered without moving indices
+> is a different patch to this column. The map carries **no routing convention**
+> (alignment 0.4995 ± 0.0037), so the column is unbiased and needs no
+> conditioning caveat — only this well-definedness note.
+>
 > **α ∈ (1/A, A).** Outside that the parent degenerates: no in-box ringing ratio
 > exists and the nearest lattice point is the carrier itself. brocot's [0.70,
 > 1.40] sits deep inside (1/8, 8), but the display needs the degenerate category
