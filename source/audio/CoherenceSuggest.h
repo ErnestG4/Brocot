@@ -35,16 +35,27 @@ namespace brocot::coherence
     defines the instrument by, **99.7–100%**. The criterion is essentially
     always wrong exactly where the instrument lives.
 
-    WHAT IS AND IS NOT ESTABLISHED. That census measured this implication only.
-    It did not call Coherence.h's score and did not evaluate the topN a caller
-    actually sees, so whether the RANKING inherits the defect is open
-    (criticality_tool queue.py: suggest-score-census). Do not read the numbers
-    above as a measurement of the recommendations; they are a measurement of the
-    justification this comment used to give for them.
+    THE RANKING DOES INHERIT IT — settled 2026-08-25, and the answer went the
+    way this comment did not expect (brocot_suggest_score_census.json).
+    Coherence.h bins partials at 12 cents, which looked like it might make the
+    score a NEAR-coincidence detector the horizon has no jurisdiction over. It
+    does not: **64.9%** of the energy the score counts as "shared" comes from
+    partials that are EXACTLY equal. So the horizon governs this ranking.
 
-    KNOWN GAP: suggestExtensions takes `newIndex` for the candidate and never
-    consults the indices of `current`, while the horizon depends on both. A
-    reachability filter would need them.
+    Consequences, measured over 300 sampled patches:
+      - **57.7%** of top-1 suggestions cannot coincide with ANY operator
+        already in the patch.
+      - A horizon-reachability filter changes the shipped top-4 substantially:
+        mean Jaccard **0.329**.
+
+    So a reachability filter is warranted, not merely tidy. It needs the indices
+    of `current`, which this function does not currently receive.
+
+    KNOWN GAP, now load-bearing: suggestExtensions takes `newIndex` for the
+    candidate and never consults the indices of `current`, while the horizon
+    depends on both. The filter above cannot be written until they are passed
+    in. (The auditing cell committed this same index-blindness on its first run
+    and caught it; it is an easy mistake to make twice.)
 
     Pure + header-only so the recommendation is unit-testable independently of
     any navigator UI. STRUCTURAL only (§4.1): a recommendation about spectral
