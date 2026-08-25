@@ -20,6 +20,11 @@ asserts every claim below and fails its run if any is false. Field data:
 > **Direct (unfolded) channel, two sine modulators, ε = 1e-3** — the horizon's
 > own scope, inherited unchanged. See `COINCIDENCE-HORIZON.md`.
 >
+> **Per-operator indices** use the asymmetric corollary, `p ≤ 2B(I₁)` and
+> `q ≤ 2B(I₂)` — proved and verified at 4784/4784 exact in
+> `COINCIDENCE-HORIZON.md`. The fusion-density column depends on it and on
+> nothing weaker.
+>
 > **α ∈ (1/A, A).** Outside that the parent degenerates: no in-box ringing ratio
 > exists and the nearest lattice point is the carrier itself. brocot's [0.70,
 > 1.40] sits deep inside (1/8, 8), but the display needs the degenerate category
@@ -264,8 +269,43 @@ they point the same way: **organise around basins, not around the ratio axis.**
    needs a state for "nothing to be near" rather than reporting a nearest ratio
    it does not have.
 
+5. **Beat-rate targeting is a control, because the separation inverts.** For a
+   parent p/q and a target of δ Hz,
+
+   ```
+   sep_Hz = f_c * r1 * gap        ->        alpha = (p +/- delta/(f_c*r1)) / q
+   ```
+
+   "Give me a 3 Hz beat against 4/3" is solved, not searched. Two things the
+   implementation must carry, both verified in `brocot_beat_target.json`
+   (89/89 round-trip to 1e-9, basin membership checked independently of the
+   solver): the **unit** — the same formula without `f_c·r1` is in lattice
+   units and off by a factor of 220 at concert A — and a **basin refusal**, so
+   a target that lands under a different parent fails loudly. It fires earlier
+   than intuition suggests: 12 Hz against 8/7 already lands under 7/6.
+
+   The perceptual footing here is *better* than the event ticks'. A 3 Hz beat
+   is a dynamic amplitude modulation, squarely audible; the marker gate could
+   not claim audibility because it measured a **static** event at 0.67× a
+   one-cent detune. This control lives in the regime that gate could not reach.
+
+6. **`CoherenceSuggest`'s stated criterion is false, and measurably so.** Its
+   docstring rests on *shared prefix ⇒ coincident sideband combs*. Censused
+   against the corollary: **97.5%** of the candidates the shipped engine
+   enumerates at I = 0.9 share a prefix and cannot coincide — and the
+   near-unity stratum, the instrument's own regime, is **worse at 99.7–100%**,
+   because near-unity ratios carry large p and q so a single extension clears
+   the horizon. The engine is also index-blind on the base side, while the
+   horizon depends on the index.
+
+   Scope, because the number is large enough to be misread: this measures the
+   docstring's implication, not `Coherence.h`'s score, which the census never
+   calls. **A docstring rewrite is owed on this evidence; a ranking rewrite is
+   not, until the score itself is censused** (`queue.py: suggest-score-census`).
+
 None of this touches the audio thread. The field is offline, the argmin is 289
-integer operations, and the redraw is a map-side concern.
+integer operations, the inversion is closed-form, and the redraw is a map-side
+concern.
 
 ## Open
 
