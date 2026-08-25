@@ -298,11 +298,23 @@ units, so a marker event is **0.67×** a change nobody can hear.
 | `brocot_useful_depth.json` | the theorem, 508/508 |
 | `brocot_horizon_perceptual.json` | above-horizon nodes remain audibly distinct |
 | `brocot_ratio_sensitivity.json` | timbral gradient 12× non-uniform across the range |
-| `brocot_linear_morph.json` | reweighting does not linearise; the space is punctuated |
+| `brocot_linear_morph.json` | reweighting does not linearise on **u**; the space is punctuated |
+| `brocot_linear_morph_erb.json` | **nor on ERB** — reduction 0.99× against a 3× bar, worst step 0.315 → 0.732. The punctuation is coordinate-general, not an artefact of the statistic |
+| `brocot_horizon_resolution.json` | the punctuation is scale-free across I = 0.9 → 3.0 |
+| `brocot_marker_erb_gate.json` | markers separate **16.1×** in ERB — sharper than u's 2.1× — but at **0.67×** a 1-cent detune. Structural, not established as audible; this is what gates the caption |
 | `brocot_musical_depth.json` | all of the above measured at the instrument's own indices |
+| `brocot_dissolution_curve.json` | the validity boundary: coincidence rate crosses 0.9 by N = 7 |
+| `brocot_above_horizon.json` | above the horizon every ratio has a positive gap; 79.2% separate by under 20 Hz |
+| `brocot_above_horizon_parent.json` | the taxonomy: each is nearest to one below-horizon rational |
+| `brocot_parent_theorem.json` | that nearest rational is a **convergent** — theorem on α ∈ (1/A, A), 37 023 ratios |
+| `brocot_tie_lemma.json` | the tie case too, with three decoy tie-breaks firing — no empirical residue |
+| `brocot_two_layer_field.json` | the map field: regions, events, five assertions at every I |
 
 Each generator was committed before its output, and every prediction scored — including the ones
-that missed, which is where §3 and the wording narrowing came from.
+that missed, which is where §3, the wording narrowing, and the coordinate-general form of the
+punctuation claim all came from. The full arc, including cells not load-bearing for this
+document, is on the board via `criticality_tool/verify_all.py`; queued and landed threads are
+tracked in `criticality_tool/queue.py`.
 
 ---
 
