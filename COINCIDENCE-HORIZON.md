@@ -164,8 +164,14 @@ condition from (p ≤ 2B₁, q ≤ 2B₂) to (p ≤ 2B₂, q ≤ 2B₁):
 | 2/9 | **fuses** | silent |
 | 3/10 | **fuses** | silent |
 
-**Which operator is driven harder matters.** 468 ratios flip across that line on
-the tested grid. The symmetric theorem cannot see this at all.
+**Which operator is driven harder matters.** On the tested grid there are **234
+(ratio, index-pair) flips across 78 distinct ratios**. The symmetric theorem
+cannot see this at all.
+
+*(An earlier draft said "468 ratios flip". That figure counted each flip twice —
+once under (I₁, I₂) and once under (I₂, I₁) — and then read the event count as a
+ratio count. Corrected after adversarial review; the existence conclusion is
+unaffected.)*
 
 ### Swap non-invariance is the reason to have the asymmetric form
 
@@ -184,7 +190,7 @@ Measured against the shipped map (`brocot_index_routing.json`, 30k patches,
 | nodes whose fusion density would change | **64.0%** |
 | median change in fusion density | 0.0220 |
 | alignment rate among swap-sensitive pairs | 0.4995 ± 0.0037 |
-| higher index on the larger ratio | 0.5003 ± 0.0009 (z = +0.64) |
+| higher index on the larger ratio | 0.5003 ± 0.0009 (z = +0.59) |
 
 So the effect **reaches the instrument** and **carries no convention**: the map
 is unbiased on both readings, to within a coin flip at n > 10⁶.
@@ -210,7 +216,7 @@ I ∈ {0.9, 1.5, 2.0, 3.0}:
 | predicate vs exact enumeration | **4784/4784**, accuracy 1.0000 in all 16 cells |
 | sufficiency witness in-box and telescoping | 1250/1250 |
 | relabelling invariance | node by node |
-| asymmetric line non-empty | 468 ratios flip |
+| asymmetric line non-empty | 234 flips across 78 distinct ratios |
 
 The same footing as the symmetric theorem's 508/508. `MAP-FIELD.md`'s
 fusion-density column depends on this corollary and on nothing weaker.
