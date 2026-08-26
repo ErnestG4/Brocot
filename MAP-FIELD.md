@@ -260,6 +260,41 @@ drawing ten that no one can hear the boundary of.
 > Recorded rather than repaired away, because a fixed cell and a valid seal are
 > different facts. See `exposure_audit.json`.
 
+### Under masking, it is one
+
+The −40/−60 dB floors above are chosen numbers. Deriving the floor instead —
+a partial is audible when it stands above the masking its neighbours produce
+inside the same Glasberg-Moore auditory filter, and a coincidence is audible
+when **both** its witness partials do (`brocot_masked_horizon.json`):
+
+| I | structural regions | audible @ −40 dB | **above masking** |
+|---|---|---|---|
+| 0.9 | 13 | 3 | **1** |
+| 1.5 | 20 | 5 | 1 |
+| 2.0 | 28 | 9 | 0–2 |
+| 3.0 | 38 | 15 | 0–3 |
+
+**At I = 0.9 only the unison coincidence clears threshold.** 1/1's witnesses sit
+at +10.7 dB signal-to-masker; 3/4's at −21 to −34 dB; 4/5's at −34 to −51 dB.
+The derived criterion is also far stabler than the chosen one — 0% change across
+12 dB of margin, where the dB floor moved 40% across 20 dB — but it is sensitive
+to the auditory filter's assumed width, which is why I ≥ 2 is given as a range.
+At I = 0.9 the answer holds (1–2) across a fourfold width change.
+
+> **What this bounds, and what it does not.** It bounds the audibility of
+> **exact coincidence** — as a perceptual object, the horizon at this
+> instrument's own index nearly collapses to 1/1. It says nothing about the
+> theorem, which is arithmetic; nothing about the parent taxonomy, which is
+> about *near*-coincidence; and nothing about the separation coordinate, which
+> is a **beat** — a dynamic modulation at gap·f_c Hz, not a static partial
+> competing for an auditory filter. A 3 Hz beat is squarely audible in a regime
+> static masking has no jurisdiction over.
+>
+> The practical reading: **the structural field organises the space; what a
+> player hears moving through it is the beat, not the merge.** The region fills
+> are a map of where you are, not a promise that each boundary is audible as a
+> fusion event.
+
 **The floor is not a free parameter, and it does not cancel out.** Moving from −40 to −60 dB
 changes the audible count by 40% — this was sealed as a robustness prediction and it **failed**,
 so any audible count must travel with the floor it was computed at. What the right floor is
