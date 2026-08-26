@@ -244,6 +244,22 @@ structurally fusing and inaudibly so.
 lattice does; the audible field is what a player hears. A display that draws thirteen regions is
 drawing ten that no one can hear the boundary of.
 
+> **Disclosure — this table's seal was vacuous when it was first published.**
+> The cell that produced it designated two arms as its existence tests, and an
+> adversarial review of the guard machinery later showed **both were inert**:
+> one bounded a fraction by 1.0 against a ceiling of 1.0, the other bounded a
+> count by 13 against a ceiling of 13 — off by one from the claim it meant to
+> make. Neither could have failed, so the cell as sealed could not have failed
+> to find a shrinkage.
+>
+> What that does and does not affect: the **counts are computations** and depend
+> on no bar — 3 of 13 at −40 dB is arithmetic over Bessel products. What was
+> uncertified was the *claim* that they constitute a shrinkage. A third arm
+> (23.1% of ratios audible at −40 dB, against a bar of 50% on a [0, 1] range) is
+> live and does certify it, and the verdict now rests on that arm alone.
+> Recorded rather than repaired away, because a fixed cell and a valid seal are
+> different facts. See `exposure_audit.json`.
+
 **The floor is not a free parameter, and it does not cancel out.** Moving from −40 to −60 dB
 changes the audible count by 40% — this was sealed as a robustness prediction and it **failed**,
 so any audible count must travel with the floor it was computed at. What the right floor is
