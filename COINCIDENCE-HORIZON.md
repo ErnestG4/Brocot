@@ -171,7 +171,13 @@ cannot see this at all.
 *(An earlier draft said "468 ratios flip". That figure counted each flip twice —
 once under (I₁, I₂) and once under (I₂, I₁) — and then read the event count as a
 ratio count. Corrected after adversarial review; the existence conclusion is
-unaffected.)*
+unaffected, and the corollary survives at half the magnitude: routing is still a
+fusion parameter and 78 ratios still flip on index assignment alone.*
+*The doubled figure passed two reviewers before an adversarial pass caught it,
+which is the lesson worth keeping: **a count whose unit is not stated beside it
+will be read in whichever unit flatters it.** "468" was true of ordered
+(ratio, index-pair) events and false of everything a reader would assume it
+meant. Counts in this document now carry their unit.)*
 
 ### Swap non-invariance is the reason to have the asymmetric form
 
