@@ -356,6 +356,17 @@ boundary is audible; it is specifically where nothing happens.
 
 ## What this changes about the instrument
 
+> **Read this list in the order masking left it.** Before Stage A, the region
+> field looked like the headline and beat-rate targeting like a bonus control.
+> That is now inverted. Static merges are audible at essentially one ratio
+> (1/1) at the instrument's own index; the **beat** is a dynamic modulation at
+> gap·f_c Hz, squarely audible, and lives in the one regime whose audibility
+> was never in question. **Item 5 is the primary perceptual deliverable of the
+> whole horizon programme.** The field organises the space; the beat is what a
+> player hears moving through it. Items 1–4 remain right, as *navigation* —
+> where you are and what you are near — rather than as promises that each
+> boundary is audible as a fusion event.
+
 The field is a readout, but three of its properties are design constraints, and
 they point the same way: **organise around basins, not around the ratio axis.**
 
@@ -383,7 +394,8 @@ they point the same way: **organise around basins, not around the ratio axis.**
    needs a state for "nothing to be near" rather than reporting a nearest ratio
    it does not have.
 
-5. **Beat-rate targeting is a control, because the separation inverts.** For a
+5. **Beat-rate targeting — the primary perceptual deliverable, because the
+   separation inverts.** For a
    parent p/q and a target of δ Hz,
 
    ```
