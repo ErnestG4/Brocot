@@ -537,6 +537,42 @@ structure, so an even-suppression knob changes timbre without moving a single
 ratio in or out of the ringing set. Orthogonality is the result here, not the
 absence of one: it means the two axes can be designed independently.
 
+**Checked through the sweep, not only at its ends** (`brocot_double_pulse_sweep.json`).
+The endpoint test could not distinguish "parity is irrelevant" from "the two
+endpoints happen to agree", since an intermediate double pulse has the same
+harmonic *support* as a saw and only its amplitudes differ. Writing the mixture as
+`f(t) = p(t) − β·p(t − T/2)`, the coefficients are `Fₙ = Pₙ·(1 − β(−1)ⁿ)` — odd
+harmonics scale by (1+β), even by (1−β) — and sweeping β from 0 to 1:
+
+| | |
+|---|---|
+| even-harmonic level swing across β | **20.0 dB** |
+| ratios moved in or out of the ringing set | **0**, at every β including 1 |
+| coincidences that become audible at any β | **0**, at both filter widths |
+
+A control with a 20 dB reach that moves no ratio at all. That is as clean a
+separation of axes as this document has measured.
+
+### The oscilloscope shows period-lock, not fusion
+
+Fritz's technique is *time-domain first*: you place pulses and the spectral
+consequence follows exactly. FM is the reverse — you set ratio and index and the
+spectrum follows, while the waveform's shape does not. That is why a double pulse
+can be frozen on a scope and sliced by hand in a way an FM patch cannot, and it
+is a genuine second handle on the same sound.
+
+But the trace and the horizon are **different structures over the same rational**,
+and a visual feature could easily imply one while showing the other. A scope
+triggered on the carrier freezes when the composite repeats, which for α = p/q is
+**q carrier cycles** — governed by the denominator alone. The horizon is governed
+by `max(p, q)` against 2B. Measured across the ratios in range: ringing ratios
+span **10 distinct denominators**, and **five of them — 7, 8, 9, 10, 11 — also
+appear among ratios that do not ring**.
+
+> So a ratio with q = 9 may ring or not, and the frozen trace cannot tell you
+> which. **A scope display shows period-lock complexity; it does not show fusion,
+> and must not be captioned as if it did.**
+
 > **A first run reported 90/90 ringing under every non-sine wave.** That was a
 > false positive: a harmonic stack cancels against *itself* — with [1,3,5],
 > a₁ = 3 and a₂ = −1 give 3α − 1·(3α) = 0 for **any** α. Third instance of the
