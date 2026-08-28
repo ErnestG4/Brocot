@@ -32,6 +32,33 @@ namespace brocot::coherence
 
     STRUCTURAL, not literal (§4.1): this measures spectral coincidence, an
     organizing/annotation quantity. It is not a claim that a note "is a band".
+
+    GENERATIVE MODEL — CORRECTION, 2026-08-27. The rationale above says "each is
+    its own Bessel expansion around the carrier", i.e. the spectrum is a SUM of
+    N independent combs. For SIMULTANEOUS modulators that is not the spectrum
+    this engine produces. The true spectrum is a PRODUCT lattice, at
+    f_carrier*(1 + n1*r1 + n2*r2 + ...) with energy J_n1(I1)*J_n2(I2)*..., and
+    the comb model keeps only the lattice points where every OTHER index is
+    zero. The omitted cross-partials carry (1 - J0(I)^2)^2 of the total energy
+    at matched indices — verified by formula and by direct lattice summation:
+
+        I = 0.9  ->  12.1%        I = 1.5  ->  54.5%        I = 2.0  ->  90.2%
+
+    So at I >= 1.5 this score is computed over a minority of the spectrum. At
+    the spec's own typical I ~ 0.9 it is a fair first-order proxy.
+
+    WHETHER THE RANKING INHERITS THIS IS UNRESOLVED, and deliberately not
+    overstated. Scoring the same candidates on the true lattice — with "shared"
+    given the horizon's meaning, a bin holding two or more DISTINCT index
+    vectors — changes the top-4 at Jaccard 0.517, 95% CI [0.468, 0.566]. The
+    0.50 bar sits inside that interval, so the measurement separates the two
+    rankings from neither "unchanged" nor "different". About 1,170 sampled
+    cases would resolve it; 140 do not
+    (criticality_tool/cross_substrate/brocot_coherence_model.json).
+
+    So: this comment is corrected because the model is provably wrong. No C++ is
+    changed, because the arm that would warrant a change is unresolved rather
+    than negative.
 */
 
 struct OpSpec
