@@ -496,6 +496,47 @@ Ratio-pinned coincidences, with the universal family quotiented out:
 A harmonic stack reaches further in the α direction, so the horizon moves 8 → 11 —
 a real extension, not a dissolution.
 
+> **Corrected 2026-08-27 (`brocot_waveform_parity.json`). That table is right and
+> the sentence under it was wrong twice.**
+>
+> **The extension is asymmetric.** A stack sits on the *modulator*, so it extends
+> the modulator's own side of the condition and nothing else. Across sine,
+> triangle, square and saw the maximum ringing **numerator** is 8 in every case —
+> the sine value 2B — while the denominator grows. Triangle adds exactly four
+> ratios, 7/10, 8/11, 7/9, 8/9, every one with numerator ≤ 8; and α = 11/8 does
+> **not** ring under any stack. This is the asymmetric corollary again, reached
+> from a different direction.
+>
+> **And "11" is brocot's window, not the waveform's.** With p ≤ 8 and p/q ≥ 0.70,
+> q cannot exceed 11.4 — so 11 is where the *ratio range* stops, not where the
+> harmonics do. Widen the range down to [0.20, 1.40] and sine still caps at
+> q = 8 while triangle reaches **q = 39**, the enumeration limit. The honest
+> statement is `p ≤ 2B` and `q ≤ 2B·Σh`, of which "8 → 11" is one window's view.
+>
+> **Parity is irrelevant.** Stacks matched on Σh but differing in parity content —
+> [1,3,5] against [1,2,6] against [1,4,4] — ring on **identical** ratio sets,
+> symmetric difference 0 on every pair. Only the *extent* of the stack matters,
+> never which harmonics it contains. So an odd-only waveform is not a
+> horizon-relevant object, and a control that suppresses even harmonics is
+> **orthogonal to everything this document proves**.
+
+### Even-harmonic suppression is orthogonal, and that makes it safe
+
+Ian Fritz's [Double-Pulse Waveform Generator](https://ijfritz.byethost4.com/sy_cir5.htm)
+builds a waveform from a positive pulse and a negative pulse half a period apart.
+That gives half-wave antisymmetry, `f(t + T/2) = −f(t)`, so the even harmonics of
+the two pulses cancel and only odd ones survive — and the timbre control sweeps
+*continuously* between a single pulse (all harmonics) and the antisymmetric
+double pulse (odd only), which is a spectral axis discrete waveform selection
+cannot reach.
+
+brocot has `Wave { Sine, Triangle, Saw, Square, Pulse }` — triangle and square are
+odd-only, saw is not — but no continuous control between them. The measurement
+above says adding one would be **safe**: parity does not touch the coincidence
+structure, so an even-suppression knob changes timbre without moving a single
+ratio in or out of the ringing set. Orthogonality is the result here, not the
+absence of one: it means the two axes can be designed independently.
+
 > **A first run reported 90/90 ringing under every non-sine wave.** That was a
 > false positive: a harmonic stack cancels against *itself* — with [1,3,5],
 > a₁ = 3 and a₂ = −1 give 3α − 1·(3α) = 0 for **any** α. Third instance of the
