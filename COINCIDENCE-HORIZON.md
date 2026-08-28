@@ -553,6 +553,26 @@ harmonics scale by (1+β), even by (1−β) — and sweeping β from 0 to 1:
 A control with a 20 dB reach that moves no ratio at all. That is as clean a
 separation of axes as this document has measured.
 
+> **Two warrants, at two different layers — do not compress them into one.**
+>
+> **Structural, and unconditional.** The ringing predicate sees a stack's
+> *support*, never its amplitudes. β changes amplitudes and leaves support
+> untouched (until β = 1 exactly, where the support shrinks to odd-only and the
+> set still does not move, because only *extent* matters). This is theorem-grade:
+> it holds for any pulse width, any carrier, any listener.
+>
+> **Audibility, and σ-conditional.** "No coincidence becomes audible at any β" is
+> a *measurement* under the masking model, and that model's auditory-filter width
+> is not yet settled — it is what Stage B is for. The null held at both widths
+> tested, so it will very likely survive; but it is downstream of σ like
+> everything else that came out of Stage A, and it is not proved the way the
+> structural half is.
+>
+> The compression to guard against is **"parity can't matter."** It cannot matter
+> to the *ringing set*. It can and does matter to amplitudes, and anywhere
+> amplitude does the work — masking, audibility, timbre — parity is exactly the
+> thing being controlled. That is the point of the knob.
+
 ### The oscilloscope shows period-lock, not fusion
 
 Fritz's technique is *time-domain first*: you place pulses and the spectral
