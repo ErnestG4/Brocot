@@ -191,6 +191,7 @@ if(BROCOT_BUILD_TESTS)
         tests/FilterLFOTests.cpp
         tests/BesselTests.cpp
         tests/HorizonTests.cpp
+        tests/MapFieldTests.cpp
         tests/DepthRatioTests.cpp
         tests/PresetRoundtripTests.cpp
         tests/PresetFamilyTests.cpp
