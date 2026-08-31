@@ -188,6 +188,7 @@ void BrocotAudioProcessor::cacheParameterPointers()
         pp.keyScale = apvts.getRawParameterValue (params::opId (i, "keyScale"));
         pp.waveform = apvts.getRawParameterValue (params::opId (i, "waveform"));
         pp.duty     = apvts.getRawParameterValue (params::opId (i, "duty"));
+        pp.evensup  = apvts.getRawParameterValue (params::opId (i, "evensup"));
     }
     op0FeedbackParam = apvts.getRawParameterValue (params::opId (0, "feedback"));
 }
@@ -222,7 +223,7 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
     // re-reading it per voice. This also keeps the read off the id-string path
     // entirely — no allocation on the audio thread.
     struct OpSnap { bool enabled; float ratio; float detune; float depth;
-                    float keyScale; int waveform; float duty; };
+                    float keyScale; int waveform; float duty; float evensup; };
     std::array<OpSnap, params::kNumOperators> snap {};
     for (int i = 0; i < params::kNumOperators; ++i)
     {
@@ -251,6 +252,7 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
         s.waveform = (pp.waveform != nullptr)
                          ? (int) std::lround (pp.waveform->load()) : 0;
         s.duty     = (pp.duty != nullptr) ? pp.duty->load() : 0.25f;
+        s.evensup  = (pp.evensup != nullptr) ? pp.evensup->load() : 0.0f;
     }
 
     // Single-op self-feedback lives on op 1 (index 0) only — the topology the
@@ -277,6 +279,7 @@ void BrocotAudioProcessor::applyParametersToAllVoices()
                 op.setKeyScale (s.keyScale);
                 op.setWaveform (s.waveform);
                 op.setDuty (s.duty);
+                op.setEvenSuppression (s.evensup);
             }
         }
 

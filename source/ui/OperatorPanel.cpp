@@ -115,6 +115,17 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
                            "duty)|."));
     dutyAttach = std::make_unique<SliderAttach> (
         apvts, params::opId (opIndex, "duty"), dutySlider);
+
+    // Even-harmonic suppression (double-pulse β) — pulse-only, like duty.
+    addAndMakeVisible (evenSupSlider);
+    evenSupSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    evenSupSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    evenSupSlider.setTooltip (juce::CharPointer_UTF8 ("Even-harmonic suppression (double-pulse \xce\xb2): "
+                              "0 = plain pulse, 1 = odd harmonics only. Sweeps ~20 dB of "
+                              "even-harmonic level and moves no ratio in or out of the "
+                              "ringing set \xe2\x80\x94 a pure parity/timbre axis."));
+    evenSupAttach = std::make_unique<SliderAttach> (
+        apvts, params::opId (opIndex, "evensup"), evenSupSlider);
     waveformCombo.onChange = [this] { updateDutyEnabled(); };
     updateDutyEnabled();
 
@@ -201,7 +212,9 @@ void OperatorPanel::mutatePath (const std::function<juce::String (const juce::St
 void OperatorPanel::updateDutyEnabled()
 {
     // Index 4 = "pulse" in the waveform choice (see ParameterTree.cpp).
-    dutySlider.setEnabled (waveformCombo.getSelectedItemIndex() == 4);
+    const bool isPulse = waveformCombo.getSelectedItemIndex() == 4;
+    dutySlider.setEnabled (isPulse);
+    evenSupSlider.setEnabled (isPulse);
 }
 
 void OperatorPanel::timerCallback()
@@ -246,7 +259,8 @@ void OperatorPanel::resized()
     {
         auto topRow = r.removeFromTop (18);
         waveformCombo.setBounds (topRow.removeFromRight (46));   // right of the toggle
-        dutySlider.setBounds (topRow.removeFromRight (44).reduced (2, 1));
+        dutySlider.setBounds (topRow.removeFromRight (34).reduced (2, 1));
+        evenSupSlider.setBounds (topRow.removeFromRight (34).reduced (2, 1));
         enabledToggle.setBounds (topRow);
     }
     r.removeFromTop (4);

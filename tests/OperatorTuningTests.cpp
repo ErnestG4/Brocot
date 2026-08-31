@@ -269,3 +269,56 @@ TEST_CASE ("feedback=0 reproduces the pure-sine path exactly")
         REQUIRE (clean.processSample (220.0f, invSR)
                      == Approx (fbZero.processSample (220.0f, invSR)));
 }
+
+// ----------------------------------------------------------------------------
+// Double-pulse even suppression (COINCIDENCE-HORIZON.md, brocot_double_pulse)
+// ----------------------------------------------------------------------------
+
+TEST_CASE ("evenSup = 0 is the old pulse bit-exactly", "[Operator]")
+{
+    for (float t = 0.0f; t < 1.0f; t += 0.013f)
+        for (float duty : { 0.05f, 0.25f, 0.5f })
+            REQUIRE (Operator::wave (Operator::Wave::Pulse, t, duty, 0.0f)
+                     == Operator::wave (Operator::Wave::Pulse, t, duty));
+}
+
+TEST_CASE ("evenSup = 1 is half-wave antisymmetric", "[Operator]")
+{
+    // f(t + T/2) == -f(t): the property that cancels the even harmonics.
+    for (float t = 0.0f; t < 1.0f; t += 0.017f)
+    {
+        const float a = Operator::wave (Operator::Wave::Pulse, t,        0.25f, 1.0f);
+        const float b = Operator::wave (Operator::Wave::Pulse, t + 0.5f, 0.25f, 1.0f);
+        REQUIRE (a == Catch::Approx (-b).margin (1e-6f));
+    }
+}
+
+TEST_CASE ("evenSup scales even harmonics by (1-b)/(1+b) and holds odd", "[Operator]")
+{
+    // 1024-point DFT of one cycle at duty 0.25. Fn = Pn * (1 - b*(-1)^n),
+    // normalised by (1+b): odd harmonics hold level, even scale by
+    // (1-b)/(1+b) — the doc's formula, checked through the sweep, not only
+    // at its ends.
+    constexpr int N = 1024;
+    auto mag = [] (float beta, int harmonic)
+    {
+        double re = 0.0, im = 0.0;
+        for (int i = 0; i < N; ++i)
+        {
+            const float t = (float) i / (float) N;
+            const float s = Operator::wave (Operator::Wave::Pulse, t, 0.25f, beta);
+            re += s * std::cos (2.0 * juce::MathConstants<double>::pi * harmonic * t);
+            im += s * std::sin (2.0 * juce::MathConstants<double>::pi * harmonic * t);
+        }
+        return std::sqrt (re * re + im * im) / N;
+    };
+
+    for (float beta : { 0.25f, 0.5f, 0.75f })
+    {
+        const double expected = (1.0 - beta) / (1.0 + beta);
+        for (int n : { 2, 6 })   // duty 0.25 nulls n = 4, 8, ... — skip those
+            REQUIRE (mag (beta, n) / mag (0.0f, n) == Catch::Approx (expected).margin (2e-3));
+        for (int n : { 1, 3, 5 })
+            REQUIRE (mag (beta, n) / mag (0.0f, n) == Catch::Approx (1.0).margin (2e-3));
+    }
+}

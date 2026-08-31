@@ -68,6 +68,8 @@ private:
     // Pulse duty cycle — tiny slider beside the combo, enabled only while
     // the waveform is pulse (it's inaudible otherwise).
     juce::Slider dutySlider;
+    // Even-harmonic suppression (double-pulse β) — same gating as duty.
+    juce::Slider evenSupSlider;
 
     void updateDutyEnabled();
 
@@ -87,6 +89,7 @@ private:
     std::unique_ptr<SliderAttach> keyScaleAttach;
     std::unique_ptr<SliderAttach> feedbackAttach;  // op 1 (index 0) only
     std::unique_ptr<SliderAttach> dutyAttach;
+    std::unique_ptr<SliderAttach> evenSupAttach;
     std::unique_ptr<ButtonAttach> enabledAttach;
     std::unique_ptr<ComboAttach>  waveformAttach;
 

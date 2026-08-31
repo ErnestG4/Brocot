@@ -50,8 +50,20 @@ public:
         non-sine carrier; the carrier in BrocotVoice stays a pure sine).
         `duty` only affects Pulse: high fraction of the cycle, so duty=0.5 is
         exactly Square and the n-th harmonic scales as |sin(πn·duty)| (the PW
-        comb — e.g. duty 0.25 nulls every 4th harmonic). */
-    static inline float wave (Wave w, float turns, float duty = 0.25f) noexcept
+        comb — e.g. duty 0.25 nulls every 4th harmonic).
+
+        `evenSup` (Pulse only) is Fritz's double-pulse construction: the pulse
+        minus evenSup times the same pulse half a period later, normalised by
+        1 + evenSup so the odd harmonics hold level while the even ones scale
+        by (1−β)/(1+β) — a continuous sweep from the full PW comb (0) to
+        half-wave antisymmetry / odd-only (1). Measured orthogonal to the
+        coincidence structure (COINCIDENCE-HORIZON.md, brocot_double_pulse
+        sweep: 20 dB even-harmonic reach, ZERO ratios moved at any β): parity
+        shapes amplitudes, never the ringing set — which is exactly why this
+        knob is safe to add. evenSup = 0 reproduces the old pulse
+        bit-exactly. */
+    static inline float wave (Wave w, float turns, float duty = 0.25f,
+                              float evenSup = 0.0f) noexcept
     {
         constexpr float twoPi = 6.2831853071795864769f;
         if (w == Wave::Sine) return std::sin (twoPi * turns);
@@ -60,7 +72,14 @@ public:
         {
             case Wave::Saw:    return 2.0f * p - 1.0f;
             case Wave::Square: return p < 0.5f ? 1.0f : -1.0f;
-            case Wave::Pulse:  return p < duty ? 1.0f : -1.0f;
+            case Wave::Pulse:
+            {
+                const float s1 = p < duty ? 1.0f : -1.0f;
+                if (evenSup <= 0.0f) return s1;              // exact old path
+                const float ps = p < 0.5f ? p + 0.5f : p - 0.5f;
+                const float s2 = ps < duty ? 1.0f : -1.0f;
+                return (s1 - evenSup * s2) / (1.0f + evenSup);
+            }
             case Wave::Triangle:
             {
                 float t = p + 0.25f; t -= std::floor (t);    // start at 0, rising
@@ -86,6 +105,14 @@ public:
     void setDuty (float d) noexcept
     {
         duty = juce::jlimit (0.05f, 0.5f, d);
+    }
+
+    /** Even-harmonic suppression (Fritz double-pulse β). Only audible when
+        the waveform is Pulse; 0 = the plain pulse (bit-exact old path),
+        1 = half-wave antisymmetric, odd harmonics only. */
+    void setEvenSuppression (float beta) noexcept
+    {
+        evenSup = juce::jlimit (0.0f, 1.0f, beta);
     }
 
     void setPath (const Path& p) { setRatio ((float) p.ratio()); }
@@ -187,13 +214,13 @@ public:
         {
             const float fb = 0.5f * (fbPrev1 + fbPrev2);
             // feedback term is in radians → convert to turns for wave().
-            osc = wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi), duty);
+            osc = wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi), duty, evenSup);
             fbPrev2 = fbPrev1;
             fbPrev1 = osc;
         }
         else
         {
-            osc = wave (waveform, phase, duty);
+            osc = wave (waveform, phase, duty, evenSup);
         }
         const float delta = currentDepth * fMod * osc;
 
@@ -211,6 +238,7 @@ private:
 
     Wave  waveform    { Wave::Sine };  // operator oscillator shape
     float duty        { 0.25f }; // Pulse duty cycle (high fraction)
+    float evenSup     { 0.0f  }; // double-pulse β (even suppression, Pulse only)
     float phase       { 0.0f };  // normalized [0,1)
     float targetDepth { 0.0f };  // the depth requested by the user / preset
     bool  enabled     { false };

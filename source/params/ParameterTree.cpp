@@ -132,6 +132,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             juce::ParameterID (opId (i, "duty"), 1),
             "Op " + juce::String (i + 1) + " Pulse Duty",
             juce::NormalisableRange<float> (0.05f, 0.5f), 0.25f));
+
+        // Even-harmonic suppression (Fritz double-pulse β). Audible only when
+        // the waveform is "pulse": sweeps continuously from the plain pulse
+        // (0) to half-wave antisymmetry / odd harmonics only (1). Parity is
+        // measured orthogonal to the coincidence structure — this knob moves
+        // ~20 dB of even-harmonic level and not one ratio in or out of the
+        // ringing set. State-safe: old states load at the 0 default, which is
+        // the bit-exact old pulse.
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (opId (i, "evensup"), 1),
+            "Op " + juce::String (i + 1) + " Even Suppression",
+            juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
     }
 
     // Single-op self-feedback on op 1 (index 0) only — the one topology the
