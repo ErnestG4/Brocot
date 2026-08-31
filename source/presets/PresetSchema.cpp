@@ -185,6 +185,12 @@ juce::var serialise (const BrocotAudioProcessor& proc)
             // hand-edited presets) and whenever it's off the 0.25 default.
             if (wf == 4 || duty != 0.25f)
                 op->setProperty ("duty", (double) duty);
+            // Even suppression (pulse) and fold — written when off their
+            // 0 defaults, same convention as detune.
+            if (const float es = paramValue (apvts, params::opId (i, "evensup")); es != 0.0f)
+                op->setProperty ("evensup", (double) es);
+            if (const float fo = paramValue (apvts, params::opId (i, "fold")); fo != 0.0f)
+                op->setProperty ("fold", (double) fo);
         }
         // Self-feedback exists on op 1 (index 0) only; written when non-zero.
         if (i == 0)
@@ -317,6 +323,14 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "duty"),
                           op->hasProperty ("duty")
                               ? (float) (double) op->getProperty ("duty") : 0.25f, false);
+                // Even suppression / fold — absent ⇒ 0 (pre-1.0 presets are
+                // bit-identical: both axes bypass exactly at 0).
+                setParam (apvts, params::opId (i, "evensup"),
+                          op->hasProperty ("evensup")
+                              ? (float) (double) op->getProperty ("evensup") : 0.0f, false);
+                setParam (apvts, params::opId (i, "fold"),
+                          op->hasProperty ("fold")
+                              ? (float) (double) op->getProperty ("fold") : 0.0f, false);
                 // Self-feedback (op 1 / index 0 only) — absent ⇒ 0 (clean sine).
                 if (i == 0)
                     setParam (apvts, params::opId (0, "feedback"),
@@ -342,6 +356,8 @@ bool applyTo (BrocotAudioProcessor& proc, const juce::var& json, juce::String* o
                 setParam (apvts, params::opId (i, "keyScale"), 0.0f, false);
                 setParam (apvts, params::opId (i, "waveform"), 0.0f, false);
                 setParam (apvts, params::opId (i, "duty"),     0.25f, false);
+                setParam (apvts, params::opId (i, "evensup"),  0.0f, false);
+                setParam (apvts, params::opId (i, "fold"),     0.0f, false);
                 if (i == 0)
                     setParam (apvts, params::opId (0, "feedback"), 0.0f, false);
                 if (! sharedMode)
