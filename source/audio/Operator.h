@@ -115,6 +115,29 @@ public:
         evenSup = juce::jlimit (0.0f, 1.0f, beta);
     }
 
+    /** Wavefold amount β ∈ [0, 2.5]: the modulator output is folded through
+        sin(β·s), normalised to unit peak (c = sin β for β ≤ π/2, else 1).
+        0 = exact bypass. On a sine modulator this is an odd harmonic stack
+        with amplitudes 2·J_k(β) — census-verified (phase3/wavefold.md,
+        SHIP_CONTINUOUS_EXTENSION) to extend the coincidence horizon's
+        DENOMINATOR side only, monotonically, in order-bound-quantised steps:
+        a continuous resolution axis on q, not a mangler. Support-level
+        warrant; no audibility claim rides on it. For non-sine waves it is
+        an ordinary waveshaper (the census is sine-scoped). */
+    void setFold (float beta) noexcept
+    {
+        fold = juce::jlimit (0.0f, 2.5f, beta);
+        constexpr float halfPi = 1.5707963267948966f;
+        foldNorm = fold > 0.0f ? 1.0f / (fold <= halfPi ? std::sin (fold) : 1.0f)
+                               : 1.0f;
+    }
+
+    /** Apply the fold to a unit-amplitude sample (bypass at fold = 0). */
+    float applyFold (float s) const noexcept
+    {
+        return fold > 0.0f ? std::sin (fold * s) * foldNorm : s;
+    }
+
     void setPath (const Path& p) { setRatio ((float) p.ratio()); }
     /** Set the *base* (Stern-Brocot, exact-rational) ratio. The effective
         ratio glided to by the smoother is base × detune (see setDetuneCents). */
@@ -214,13 +237,13 @@ public:
         {
             const float fb = 0.5f * (fbPrev1 + fbPrev2);
             // feedback term is in radians → convert to turns for wave().
-            osc = wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi), duty, evenSup);
+            osc = applyFold (wave (waveform, phase + feedbackBeta * fb * (1.0f / twoPi), duty, evenSup));
             fbPrev2 = fbPrev1;
             fbPrev1 = osc;
         }
         else
         {
-            osc = wave (waveform, phase, duty, evenSup);
+            osc = applyFold (wave (waveform, phase, duty, evenSup));
         }
         const float delta = currentDepth * fMod * osc;
 
@@ -239,6 +262,8 @@ private:
     Wave  waveform    { Wave::Sine };  // operator oscillator shape
     float duty        { 0.25f }; // Pulse duty cycle (high fraction)
     float evenSup     { 0.0f  }; // double-pulse β (even suppression, Pulse only)
+    float fold        { 0.0f  }; // wavefold β (see setFold)
+    float foldNorm    { 1.0f  }; // 1/peak of sin(fold·s), precomputed
     float phase       { 0.0f };  // normalized [0,1)
     float targetDepth { 0.0f };  // the depth requested by the user / preset
     bool  enabled     { false };

@@ -144,6 +144,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
             juce::ParameterID (opId (i, "evensup"), 1),
             "Op " + juce::String (i + 1) + " Even Suppression",
             juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+
+        // Wavefold β. On a sine modulator: an odd Bessel stack that extends
+        // the coincidence horizon's denominator side only, monotonically
+        // (census: phase3/wavefold.md, SHIP_CONTINUOUS_EXTENSION) — a
+        // continuous q-resolution axis. 0 = exact bypass; old states load
+        // at that default.
+        layout.add (std::make_unique<FloatParam> (
+            juce::ParameterID (opId (i, "fold"), 1),
+            "Op " + juce::String (i + 1) + " Fold",
+            juce::NormalisableRange<float> (0.0f, 2.5f), 0.0f));
     }
 
     // Single-op self-feedback on op 1 (index 0) only — the one topology the

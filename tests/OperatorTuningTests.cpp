@@ -322,3 +322,60 @@ TEST_CASE ("evenSup scales even harmonics by (1-b)/(1+b) and holds odd", "[Opera
             REQUIRE (mag (beta, n) / mag (0.0f, n) == Catch::Approx (1.0).margin (2e-3));
     }
 }
+
+// ----------------------------------------------------------------------------
+// Wavefold (phase3/wavefold.md, SHIP_CONTINUOUS_EXTENSION)
+// ----------------------------------------------------------------------------
+
+TEST_CASE ("fold = 0 is an exact bypass", "[Operator]")
+{
+    Operator op;
+    op.setFold (0.0f);
+    for (float s : { -1.0f, -0.4f, 0.0f, 0.7f, 1.0f })
+        REQUIRE (op.applyFold (s) == s);
+}
+
+TEST_CASE ("fold produces the odd Bessel stack on a sine", "[Operator]")
+{
+    // DFT of sin(beta*sin t)/c: harmonic k magnitude should be
+    // |2 J_k(beta)|/c for odd k and ~0 for even k. Golden J values from
+    // scipy (beta = 1.5): J1 = 0.5579365, J3 = 0.0605097, J5 = 0.0017994.
+    constexpr int N = 2048;
+    const float beta = 1.5f;
+    Operator op;
+    op.setFold (beta);
+
+    auto mag = [&op] (int harmonic)
+    {
+        double re = 0.0, im = 0.0;
+        for (int i = 0; i < N; ++i)
+        {
+            const double t = 2.0 * juce::MathConstants<double>::pi * i / N;
+            const float s = op.applyFold ((float) std::sin (t));
+            re += s * std::cos (harmonic * t);
+            im += s * std::sin (harmonic * t);
+        }
+        return 2.0 * std::sqrt (re * re + im * im) / N;
+    };
+
+    const double c = std::sin ((double) beta);   // beta <= pi/2: peak = sin(beta)
+    REQUIRE (mag (1) == Catch::Approx (2.0 * 0.5579365 / c).margin (1e-3));
+    REQUIRE (mag (3) == Catch::Approx (2.0 * 0.0605097 / c).margin (1e-3));
+    REQUIRE (mag (5) == Catch::Approx (2.0 * 0.0017994 / c).margin (1e-3));
+    REQUIRE (mag (2) < 1e-6);
+    REQUIRE (mag (4) < 1e-6);
+}
+
+TEST_CASE ("fold output stays within unit peak", "[Operator]")
+{
+    Operator op;
+    for (float beta : { 0.5f, 1.5707f, 2.0f, 2.5f })
+    {
+        op.setFold (beta);
+        float peak = 0.0f;
+        for (float s = -1.0f; s <= 1.0f; s += 0.001f)
+            peak = std::max (peak, std::abs (op.applyFold (s)));
+        REQUIRE (peak <= 1.0f + 1e-5f);
+        REQUIRE (peak >= 0.98f);   // the normalisation actually reaches 1
+    }
+}

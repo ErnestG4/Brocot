@@ -126,6 +126,19 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
                               "ringing set \xe2\x80\x94 a pure parity/timbre axis."));
     evenSupAttach = std::make_unique<SliderAttach> (
         apvts, params::opId (opIndex, "evensup"), evenSupSlider);
+
+    // Wavefold β — active for every waveform (on sine it is the
+    // census-warranted horizon-extension axis; see phase3/wavefold.md).
+    addAndMakeVisible (foldSlider);
+    foldSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    foldSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 34, 16);
+    foldSlider.setTooltip (juce::CharPointer_UTF8 ("Fold: the modulator through sin(\xce\xb2\xc2\xb7s), "
+                           "unit peak. On a sine modulator this extends the coincidence "
+                           "horizon's denominator side only, monotonically \xe2\x80\x94 deeper "
+                           "denominators come into structure as it rises (census: "
+                           "phase3/wavefold.md). 0 = off."));
+    foldAttach = std::make_unique<SliderAttach> (
+        apvts, params::opId (opIndex, "fold"), foldSlider);
     waveformCombo.onChange = [this] { updateDutyEnabled(); };
     updateDutyEnabled();
 
@@ -307,15 +320,18 @@ void OperatorPanel::resized()
     // side. Op 1 splits the row three ways to fit its self-feedback slider.
     if (opIndex == 0)
     {
-        const int third = tuneRow.getWidth() / 3;
-        detuneSlider.setBounds   (tuneRow.removeFromLeft (third).reduced (1, 0));
-        keyScaleSlider.setBounds (tuneRow.removeFromLeft (third).reduced (1, 0));
+        const int quarter = tuneRow.getWidth() / 4;
+        detuneSlider.setBounds   (tuneRow.removeFromLeft (quarter).reduced (1, 0));
+        keyScaleSlider.setBounds (tuneRow.removeFromLeft (quarter).reduced (1, 0));
+        foldSlider.setBounds     (tuneRow.removeFromLeft (quarter).reduced (1, 0));
         feedbackSlider.setBounds (tuneRow.reduced (1, 0));
     }
     else
     {
-        detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
-        keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
+        const int third = tuneRow.getWidth() / 3;
+        detuneSlider.setBounds   (tuneRow.removeFromLeft (third).reduced (1, 0));
+        keyScaleSlider.setBounds (tuneRow.removeFromLeft (third).reduced (1, 0));
+        foldSlider.setBounds     (tuneRow.reduced (1, 0));
     }
 }
 

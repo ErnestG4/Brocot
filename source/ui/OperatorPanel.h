@@ -70,6 +70,8 @@ private:
     juce::Slider dutySlider;
     // Even-harmonic suppression (double-pulse β) — same gating as duty.
     juce::Slider evenSupSlider;
+    // Wavefold β — any waveform; census-warranted q-resolution axis on sine.
+    juce::Slider foldSlider;
 
     void updateDutyEnabled();
 
@@ -90,6 +92,7 @@ private:
     std::unique_ptr<SliderAttach> feedbackAttach;  // op 1 (index 0) only
     std::unique_ptr<SliderAttach> dutyAttach;
     std::unique_ptr<SliderAttach> evenSupAttach;
+    std::unique_ptr<SliderAttach> foldAttach;
     std::unique_ptr<ButtonAttach> enabledAttach;
     std::unique_ptr<ComboAttach>  waveformAttach;
 
