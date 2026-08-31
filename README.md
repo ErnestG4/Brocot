@@ -4,7 +4,7 @@ A multi-modulator FM synthesizer whose parameter space is structured by the Ster
 
 The premise: patterns that FM users discover by ear over years of programming are the structural features of these two mathematical objects. Exposing the structure directly as the interface makes the discovery process immediate rather than years-long.
 
-**Status:** in active development. The v1 slice plan in [`BROCOT-SPEC.md`](./BROCOT-SPEC.md) is complete; current work is the landscape / steering layer described below.
+**Status:** 1.0 candidate. The v1 slice plan in [`BROCOT-SPEC.md`](./BROCOT-SPEC.md) is complete, the landscape / steering layer below is shipped, and the coincidence-horizon programme (an exact law of the two-operator core, now living in the interface — see below) closed the theory arc.
 
 **Reference prototype:** [`farey-fm.html`](./farey-fm.html) — single-file React/Web Audio prototype. The audio math here is the ground truth for the JUCE port.
 
@@ -34,7 +34,7 @@ Beyond the curated search, the `phase3/gpu_*.py` modules (see [`phase3/gpu.md`](
 
 - The **landscape** tab plots the whole reachable sound-space as a 2D point cloud and lets you drive through it — see the next section.
 - The **farey** tab draws the Hofstadter / almost-Mathieu butterfly directly from the validated lattice math ([`source/audio/BrocotLattice.h`](./source/audio/BrocotLattice.h)): allowed bands in cream, gaps tinted by their Chern integers, a flux column at θ = frac(ratio) for every enabled operator, and the Stern-Brocot navigation cursor with clickable L/R children sized by gap prominence. Clicking a child extends the shared path, so the whole nested-prefix operator family navigates as one. (Structural, not literal — see BROCOT-SPEC.md Addendum D.)
-- The **drive** tab is a column of family scrub rows: each slider is a *velocity cursor* (−1..+1, snapping to zero on release) that resolves a route from the current patch along the landscape's precomputed gradient toward that family and travels it at a constant waypoints-per-second pace — push further, travel faster; negative retreats along the same route. While steering, per-operator ratios glide continuously in log-ratio space with Farey "groove" gravity pulling toward simple rationals (gravity and restlessness are now knobs; on release, **lock-to-groove** writes the nearest groove's exact rational plus residual detune cents, so letting go is seamless — toggleable). A **keep** button snapshots the current find to a user preset, and the preset menu groups the factory content by **measured family**. The Textured-Smooth row carries an op-count spinner. A **coherence** toggle suggests prefix-extensions of the current shortest path that would raise sideband coherence, as clickable chips. The right column stacks the global ADSR, the filter, and the first two modulators.
+- The **drive** tab is a column of family scrub rows: each slider is a *velocity cursor* (−1..+1, snapping to zero on release) that resolves a route from the current patch along the landscape's precomputed gradient toward that family and travels it at a constant waypoints-per-second pace — push further, travel faster; negative retreats along the same route. While steering, per-operator ratios glide continuously in log-ratio space with Farey "groove" gravity pulling toward simple rationals (gravity and restlessness are now knobs; on release, **lock-to-groove** writes the nearest groove's exact rational plus residual detune cents, so letting go is seamless — toggleable). A **keep** button snapshots the current find to a user preset, and the preset menu groups the factory content by **measured family**. The Textured-Smooth row carries an op-count spinner, and a **density** row slides sparser ↔ denser *within the current family* (the family axis is held fixed by construction — an orthogonal partial-count control). A **coherence** toggle suggests prefix-extensions of the current shortest path that would raise sideband coherence, as clickable chips. The right column stacks the global ADSR, the filter, and the first two modulators.
 - The **under the hood** tab exposes every operator + modulator directly for hand-tweaking once the steered shape feels close.
 
 Between waypoints the morph is a *stepped Stern-Brocot tree walk*: from the current path up to the longest-common-prefix ancestor, then down to the target path. Each step is one L/R character — a small ratio nudge that the audio-thread ratio smoother absorbs cleanly. Depth lerps continuously through enable transitions (a newly-enabling operator ramps in from silence; a fading-out one decays smoothly). During active steering the discrete walk is bypassed in favour of the continuous grooved glide above.
@@ -42,6 +42,47 @@ Between waypoints the morph is a *stepped Stern-Brocot tree walk*: from the curr
 The ratio readout under the keyboard shows the enabled operators' frequency and depth ratios plus a live **path-prefix coherence** meter — the fraction of predicted sideband energy landing on partials shared by two or more modulators, which is what "organized" FM spectra are.
 
 The thesis: **shaping is sound selection.** The preset menu carries ~47 curated anchors (the full factory tree holds ~4.3k presets from the Phase-3 packs; the menu shows the top level + `curated/`); the drive and landscape tabs reach everything in-between by walking the SB tree continuously. When the tooling makes a space cheap to traverse, push the space wider — the 4 → 8 → 16 → 64-operator progression is the recurring move.
+
+## The coincidence horizon — an exact law, in the interface
+
+The instrument's premise ("the interesting FM sounds sit at simple
+rationals") turned out to be a theorem, not a heuristic. For two sine
+modulators at ratios whose quotient is p/q in lowest terms, a sideband
+coincidence is reachable **iff p ≤ 2·order_bound(I₁) and
+q ≤ 2·order_bound(I₂)** — proved, verified exactly at every node tested,
+sharp at the boundary ([`COINCIDENCE-HORIZON.md`](./COINCIDENCE-HORIZON.md)).
+Irrationals have no finite q, so they are permanently above the horizon:
+the Stern-Brocot tree isn't approximating the interesting space, it is
+enumerating it exactly. The law is exact at two sine operators, extends
+modestly (denominator side only) for harmonic waveforms, and dissolves by
+four operators — and the interface states that scope rather than letting a
+player discover it.
+
+What it looks like in the app ([`MAP-FIELD.md`](./MAP-FIELD.md) is the
+display spec):
+
+- **Beat targeting** — right-click any detune slider and ask for a beat
+  rate in Hz ("give me a 3 Hz beat against 4/3"): solved in closed form,
+  with targets that would land under a *different* nearest ratio refused
+  loudly rather than clamped.
+- **The field readout** — under the keyboard, each operator pair shows its
+  nearest ringing ratio, the separation in Hz at the note actually played,
+  and a regime band (fuses / slow beat / rough / separate). Cents are the
+  parameter; Hz is what you hear.
+- **The horizon overlay** — on the farey tab, tree nodes beyond the horizon
+  at the current depth dim with the caption "no coincidence structure at
+  this depth". Raising depth extends the horizon and brings nodes back:
+  the depth slider is also the ratio field's zoom level.
+- **Honest suggestions** — the coherence suggest chips only propose
+  extensions that can actually coincide with an operator already in the
+  patch, at the depths actually set.
+- **Two continuous waveform axes**, each shipped on its own measured
+  warrant: an even-harmonic-suppression knob on the pulse wave (moves
+  ~20 dB of parity timbre, provably moves no ratio in or out of the
+  ringing set), and a **fold** knob (`sin(β·s)` on the modulator) that a
+  sealed census ([`phase3/wavefold.md`](./phase3/wavefold.md)) shows to be
+  a continuous, monotone extension of the horizon's denominator side — a
+  resolution axis, not a mangler.
 
 ## The landscape map — "where am I, where can I go"
 
@@ -56,7 +97,7 @@ How a map is made:
 5. **Descriptors** — each node carries brightness (spectral centroid), density (partial count), hollowness (odd-harmonic fraction), musicality (1 − spectral flatness), and **criticality**: the max of a 2D structure score (largest angular gap among a node's nearest neighbours in the layout — filaments, junctions, and void rims score high) and an intrinsic score from local PCA in full fingerprint space (participation ratio of the singular values — lights up the 1-D filaments buried inside dense projections). The critical points are exactly what speckles and lines the voids.
 6. **Gradient fields** — for each family, a multi-source Dijkstra over the k-NN fingerprint graph into the family's cleanest members (lowest spectral entropy near the centroid) leaves a next-hop pointer at every node: the shortest *smooth* route to that family from anywhere on the map, precomputed. Runtime steering is pointer-following, never search.
 
-The export is [`resources/landscape_graph*.json.gz`](./resources/) — one map per operator depth (4 / 6 / 8 / 16 / 32 / 64) plus waveform variants (solo 6-op sine / triangle / saw / square, and 4 / 6 / 8-op waveform mixes). Each map edits ops 0..depth−1 as a nested prefix, so switching maps preserves the rest of the patch. Maps load lazily — only the header is read until a map is actually navigated.
+The export is [`resources/landscape_graph*.json.gz`](./resources/) — one map per operator depth (4 / 6 / 8 / 16 / 32 / 64) plus waveform variants (solo 6-op sine / triangle / saw / square / pulse, and waveform mixes — pulse included — at every depth 4 through 64), and the 6-op **mod map** whose nodes ship modulator assignments. Each map edits ops 0..depth−1 as a nested prefix, so switching maps preserves the rest of the patch. Maps load lazily — only the header is read until a map is actually navigated.
 
 At runtime ([`source/pull/Landscape.{h,cpp}`](./source/pull/), [`source/ui/CloudView.{h,cpp}`](./source/ui/)):
 

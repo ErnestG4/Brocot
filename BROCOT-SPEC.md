@@ -1243,6 +1243,77 @@ must agree with the fixtures and with each other.
 - **P2 — Chern-timbre and near-unity experiments (OPEN).** No committed
   design; must clear D§1/D§4.3 before any of it reaches the UI.
 
+## Addendum E — The coincidence-horizon pass (Phase 5, 2026-08)
+
+The ARS programme's Brocot arc produced an exact result and a display spec,
+both committed at the repo root; this addendum records what shipped from
+them and the wording discipline they impose. **Source of truth:**
+[`COINCIDENCE-HORIZON.md`](./COINCIDENCE-HORIZON.md) (the theorem, its
+proof, its measured validity boundary) and [`MAP-FIELD.md`](./MAP-FIELD.md)
+(the two-layer field, the design list re-ranked by masking). Every claim
+below inherits their scope verbatim.
+
+### E§1 — The theorem, one line
+
+For two sine modulators at ratios r1, r2 (α = r2/r1 = p/q lowest terms),
+a direct sideband coincidence is reachable ⟺ `p ≤ 2·order_bound(I1)` AND
+`q ≤ 2·order_bound(I2)`. Exact at N = 2 sine; stack-extended (q-side only)
+for harmonic waves; dissolved at N ≥ 4. The rationals are the entire
+habitable zone — the tree enumerates the interesting space exactly.
+
+### E§2 — Shipped engine machinery
+
+- `source/audio/Horizon.h` — `orderBound` (bit-faithful mirror of
+  `partial_prediction.order_bound`), the asymmetric `ringable` predicate,
+  the proof's sufficiency witness, `scopeFor` (Exact / StackExtended /
+  Degraded / Dissolved). All re-verified in-tree against brute-force
+  enumeration (`tests/HorizonTests.cpp`).
+- `source/audio/MapField.h` — `parentOf` (the denominator-weighted argmin;
+  matched box = the proved convergent frame, per-side box = the derivation's
+  own bounds), `separationHz` (the load-bearing f_c·r1 unit factor),
+  regime bands, `solveBeat` with per-side basin refusal.
+- `source/util/FieldFrame.h` — the pair frame over a real patch, and
+  `solveBeatCents` (beat targeting as a detune, refuse-don't-clamp).
+
+### E§3 — Shipped interface
+
+- **Beat targeting** (MAP-FIELD item 5, the primary perceptual
+  deliverable): right-click the detune slider → target beat rates solved in
+  closed form; basin-leaving targets show disabled with the reason.
+- **Field readout** (item 2): RatioReadout's field line — nearest ringing
+  ratio, separation in Hz at the played carrier, regime band.
+- **Horizon overlay** (item 3 + the §4 proposed feature): FareyView marks
+  child nodes with no coincidence structure at the current depth — drawn
+  ONLY in Exact scope (two effective sine modulators), judged per node
+  under both index assignments, redrawn as depth moves.
+- **CoherenceSuggest reachability filter** (item 6): candidates must be
+  horizon-reachable from a current operator at that operator's own index;
+  SteerTab distinguishes "none improves coherence" from "none can coincide".
+
+### E§4 — Continuous waveform axes, each on its own warrant
+
+- **`op.evensup`** — Fritz double-pulse even suppression (Pulse only).
+  Warrant: `brocot_double_pulse_sweep` — 20 dB even-harmonic reach, zero
+  ratios moved at any β. Parity is orthogonal to the ringing set.
+- **`op.fold`** — sine fold `sin(β·s)`, unit peak. Warrant: the SEALED
+  census `phase3/wavefold_census.py` → `phase3/wavefold.md`
+  (`SHIP_CONTINUOUS_EXTENSION`): a continuous, monotone, q-side-only
+  horizon extension. Support-level result; no audibility claim.
+
+### E§5 — Wording gates (do not relax without the cited measurement)
+
+- Annotations claim **coincidence structure**, never "alive/dead/worth
+  visiting" — above-horizon ratios are perfectly distinct; they simply
+  cannot fuse.
+- Morph UI captions **structural events**, never "jumps"; morphs are not
+  linearisable (four attempts, two coordinates — see COINCIDENCE-HORIZON
+  §morphing) and the honest feature is marking events, not smoothing.
+- Perceptual language rides on the **separation** (regime bands), never on
+  the region; "heard as a detuned p/q" is unearned until the listening
+  gates in MAP-FIELD say otherwise.
+- The horizon annotation is scope-gated in the interface (E§3), stated,
+  never discovered by a player on a large patch.
+
 ---
 
 *End of specification. Total length: ~3000 lines. Hand sections to Claude Code one slice at a time. Resist combining slices. Resist scope creep. Ship v1 in two weeks.*
