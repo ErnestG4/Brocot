@@ -33,6 +33,8 @@ FareyView::FareyView (BrocotAudioProcessor& processor) : proc (processor)
             proc.getAPVTS().getRawParameterValue (params::opId (i, "depth"));
         opWaveRaw[(size_t) i] =
             proc.getAPVTS().getRawParameterValue (params::opId (i, "waveform"));
+        opDetuneRaw[(size_t) i] =
+            proc.getAPVTS().getRawParameterValue (params::opId (i, "detune"));
     }
 
     // Shared-path tool row. LnF styles TextButtons; the editor owns the
@@ -221,9 +223,88 @@ void FareyView::computeHorizon()
     horizonBHi = horizon::orderBound (maxDepth);
 }
 
+void FareyView::rebuildOpMarkers()
+{
+    opMarkers.clear();
+    pairRels.clear();
+
+    // If the selected op got disabled out from under us, release it.
+    {
+        const auto* en = selectedOp >= 0 ? opEnabledRaw[(size_t) selectedOp] : nullptr;
+        if (selectedOp >= 0 && (en == nullptr || en->load() <= 0.5f))
+            selectedOp = -1;
+    }
+
+    std::vector<fieldframe::OpState> states;
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        const auto* en = opEnabledRaw[(size_t) i];
+        if (en == nullptr || en->load() <= 0.5f) continue;
+
+        int p = 1, q = 1;
+        Path (proc.getOpPath (i)).walk (p, q);
+        const auto* dt = opDetuneRaw[(size_t) i];
+        const auto* dp = opDepthRaw[(size_t) i];
+
+        OpMarker m;
+        m.op = i;
+        m.p = p; m.q = q;
+        m.theta = fracTheta (p, q);
+        // Hit rect near the plot top, staggered over three rows so ops at
+        // the same θ stay individually clickable.
+        const float x = thetaToX (m.theta);
+        const float y = plot.getY() + 4.0f + 14.0f * (float) ((int) opMarkers.size() % 3);
+        m.hit = { x - 9.0f, y, 18.0f, 12.0f };
+        opMarkers.push_back (m);
+        states.push_back ({ p, q,
+                            dt != nullptr ? (double) dt->load() : 0.0,
+                            dp != nullptr ? (double) dp->load() : 0.0 });
+    }
+
+    // Pair relations. Reference side of each pair = the simpler rational
+    // (smaller q, tie smaller p) — the deterministic convention the field
+    // readout uses; the predicate is NOT swap-invariant, so the choice is
+    // stated rather than accidental. All pairs while legible (≤ 8 ops);
+    // past that, only the selected op's relations.
+    const double carrierHz = proc.getLastNoteHz();
+    auto simpler = [this] (int ia, int ib)
+    {
+        const auto& A = opMarkers[(size_t) ia];
+        const auto& B = opMarkers[(size_t) ib];
+        return (A.q < B.q || (A.q == B.q && A.p <= B.p)) ? std::pair { ia, ib }
+                                                         : std::pair { ib, ia };
+    };
+    auto addRel = [&] (int ia, int ib)
+    {
+        const auto [ra, rb] = simpler (ia, ib);
+        pairRels.push_back ({ ra, rb,
+                              fieldframe::pairReadout (states[(size_t) ra],
+                                                       states[(size_t) rb],
+                                                       carrierHz) });
+    };
+    const int n = (int) opMarkers.size();
+    if (n <= 8)
+    {
+        for (int a = 0; a < n; ++a)
+            for (int b = a + 1; b < n; ++b)
+                addRel (a, b);
+    }
+    else if (selectedOp >= 0)
+    {
+        int selIdx = -1;
+        for (int i = 0; i < n; ++i)
+            if (opMarkers[(size_t) i].op == selectedOp) selIdx = i;
+        if (selIdx >= 0)
+            for (int i = 0; i < n; ++i)
+                if (i != selIdx)
+                    addRel (selIdx, i);
+    }
+}
+
 void FareyView::rebuildNodes()
 {
     computeHorizon();
+    rebuildOpMarkers();
     nodeVis.clear();
 
     // Current cursor node — a ring; clicking steps back to the parent. The
@@ -351,6 +432,7 @@ void FareyView::timerCallback()
     if (sig != fluxSig)
     {
         fluxSig = sig;
+        rebuildOpMarkers();
         repaint();
     }
 }
@@ -389,6 +471,22 @@ juce::String FareyView::computeFluxSig() const
         }
         sig << "|H" << (allSine ? 1 : 0) << ':' << effective << ':' << bLo << ':' << bHi;
     }
+
+    // Pair-relation inputs: detunes (0.1c), per-op order bound, carrier (1 Hz)
+    // and the selection — the marker/arc layer redraws when any of these move.
+    {
+        sig << "|R" << selectedOp << ':'
+            << (int) std::lround (proc.getLastNoteHz());
+        for (int i = 0; i < params::kNumOperators; ++i)
+        {
+            const auto* en = opEnabledRaw[(size_t) i];
+            if (en == nullptr || en->load() <= 0.5f) continue;
+            const auto* dt = opDetuneRaw[(size_t) i];
+            const auto* dp = opDepthRaw[(size_t) i];
+            sig << ',' << (int) std::lround ((dt != nullptr ? dt->load() : 0.0f) * 10.0f)
+                << ':' << horizon::orderBound (dp != nullptr ? (double) dp->load() : 0.0);
+        }
+    }
     return sig;
 }
 
@@ -420,7 +518,37 @@ void FareyView::paint (juce::Graphics& g)
         const bool flashing = flashHintUntilMs != 0
                            && juce::Time::getMillisecondCounter() < flashHintUntilMs;
         juce::String hintLine;
-        if (! sharedToolsEnabled)
+        if (selectedOp >= 0 && ! flashing)
+        {
+            // Persistent selection notice: which op, where it sits, and its
+            // relations to the rest of the stack (structural wording only).
+            for (const auto& m : opMarkers)
+                if (m.op == selectedOp)
+                    hintLine = "op " + juce::String (m.op + 1) + " = "
+                             + juce::String (m.p) + "/" + juce::String (m.q);
+            int listed = 0;
+            for (const auto& rel : pairRels)
+            {
+                const auto& A = opMarkers[(size_t) rel.a];
+                const auto& B = opMarkers[(size_t) rel.b];
+                if (A.op != selectedOp && B.op != selectedOp) continue;
+                const int other = A.op == selectedOp ? B.op : A.op;
+                hintLine += juce::String (juce::CharPointer_UTF8 ("  \xc2\xb7 vs op "))
+                          + juce::String (other + 1) + ": ";
+                if (! rel.r.valid)
+                    hintLine += "silent";
+                else if (rel.r.band == field::Band::Fuses)
+                    hintLine += juce::String (rel.r.parent.p) + "/"
+                              + juce::String (rel.r.parent.q) + " fuses";
+                else
+                    hintLine += juce::String (rel.r.parent.p) + "/"
+                              + juce::String (rel.r.parent.q) + " "
+                              + juce::String (rel.r.sepHz, 1) + "Hz";
+                if (++listed == 3) break;
+            }
+            hintLine += juce::String (juce::CharPointer_UTF8 ("   (\xe2\x86\x90\xe2\x86\x92 step \xc2\xb7 click node \xc2\xb7 esc)"));
+        }
+        else if (! sharedToolsEnabled)
             hintLine = juce::CharPointer_UTF8 ("shared-path tools \xe2\x80\x94 switch path mode to shared");
         else if (flashing)
             hintLine = flashHint;
@@ -488,17 +616,73 @@ void FareyView::paint (juce::Graphics& g)
     }
 
     // Flux columns for every enabled operator: where the live sound sits.
-    // Same ctor-cached enabled pointers as computeFluxSig.
-    for (int i = 0; i < params::kNumOperators; ++i)
+    // The selected op's column brightens — the tree gestures act on it alone.
+    for (const auto& m : opMarkers)
     {
-        const auto* pr = opEnabledRaw[(size_t) i];
-        if (pr == nullptr || pr->load() <= 0.5f) continue;
-
-        int p, q;
-        Path (proc.getOpPath (i)).walk (p, q);
-        const float x = thetaToX (fracTheta (p, q));
-        g.setColour (colors::accentBright.withAlpha (0.5f));
+        const float x = thetaToX (m.theta);
+        const bool sel = m.op == selectedOp;
+        g.setColour (colors::accentBright.withAlpha (sel ? 0.95f : 0.5f));
         g.drawVerticalLine ((int) x, plot.getY(), plot.getBottom());
+        if (sel)
+            g.drawVerticalLine ((int) x + 1, plot.getY(), plot.getBottom());
+    }
+
+    // Pair-relation arcs between operators: the coincidence structure of the
+    // live stack, from the horizon's pair frame. Colour = regime band on the
+    // separation (the honest home for perceptual wording); NO ARC means the
+    // pair has no reachable coincidence at these depths. Labels only while
+    // they stay legible.
+    {
+        const float yBase = plot.getY() + 46.0f;
+        const bool labelAll = (int) pairRels.size() <= 4;
+        for (const auto& rel : pairRels)
+        {
+            if (! rel.r.valid) continue;
+            const auto& A = opMarkers[(size_t) rel.a];
+            const auto& B = opMarkers[(size_t) rel.b];
+            const bool touchesSel = A.op == selectedOp || B.op == selectedOp;
+
+            const float xa = thetaToX (A.theta), xb = thetaToX (B.theta);
+            const float dip = juce::jlimit (14.0f, 64.0f, std::abs (xb - xa) * 0.25f + 10.0f);
+            juce::Path arc;
+            arc.startNewSubPath (xa, yBase);
+            arc.quadraticTo ((xa + xb) * 0.5f, yBase + dip, xb, yBase);
+
+            auto col = bandColour (rel.r);
+            const bool fuses = rel.r.band == field::Band::Fuses;
+            g.setColour (col.withAlpha (touchesSel ? 0.95f : (fuses ? 0.8f : 0.55f)));
+            g.strokePath (arc, juce::PathStrokeType (fuses ? 2.2f : 1.2f));
+
+            if (labelAll || touchesSel)
+            {
+                juce::String lbl = juce::String (rel.r.parent.p) + "/"
+                                 + juce::String (rel.r.parent.q);
+                lbl += fuses ? juce::String (" fuses")
+                             : " " + juce::String (rel.r.sepHz, 1) + "Hz";
+                g.setColour (col.withAlpha (0.9f));
+                g.setFont (fonts::mono (9.0f));
+                g.drawText (lbl, (int) ((xa + xb) * 0.5f) - 40,
+                            (int) (yBase + dip * 0.5f) - 5, 80, 10,
+                            juce::Justification::centred);
+            }
+        }
+    }
+
+    // Operator markers — numbered, clickable, selection-aware.
+    for (const auto& m : opMarkers)
+    {
+        const bool sel = m.op == selectedOp;
+        g.setColour (sel ? colors::accentBright : colors::surface);
+        g.fillRoundedRectangle (m.hit, 3.0f);
+        g.setColour (sel ? colors::background : colors::accent);
+        g.setFont (fonts::mono (9.0f));
+        g.drawText (juce::String (m.op + 1), m.hit.toNearestInt(),
+                    juce::Justification::centred);
+        if (! sel)
+        {
+            g.setColour (colors::accent.withAlpha (0.6f));
+            g.drawRoundedRectangle (m.hit, 3.0f, 1.0f);
+        }
     }
 
     // Navigation cursor + reachable L/R children, from the cached viz.
@@ -564,17 +748,135 @@ void FareyView::resized()
     rebuildTargets();
 }
 
+juce::Colour FareyView::bandColour (const fieldframe::PairReadout& r)
+{
+    switch (r.band)
+    {
+        case field::Band::Fuses:    return colors::accentBright;
+        case field::Band::SlowBeat: return colors::besselZero;
+        case field::Band::Rough:    return colors::accent;
+        case field::Band::Separate: return colors::secondaryText.withAlpha (0.7f);
+    }
+    return colors::disabled;
+}
+
+void FareyView::stepSelectedOp (int direction)
+{
+    if (selectedOp < 0) return;
+    if (proc.isSharedMode())
+    {
+        // Position along the shared path, ±1 — the per-op move shared mode
+        // actually has. Clamped to the path length by the engine.
+        if (auto* p = proc.getAPVTS().getParameter (params::opId (selectedOp, "position")))
+        {
+            const int cur = (int) std::round (p->convertFrom0to1 (p->getValue()));
+            const int next = juce::jmax (0, cur + direction);
+            p->setValueNotifyingHost (p->convertTo0to1 ((float) next));
+            setHint ("op " + juce::String (selectedOp + 1) + " position "
+                     + juce::String (next));
+        }
+        return;
+    }
+    // Free mode: extend this op's own path with L/R (q-capped like descend).
+    const Path cur (proc.getOpPath (selectedOp));
+    const Path next = cur.extended (direction < 0 ? 'L' : 'R');
+    int p = 0, q = 0;
+    next.walk (p, q);
+    if (q > kChildQMax)
+    {
+        setHint ("op " + juce::String (selectedOp + 1) + ": q > "
+                 + juce::String (kChildQMax) + " refused");
+        return;
+    }
+    proc.setOpPath (selectedOp, next.toString());
+    setHint ("op " + juce::String (selectedOp + 1) + " \xe2\x86\x92 "
+             + juce::String (p) + "/" + juce::String (q));
+}
+
+void FareyView::ascendSelectedOp()
+{
+    if (selectedOp < 0) return;
+    if (proc.isSharedMode())
+    {
+        stepSelectedOp (-1);       // ↑ = step back along the shared path
+        return;
+    }
+    const Path cur (proc.getOpPath (selectedOp));
+    if (cur.isEmpty()) return;
+    const Path next = cur.parent();
+    int p = 0, q = 0;
+    next.walk (p, q);
+    proc.setOpPath (selectedOp, next.toString());
+    setHint ("op " + juce::String (selectedOp + 1) + " \xe2\x86\x91 "
+             + juce::String (p) + "/" + juce::String (q));
+}
+
+void FareyView::moveSelectedOpTo (const Path& node)
+{
+    if (selectedOp < 0) return;
+    int p = 0, q = 0;
+    node.walk (p, q);
+    if (proc.isSharedMode())
+    {
+        // Shared mode: the clicked node is the cursor or one of its
+        // children, i.e. on (or one step past) the shared path. Extend the
+        // shared path if the click extends it, then park this op's position
+        // at the node's depth — other ops' positions are untouched by a
+        // pure extension.
+        if (! Path (proc.getSharedPath()).startsWith (node))
+        {
+            cursor = node;
+            commitCursor();
+        }
+        if (auto* pp = proc.getAPVTS().getParameter (params::opId (selectedOp, "position")))
+            pp->setValueNotifyingHost (pp->convertTo0to1 ((float) node.depth()));
+    }
+    else
+    {
+        proc.setOpPath (selectedOp, node.toString());
+    }
+    setHint ("op " + juce::String (selectedOp + 1) + " \xe2\x86\x92 "
+             + juce::String (p) + "/" + juce::String (q));
+}
+
 void FareyView::mouseDown (const juce::MouseEvent& e)
 {
     const auto pos = e.position;
+
+    // Operator markers first: click selects (click again releases), and the
+    // tree gestures retarget to that op alone.
+    for (const auto& m : opMarkers)
+    {
+        if (m.hit.contains (pos))
+        {
+            selectedOp = (selectedOp == m.op ? -1 : m.op);
+            rebuildOpMarkers();
+            repaint();
+            return;
+        }
+    }
+
     for (const auto& t : targets)
     {
         if (t.hit.contains (pos))
         {
+            if (selectedOp >= 0)
+            {
+                moveSelectedOpTo (t.path);   // move ONE partial, not the stack
+                return;
+            }
             cursor = t.path;
             commitCursor();
             return;
         }
+    }
+
+    // Empty click releases the selection.
+    if (selectedOp >= 0)
+    {
+        selectedOp = -1;
+        rebuildOpMarkers();
+        repaint();
     }
 }
 
@@ -736,6 +1038,23 @@ void FareyView::stepLandmark (int direction)
 
 bool FareyView::keyPressed (const juce::KeyPress& key)
 {
+    // With an operator selected, the arrow keys drive THAT op (both modes);
+    // escape releases it and the keys fall back to the whole-stack gestures.
+    if (key.getKeyCode() == juce::KeyPress::escapeKey)
+    {
+        if (selectedOp < 0) return false;
+        selectedOp = -1;
+        rebuildOpMarkers();
+        repaint();
+        return true;
+    }
+    if (selectedOp >= 0)
+    {
+        if (key.getKeyCode() == juce::KeyPress::upKey)    { ascendSelectedOp();   return true; }
+        if (key.getKeyCode() == juce::KeyPress::leftKey)  { stepSelectedOp (-1);  return true; }
+        if (key.getKeyCode() == juce::KeyPress::rightKey) { stepSelectedOp (+1);  return true; }
+    }
+
     // Keyboard mirrors the tool row — shared mode only (free mode ignores,
     // so keys fall through to whatever else wants them).
     if (! proc.isSharedMode())

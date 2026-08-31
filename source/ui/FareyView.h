@@ -7,6 +7,7 @@
 
 #include "../audio/Path.h"
 #include "../params/ParameterTree.h"
+#include "../util/FieldFrame.h"
 
 namespace brocot
 {
@@ -25,7 +26,15 @@ class BrocotAudioProcessor;
       - the Stern-Brocot navigation CURSOR (the shared path) and its reachable
         L/R children as landable nodes, sized by gap-width prominence. Clicking
         a child extends the shared path (setSharedPath) — the nested-prefix ops
-        move together, so the coherent family navigates as one.
+        move together, so the coherent family navigates as one;
+      - a PER-OPERATOR layer: every enabled op as a numbered, clickable marker
+        at its θ, with pair-relation ARCS between them from the coincidence
+        horizon's own pair frame (fuses / beat band / no arc = no reachable
+        coincidence). Clicking a marker SELECTS that op: the arrow keys and
+        node clicks then move that one partial (free mode edits its path,
+        shared mode its position) instead of the whole stack; esc or an empty
+        click releases. This is how the tree shows relationships between the
+        partials and lets you change one without moving the rest.
 
     STRUCTURAL, not literal (§4.1): the butterfly is an organizing / annotation
     layer over ratio space, not a claim that a played note "is a band or gap".
@@ -95,6 +104,39 @@ private:
     bool horizonActive { false };
     int  horizonBLo { 0 };
     int  horizonBHi { 0 };
+
+    // ------------------------------------------------------------------
+    // Per-operator layer: every enabled op as a labelled, selectable marker
+    // on the θ axis, with PAIR-RELATION arcs between them — fuses / beat
+    // band / (no arc = no reachable coincidence), computed from the
+    // horizon's own pair frame (FieldFrame) with each op's exact rational,
+    // detune, and its OWN index. Selecting a marker retargets the tree
+    // gestures at THAT operator alone: keyboard steps and node clicks move
+    // one partial instead of the whole stack (free mode edits its path;
+    // shared mode steps its position along the shared path).
+    // ------------------------------------------------------------------
+    struct OpMarker
+    {
+        int op { 0 };                    // APVTS operator index
+        int p { 1 }, q { 1 };
+        double theta { 0.0 };
+        juce::Rectangle<float> hit;
+    };
+    struct PairRel
+    {
+        int a { 0 }, b { 0 };            // indices into opMarkers (a = ref)
+        fieldframe::PairReadout r;
+    };
+    void rebuildOpMarkers();             // markers + relations (sig-gated)
+    void stepSelectedOp (int direction); // ±1: free = path L/R, shared = pos
+    void ascendSelectedOp();             // free mode: parent
+    void moveSelectedOpTo (const Path& node);
+    static juce::Colour bandColour (const fieldframe::PairReadout& r);
+
+    std::vector<OpMarker> opMarkers;
+    std::vector<PairRel>  pairRels;
+    int selectedOp { -1 };               // -1 = none; gestures drive the stack
+    std::array<std::atomic<float>*, params::kNumOperators> opDetuneRaw {};
 
     // ------------------------------------------------------------------
     // Shared-path tool row (workstream F4). All gestures act through the
