@@ -1,6 +1,7 @@
 #include "FareyView.h"
 #include "../PluginProcessor.h"
 #include "../audio/BrocotLattice.h"
+#include "../audio/Horizon.h"
 #include "../util/Colors.h"
 #include "../util/FareyMath.h"
 #include "../util/Fonts.h"
@@ -28,6 +29,10 @@ FareyView::FareyView (BrocotAudioProcessor& processor) : proc (processor)
             proc.getAPVTS().getRawParameterValue (params::opId (i, "enabled"));
         opPositionRaw[(size_t) i] =
             proc.getAPVTS().getRawParameterValue (params::opId (i, "position"));
+        opDepthRaw[(size_t) i] =
+            proc.getAPVTS().getRawParameterValue (params::opId (i, "depth"));
+        opWaveRaw[(size_t) i] =
+            proc.getAPVTS().getRawParameterValue (params::opId (i, "waveform"));
     }
 
     // Shared-path tool row. LnF styles TextButtons; the editor owns the
@@ -179,8 +184,46 @@ void FareyView::syncCursorFromProcessor()
     }
 }
 
+void FareyView::computeHorizon()
+{
+    // Scope gate first (COINCIDENCE-HORIZON.md validity boundary): the
+    // annotation exists only where the theorem does — two effective sine
+    // modulators. An op is effective when it can emit any sideband at all
+    // (order_bound ≥ 1); at N = 3 the horizon degrades (17.3%) and at N ≥ 4
+    // it predicts nothing, so the overlay is simply absent there rather than
+    // discovered-to-be-wrong on a big patch.
+    horizonActive = false;
+    horizonBLo = horizonBHi = 0;
+
+    int effective = 0;
+    bool allSine = true;
+    double minDepth = 0.0, maxDepth = 0.0;
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        const auto* en = opEnabledRaw[(size_t) i];
+        if (en == nullptr || en->load() <= 0.5f) continue;
+        const auto* dp = opDepthRaw[(size_t) i];
+        const double depth = dp != nullptr ? (double) dp->load() : 0.0;
+        if (horizon::orderBound (depth) < 1) continue;
+
+        if (effective == 0) { minDepth = maxDepth = depth; }
+        else { minDepth = std::min (minDepth, depth); maxDepth = std::max (maxDepth, depth); }
+        ++effective;
+        const auto* wv = opWaveRaw[(size_t) i];
+        if (wv != nullptr && (int) wv->load() != 0) allSine = false;
+    }
+
+    if (horizon::scopeFor (effective, allSine) != horizon::Scope::Exact)
+        return;
+
+    horizonActive = true;
+    horizonBLo = horizon::orderBound (minDepth);
+    horizonBHi = horizon::orderBound (maxDepth);
+}
+
 void FareyView::rebuildNodes()
 {
+    computeHorizon();
     nodeVis.clear();
 
     // Current cursor node — a ring; clicking steps back to the parent. The
@@ -227,8 +270,28 @@ void FareyView::rebuildNodes()
             radius = juce::jlimit (4.0f, 16.0f, 4.0f + 9.0f * (float) best);
             col = chernColour (widest);
         }
+
+        // Horizon annotation, Exact scope only. Wording is the gated claim —
+        // COINCIDENCE STRUCTURE — never "dead" or "not worth visiting":
+        // above-horizon ratios are perfectly distinct, they simply cannot
+        // fuse. Raising depth extends the horizon and brings nodes back.
+        juce::String label = juce::String (p) + "/" + juce::String (q);
+        if (horizonActive)
+        {
+            // Asymmetric corollary under both index assignments: p ≤ 2B(I₁)
+            // ∧ q ≤ 2B(I₂), with (I₁,I₂) either way round.
+            const bool wayA = p <= 2 * horizonBHi && q <= 2 * horizonBLo;
+            const bool wayB = p <= 2 * horizonBLo && q <= 2 * horizonBHi;
+            if (! wayA && ! wayB)
+            {
+                col = col.withMultipliedAlpha (0.35f);
+                label += juce::String (juce::CharPointer_UTF8 ("  \xc2\xb7 no coincidence structure at this depth"));
+            }
+            else if (! (wayA && wayB))
+                label += juce::String (juce::CharPointer_UTF8 ("  \xc2\xb7 rings for one index assignment only"));
+        }
         nodeVis.push_back ({ child, child, fracTheta (p, q), radius, col,
-                             juce::String (p) + "/" + juce::String (q), false });
+                             label, false });
     }
 
     rebuildTargets();
@@ -303,6 +366,28 @@ juce::String FareyView::computeFluxSig() const
         const auto* pr = opEnabledRaw[(size_t) i];
         if (pr != nullptr && pr->load() > 0.5f)
             sig << '|' << i << ':' << proc.getOpPath (i);
+    }
+
+    // Horizon overlay inputs: the depth slider is also the field's zoom level
+    // (MAP-FIELD.md item 3), so crossing an order-bound step must redraw the
+    // node annotations. Order bounds quantise the depths, so this adds at
+    // most a couple of sig changes per octave of depth motion.
+    {
+        int effective = 0; bool allSine = true; int bLo = 0, bHi = 0;
+        for (int i = 0; i < params::kNumOperators; ++i)
+        {
+            const auto* en = opEnabledRaw[(size_t) i];
+            if (en == nullptr || en->load() <= 0.5f) continue;
+            const auto* dp = opDepthRaw[(size_t) i];
+            const int b = horizon::orderBound (dp != nullptr ? (double) dp->load() : 0.0);
+            if (b < 1) continue;
+            if (effective == 0) { bLo = bHi = b; }
+            else { bLo = std::min (bLo, b); bHi = std::max (bHi, b); }
+            ++effective;
+            const auto* wv = opWaveRaw[(size_t) i];
+            if (wv != nullptr && (int) wv->load() != 0) allSine = false;
+        }
+        sig << "|H" << (allSine ? 1 : 0) << ':' << effective << ':' << bLo << ':' << bHi;
     }
     return sig;
 }

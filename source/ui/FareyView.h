@@ -80,6 +80,21 @@ private:
     // alongside for the partial-plan gestures.
     std::array<std::atomic<float>*, params::kNumOperators> opEnabledRaw {};
     std::array<std::atomic<float>*, params::kNumOperators> opPositionRaw {};
+    std::array<std::atomic<float>*, params::kNumOperators> opDepthRaw {};
+    std::array<std::atomic<float>*, params::kNumOperators> opWaveRaw {};
+
+    /** Coincidence-horizon overlay state (COINCIDENCE-HORIZON.md §4 proposed
+        feature, gated by the validity boundary). Recomputed each rebuild:
+        drawn ONLY when the patch is in the theorem's Exact scope (two
+        effective sine modulators). BLo/BHi are the two ops' order bounds; a
+        node p/q is judged by the asymmetric corollary under both possible
+        assignments of the indices to the two sides — rings either way, rings
+        for exactly one assignment, or cannot ring at all. Equal depths
+        collapse this to the exact matched horizon. */
+    void computeHorizon();
+    bool horizonActive { false };
+    int  horizonBLo { 0 };
+    int  horizonBHi { 0 };
 
     // ------------------------------------------------------------------
     // Shared-path tool row (workstream F4). All gestures act through the

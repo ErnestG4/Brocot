@@ -25,6 +25,8 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;   // right-click on
+                                                         // detune → beat menu
 
 private:
     void refreshFromProcessor();
@@ -68,6 +70,13 @@ private:
     juce::Slider dutySlider;
 
     void updateDutyEnabled();
+
+    /** Right-click on the detune slider: beat-rate targeting (MAP-FIELD.md
+        item 5). Offers a menu of target beat rates against the patch's
+        reference operator, each solved in closed form to a detune value;
+        targets that would leave the basin (or the ±100c detune range) show
+        as disabled with the reason — refuse, don't clamp. */
+    void showBeatTargetMenu();
 
     using SliderAttach = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;

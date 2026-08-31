@@ -3,6 +3,7 @@
 #include "../audio/Bessel.h"
 #include "../audio/Path.h"
 #include "../util/Colors.h"
+#include "../util/FieldFrame.h"
 #include "../util/Fonts.h"
 
 namespace brocot
@@ -64,8 +65,10 @@ OperatorPanel::OperatorPanel (BrocotAudioProcessor& processor, int operatorIndex
     detuneSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     detuneSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 42, 16);
     detuneSlider.setTextValueSuffix (" ct");
+    detuneSlider.addMouseListener (this, false);   // right-click → beat menu
     detuneSlider.setTooltip ("Detune: cents off the exact Stern-Brocot ratio. "
-                             "A few cents = analog beating / chorus / drift.");
+                             "A few cents = analog beating / chorus / drift. "
+                             "Right-click: target a beat rate in Hz.");
 
     addAndMakeVisible (keyScaleSlider);
     keyScaleSlider.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -300,6 +303,100 @@ void OperatorPanel::resized()
         detuneSlider.setBounds   (tuneRow.removeFromLeft (tuneRow.getWidth() / 2).reduced (1, 0));
         keyScaleSlider.setBounds (tuneRow.reduced (1, 0));
     }
+}
+
+void OperatorPanel::mouseDown (const juce::MouseEvent& e)
+{
+    if (e.eventComponent == &detuneSlider && e.mods.isPopupMenu())
+        showBeatTargetMenu();
+}
+
+void OperatorPanel::showBeatTargetMenu()
+{
+    auto& apvts = proc.getAPVTS();
+
+    // Gather the enabled ops in field-frame form, remembering where this op
+    // landed in the vector.
+    std::vector<fieldframe::OpState> ops;
+    int myPos = -1;
+    for (int i = 0; i < params::kNumOperators; ++i)
+    {
+        bool enabled = false;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "enabled")))
+            enabled = (p->load() > 0.5f);
+        if (! enabled) continue;
+
+        float depth = 0.0f, detune = 0.0f;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "depth")))  depth = p->load();
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "detune"))) detune = p->load();
+
+        const Path path (proc.getOpPath (i));
+        int n = 0, d = 0;
+        path.walk (n, d);
+        if (i == opIndex) myPos = (int) ops.size();
+        ops.push_back ({ n, d, (double) detune, (double) depth });
+    }
+
+    juce::PopupMenu menu;
+    if (myPos < 0 || ops.size() < 2)
+    {
+        menu.addItem (1, "beat targeting needs two enabled operators", false);
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (detuneSlider));
+        return;
+    }
+
+    // Reference = simplest OTHER op (this op detunes against it).
+    auto others = ops;
+    others.erase (others.begin() + myPos);
+    const int refInOthers = fieldframe::referenceIndex (others);
+    const auto ref  = others[(size_t) refInOthers];
+    const auto mine = ops[(size_t) myPos];
+    const double carrierHz = proc.getLastNoteHz();
+
+    const auto frame = fieldframe::pairReadout (ref, mine, carrierHz);
+    if (! frame.valid)
+    {
+        menu.addItem (1, "no reachable coincidence at these depths", false);
+        menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (detuneSlider));
+        return;
+    }
+
+    menu.addSectionHeader ("beat vs " + juce::String (frame.parent.p) + "/"
+                           + juce::String (frame.parent.q) + " of "
+                           + juce::String (ref.p) + "/" + juce::String (ref.q)
+                           + "  @" + juce::String (carrierHz, 0) + "Hz");
+
+    const double targets[] = { 0.0, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0 };
+    for (double delta : targets)
+    {
+        const auto sol = fieldframe::solveBeatCents (ref, mine, carrierHz, delta);
+
+        // Prefer the in-basin side closest to the current detune; a side is
+        // usable only if it also fits the ±100c parameter range.
+        auto usable = [] (bool ok, double cents)
+            { return ok && std::abs (cents) <= 100.0; };
+        const bool upU = usable (sol.upOk, sol.upCents), dnU = usable (sol.downOk, sol.downCents);
+
+        juce::String label = delta == 0.0 ? "fuse (0 Hz)"
+                                          : juce::String (delta, 0) + " Hz";
+        if (! upU && ! dnU)
+        {
+            const char* why = (sol.upOk || sol.downOk) ? "out of detune range"
+                                                       : "leaves the basin";
+            menu.addItem (1000, label + "  -  " + why, false);
+            continue;
+        }
+
+        const double cents = (upU && dnU)
+            ? (std::abs (sol.upCents - mine.detuneCents)
+                   <= std::abs (sol.downCents - mine.detuneCents) ? sol.upCents : sol.downCents)
+            : (upU ? sol.upCents : sol.downCents);
+
+        menu.addItem (label + "  (" + juce::String (cents, 1) + " ct)",
+                      [this, cents] { detuneSlider.setValue (cents, juce::sendNotificationSync); });
+    }
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (detuneSlider));
 }
 
 } // namespace brocot

@@ -57,6 +57,47 @@ TEST_CASE ("parentOf matches brute-force enumeration over the box", "[MapField]"
     }
 }
 
+TEST_CASE ("asymmetric-box parentOf matches enumeration with per-side bounds",
+           "[MapField]")
+{
+    // Same mirror as above, but |a1| <= A1 and |a2| <= A2 independently —
+    // the box the coincidence derivation actually bounds when the two
+    // operators sit at different indices.
+    auto truthAsym = [] (double alpha, int A1, int A2)
+    {
+        Parent best;
+        double bestErr = -1.0;
+        for (int a2 = 1; a2 <= A2; ++a2)
+            for (int a1 = -A1; a1 <= A1; ++a1)
+            {
+                if (a1 == 0) continue;
+                const double err = std::abs ((double) a1 + (double) a2 * alpha);
+                if (bestErr < 0.0 || err < bestErr)
+                {
+                    best = { std::abs (a1), a2, err };
+                    bestErr = err;
+                }
+            }
+        return best;
+    };
+
+    std::mt19937 rng (20260831);
+    for (auto [A1, A2] : { std::pair { 8, 14 }, { 14, 8 }, { 2, 8 }, { 8, 2 } })
+    {
+        std::uniform_real_distribution<double> dist (1.0 / A2 + 1e-6, (double) A1 - 1e-6);
+        for (int i = 0; i < 200; ++i)
+        {
+            const double alpha = dist (rng);
+            const auto got = parentOf (alpha, A1, A2);
+            const auto truth = truthAsym (alpha, A1, A2);
+            INFO ("alpha = " << alpha << ", A1 = " << A1 << ", A2 = " << A2);
+            REQUIRE (got.p == truth.p);
+            REQUIRE (got.q == truth.q);
+            REQUIRE (got.gap == Approx (truth.gap).margin (1e-12));
+        }
+    }
+}
+
 TEST_CASE ("a below-horizon node is its own parent with gap zero", "[MapField]")
 {
     const auto p34 = parentOf (0.75, 8);

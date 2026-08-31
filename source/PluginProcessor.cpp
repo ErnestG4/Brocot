@@ -427,7 +427,9 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                 velocitySource.setVelocity (vel);
                 const int idx = allocateVoice (msg.getNoteNumber());
                 voices[(size_t) idx].noteOn (msg.getNoteNumber(), vel);
-                voices[(size_t) idx].setCarrierHz (midiNoteWithBend (msg.getNoteNumber()));
+                const float carrierHz = midiNoteWithBend (msg.getNoteNumber());
+                voices[(size_t) idx].setCarrierHz (carrierHz);
+                lastNoteHz.store ((double) carrierHz, std::memory_order_relaxed);
                 voiceNoteOnOrder[(size_t) idx] = ++noteOnCounter;
                 for (auto& m : modulators)
                     m.onNoteOn();   // honours each mod's keySync flag

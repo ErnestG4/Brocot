@@ -60,6 +60,12 @@ public:
         from any thread; uses relaxed atomic ordering. */
     bool snapshotRecentAudio (std::vector<float>& dest) const noexcept;
 
+    /** Carrier frequency of the most recent note-on (bend included), for
+        display math that needs an absolute Hz reference — the map field's
+        separations scale with the carrier, so the readout shows them at the
+        note actually played. Defaults to 220 Hz before any note. */
+    double getLastNoteHz() const noexcept { return lastNoteHz.load (std::memory_order_relaxed); }
+
     PresetManager& getPresetManager() noexcept { return presetManager; }
 
     /** Runtime pull-to-nearest table. Loaded once at construction;
@@ -160,6 +166,7 @@ private:
     std::array<BrocotVoice, kMaxVoices> voices {};
     std::array<juce::int64, kMaxVoices> voiceNoteOnOrder {};
     juce::int64 noteOnCounter { 0 };
+    std::atomic<double> lastNoteHz { 220.0 };   // see getLastNoteHz()
     FilterBank  filter;
     LFO         lfo;
 

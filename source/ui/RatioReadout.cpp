@@ -4,6 +4,7 @@
 #include "../audio/DepthRatio.h"
 #include "../audio/Path.h"
 #include "../util/Colors.h"
+#include "../util/FieldFrame.h"
 #include "../util/Fonts.h"
 
 namespace brocot
@@ -33,6 +34,12 @@ RatioReadout::RatioReadout (BrocotAudioProcessor& processor)
     setupValues (depthValues);
     setupValues (coherenceValues);
 
+    // The map-field line: structural wording only ("fuses", "N Hz", band) —
+    // never "heard as" (MAP-FIELD.md wording gate).
+    addAndMakeVisible (fieldValues);
+    fieldValues.setFont (fonts::mono (10.0f));
+    fieldValues.setColour (juce::Label::textColourId, colors::secondaryAtAlpha (0.75f));
+
     refreshFromProcessor();
     startTimerHz (10);
 }
@@ -46,6 +53,7 @@ void RatioReadout::refreshFromProcessor()
     juce::String freqs;
     std::vector<float> depths;
     std::vector<coherence::OpSpec> coherenceOps;
+    std::vector<fieldframe::OpState> fieldOps;
 
     auto& apvts = proc.getAPVTS();
     bool anyEnabled = false;
@@ -62,6 +70,10 @@ void RatioReadout::refreshFromProcessor()
 
         depths.push_back (enabled ? depth : 0.0f);
 
+        float detune = 0.0f;
+        if (auto* p = apvts.getRawParameterValue (params::opId (i, "detune")))
+            detune = p->load();
+
         if (enabled)
         {
             anyEnabled = true;
@@ -74,11 +86,47 @@ void RatioReadout::refreshFromProcessor()
             // Coherence uses the base path ratio (the axis the readout shows)
             // and the operator depth as the FM modulation index.
             coherenceOps.push_back ({ path.ratio(), (double) depth, n, d });
+            fieldOps.push_back ({ n, d, (double) detune, (double) depth });
         }
     }
 
     if (! anyEnabled) freqs = "(no operators enabled)";
     freqValues.setText (freqs, juce::dontSendNotification);
+
+    // Per-pair map field, each enabled op against the patch's reference
+    // (simplest base rational). Wording is gated structural vocabulary:
+    // "fuses" / "N Hz" / band — a separation predicts the beat rate, not its
+    // salience, and never becomes "heard as p/q". The carrier is named
+    // because the Hz side scales with it.
+    juce::String fieldLine;
+    const int refIdx = fieldframe::referenceIndex (fieldOps);
+    if (refIdx >= 0 && fieldOps.size() >= 2)
+    {
+        const double carrierHz = proc.getLastNoteHz();
+        for (int i = 0; i < (int) fieldOps.size(); ++i)
+        {
+            if (i == refIdx) continue;
+            const auto r = fieldframe::pairReadout (fieldOps[(size_t) refIdx],
+                                                    fieldOps[(size_t) i], carrierHz);
+            if (! fieldLine.isEmpty()) fieldLine += "  ";
+            if (! r.valid)
+            {
+                fieldLine += "-";
+                continue;
+            }
+            const juce::String parent = juce::String (r.parent.p) + "/" + juce::String (r.parent.q);
+            if (r.band == field::Band::Fuses)
+                fieldLine += parent + " fuses";
+            else
+            {
+                const char* band = r.band == field::Band::SlowBeat ? "slow"
+                                 : r.band == field::Band::Rough    ? "rough" : "sep";
+                fieldLine += parent + " " + juce::String (r.sepHz, 1) + "Hz " + band;
+            }
+        }
+        fieldLine = "vs " + fieldLine + "  @" + juce::String (carrierHz, 0) + "Hz";
+    }
+    fieldValues.setText (fieldLine, juce::dontSendNotification);
 
     juce::String depthDisplay = findDepthRatio (depths);
     if (depthDisplay.isEmpty()) depthDisplay = "-";
@@ -138,6 +186,7 @@ void RatioReadout::resized()
     auto right  = bounds.reduced (4, 0);
 
     freqHeader.setBounds  (left.removeFromTop (14));
+    fieldValues.setBounds (left.removeFromBottom (13));
     freqValues.setBounds  (left);
     depthHeader.setBounds (mid.removeFromTop (14));
     depthValues.setBounds (mid);

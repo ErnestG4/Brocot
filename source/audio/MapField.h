@@ -41,22 +41,28 @@ struct Parent
     bool valid() const noexcept { return p > 0 && q > 0; }
 };
 
-/** The argmin above, O(A) integer-ish operations: for each denominator the
-    best numerator is round(q·α), and the reduced form of any minimiser
-    strictly beats the unreduced one, so scanning q = 1..A with a strict
-    tie-break to the smaller q lands on the convergent in lowest terms. */
-inline Parent parentOf (double alpha, int A) noexcept
+/** The argmin above with PER-SIDE bounds — |a₁| ≤ A1, |a₂| ≤ A2, the
+    reachable-sideband box exactly as the coincidence derivation bounds it
+    (a₁, a₂ are differences of the two operators' sideband orders, so each is
+    capped by its own operator's 2·order_bound). The closest-approach
+    DEFINITION carries to this box unchanged; the parent-is-a-convergent
+    THEOREM is proved for the matched box only, so wording that leans on
+    convergence belongs to the matched overload below. O(A2) per call: for
+    each denominator the best numerator is round(q·α), and the reduced form of
+    any minimiser strictly beats the unreduced one, so scanning q = 1..A2 with
+    a strict tie-break to the smaller q lands on the argmin in lowest terms. */
+inline Parent parentOf (double alpha, int A1, int A2) noexcept
 {
-    if (A < 1 || alpha * A <= 1.0 || alpha >= (double) A)
+    if (A1 < 1 || A2 < 1 || alpha * A2 <= 1.0 || alpha >= (double) A1)
         return {};
 
     Parent best;
     double bestErr = -1.0;
-    for (int q = 1; q <= A; ++q)
+    for (int q = 1; q <= A2; ++q)
     {
         int p = (int) std::lround ((double) q * alpha);
-        if (p < 1) p = 1;               // a₁ must be nonzero…
-        if (p > A) p = A;               // …and in the box: clamp, don't skip —
+        if (p < 1)  p = 1;              // a₁ must be nonzero…
+        if (p > A1) p = A1;             // …and in the box: clamp, don't skip —
                                         // the box's best numerator for this q
                                         // is still a candidate
         const double err = std::abs ((double) q * alpha - (double) p);
@@ -67,6 +73,12 @@ inline Parent parentOf (double alpha, int A) noexcept
         }
     }
     return best;
+}
+
+/** Matched box A1 = A2 = A — the frame MAP-FIELD.md derives and verifies. */
+inline Parent parentOf (double alpha, int A) noexcept
+{
+    return parentOf (alpha, A, A);
 }
 
 /** Convenience: A from the modulation index, matched-frame. */

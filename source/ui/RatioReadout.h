@@ -42,6 +42,8 @@ private:
     juce::Label freqValues;
     juce::Label depthValues;
     juce::Label coherenceValues;
+    juce::Label fieldValues;    // per-pair map field: nearest ringing ratio,
+                                // separation Hz at the played carrier, band
 
     float coherence01 { 0.0f };            // latest score, for the bar
     juce::Rectangle<int> coherenceBar {};  // bar bounds, set in resized()
