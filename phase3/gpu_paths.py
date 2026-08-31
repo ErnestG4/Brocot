@@ -149,8 +149,11 @@ def _subsample(n_nodes: int, seed: int = 0, bank_npz=BANK_NPZ, labels_npz=LABELS
     # per-op waveform code; absent in older banks → all sine (0).
     wv = (bank["waves"][chosen] if "waves" in bank.files
           else np.zeros_like(bank["ridx"][chosen]))
+    # per-CONFIG pulse duty; absent in older banks → the 0.25 param default.
+    dt = (bank["duties"][chosen].astype(np.float32)
+          if "duties" in bank.files else np.full(len(chosen), 0.25, np.float32))
     return (chosen, amps, labels[chosen], bank["ridx"][chosen],
-            bank["depths"][chosen], fb, wv, fam_names)
+            bank["depths"][chosen], fb, wv, dt, fam_names)
 
 
 def _knn_graph(amps: torch.Tensor, k: int = 12, chunk: int = 2000):
@@ -226,11 +229,13 @@ def _thin(seq, amps, m: int):
     return [seq[i] for i in keep]
 
 
-def _reconstruct(node: int, ridx, depths, paths, waves=None):
-    """One bank node → OpState list (path / depth / enabled / wave), the shape
-    the runtime applies. Disabled slots (depth 0) are emitted too so the op
-    count is explicit. `wave` (0=sine..3=square) is omitted when 0 to keep the
-    JSON lean."""
+def _reconstruct(node: int, ridx, depths, paths, waves=None, duties=None):
+    """One bank node → OpState list (path / depth / enabled / wave / duty),
+    the shape the runtime applies. Disabled slots (depth 0) are emitted too so
+    the op count is explicit. `wave` (0=sine..4=pulse) is omitted when 0, and
+    `duty` (the config's PW comb) is emitted only on wave-4 ops, to keep the
+    JSON lean — the C++ parser defaults absent duty to the 0.25 param
+    default."""
     ops = []
     for slot in range(ridx.shape[1]):
         d = float(depths[node, slot])
@@ -238,6 +243,8 @@ def _reconstruct(node: int, ridx, depths, paths, waves=None):
         op = {"path": paths[ri], "depth": round(d, 4), "enabled": d > 1e-4}
         if waves is not None and int(waves[node, slot]) != 0:
             op["wave"] = int(waves[node, slot])
+            if duties is not None and int(waves[node, slot]) == 4:
+                op["duty"] = round(float(duties[node]), 4)
         ops.append(op)
     return ops
 
@@ -245,7 +252,7 @@ def _reconstruct(node: int, ridx, depths, paths, waves=None):
 def demo(n_nodes: int, k: int, targets_fam: list[str]):
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes (stratified by family) ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, node_dt, fam_names = _subsample(n_nodes)
     print(f"  {amps.shape[0]:,} nodes ({time.time()-t0:.1f}s)")
 
     print(f"Building {k}-NN graph on GPU ...")
@@ -293,7 +300,7 @@ def export(n_nodes: int, k: int, k_paths: int, waypoints: int,
     import json as _json
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, fam_names = _subsample(n_nodes)
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, node_dt, fam_names = _subsample(n_nodes)
     print(f"Building {k}-NN graph ...")
     g = _knn_graph(amps, k=k)
     cur_paths = _curated_paths()
@@ -358,7 +365,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
     from scipy.sparse import vstack, hstack
     t0 = time.time()
     print(f"Subsampling {n_nodes:,} nodes ...")
-    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, fam_names = _subsample(
+    nodeIdx, amps, node_lab, ridx, depths, node_fb, node_wv, node_dt, fam_names = _subsample(
         n_nodes, bank_npz=bank_npz, labels_npz=labels_npz)
     n = amps.shape[0]
     n_ops = int(ridx.shape[1])           # the map's operator depth (nested prefix)
@@ -421,7 +428,7 @@ def gradients(n_nodes: int, k: int, min_family: int = 30,
               "odd":    round(float(feat["odd_frac"][i]), 4),
               "tonal":  round(1.0 - float(feat["flatness"][i]) / fmax, 4),  # 1=musical
               "crit":   round(float(struct[i]), 4),   # lines/junctions/void rims
-              "ops": _reconstruct(i, ridx, depths, cur_paths, node_wv)} for i in range(n)]
+              "ops": _reconstruct(i, ridx, depths, cur_paths, node_wv, node_dt)} for i in range(n)]
 
     # Per-family next-hop field via super-source-into-family Dijkstra.
     print("Computing per-family gradient fields ...")

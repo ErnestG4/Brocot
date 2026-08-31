@@ -142,6 +142,17 @@ public:
     std::vector<Waypoint>
         waypoints (int startNode, const juce::String& family) const;
 
+    /** Orthogonal density control (the deferred S7-S8 follow-up
+        family_axis.md recommends): the start node's OWN family, ordered by
+        the measured `dense` field and downsampled to ≤ maxStops waypoints
+        spanning the family's density range sparsest→densest. Family is held
+        fixed by construction — this axis moves density and nothing
+        categorical. `startIndexOut` is the ladder entry nearest the start
+        node's own density, so a UI cursor can begin where the patch is.
+        Empty when the map is empty or the start node is invalid. */
+    std::vector<Waypoint>
+        densityLadder (int startNode, int maxStops, int& startIndexOut) const;
+
     const Node* node (int i) const noexcept
     {
         return (i >= 0 && i < (int) nodes.size()) ? &nodes[(size_t) i] : nullptr;

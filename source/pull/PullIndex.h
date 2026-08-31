@@ -30,7 +30,9 @@ public:
         juce::String path     {};
         float        depth    { 0.0f };
         bool         enabled  { false };
-        int          waveform { 0 };   // 0=sine,1=tri,2=saw,3=square
+        int          waveform { 0 };   // 0=sine,1=tri,2=saw,3=square,4=pulse
+        float        duty     { 0.25f }; // pulse duty (wave 4 only; the
+                                         // param default when absent)
     };
 
     struct Exemplar

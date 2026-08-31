@@ -28,6 +28,8 @@ namespace
         if (auto* obj = asObject (v))
         {
             o.path    = obj->getProperty ("path").toString();
+            if (obj->hasProperty ("duty"))
+                o.duty = (float) (double) obj->getProperty ("duty");
             o.depth   = (float) (double) obj->getProperty ("depth");
             o.enabled = (bool) obj->getProperty ("enabled");
         }
@@ -262,6 +264,10 @@ PullIndex::morph (const std::vector<OpState>& current,
         // Waveform is discrete — can't lerp sine→saw — so snap at the midpoint
         // (the half nearer the destination wins).
         o.waveform = (alpha < 0.5f ? cur : tgt).waveform;
+
+        // Duty is continuous like depth; harmless when the waveform isn't
+        // pulse. Implicit-off slots carry the 0.25 param default.
+        o.duty = juce::jmap (alpha, cur.duty, tgt.duty);
 
         out.push_back (std::move (o));
     }

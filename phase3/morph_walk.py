@@ -75,11 +75,12 @@ class Op:
     path: str = ""        # Stern-Brocot L/R path; "" = 1/1
     depth: float = 0.0    # modulation index
     enabled: bool = False
-    wave: int = 0         # 0=sine, 1=tri, 2=saw, 3=square
+    wave: int = 0         # 0=sine, 1=tri, 2=saw, 3=square, 4=pulse
+    duty: float = 0.25    # pulse duty (wave 4 only; the param default)
 
 
 #: Padding value for length-mismatched morphs (C++ `kImplicitOff`).
-IMPLICIT_OFF = Op("", 0.0, False, 0)
+IMPLICIT_OFF = Op("", 0.0, False, 0, 0.25)
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +172,8 @@ def morph(cur: list[Op], tgt: list[Op], alpha: float) -> list[Op]:
     * path: stepped SB walk (path_walk).
     * wave: discrete snap at the midpoint — ``alpha < 0.5 ? cur : tgt``,
       so the TARGET wins at exactly 0.5.
+    * duty: continuous jmap like depth (float32) — mirrors the C++
+      PullIndex::morph duty lerp added with pulse-in-maps.
     """
     a = _clamp_alpha_f32(alpha)
     n = max(len(cur), len(tgt))
@@ -194,8 +197,11 @@ def morph(cur: list[Op], tgt: list[Op], alpha: float) -> list[Op]:
 
         path = path_walk(c.path, t.path, a)
         wave = c.wave if a < 0.5 else t.wave
+        duty = float(np.float32(c.duty)
+                     + a32 * (np.float32(t.duty) - np.float32(c.duty)))
 
-        out.append(Op(path=path, depth=depth, enabled=enabled, wave=wave))
+        out.append(Op(path=path, depth=depth, enabled=enabled, wave=wave,
+                      duty=duty))
     return out
 
 

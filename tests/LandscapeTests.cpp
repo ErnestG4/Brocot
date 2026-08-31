@@ -431,3 +431,69 @@ TEST_CASE ("shipped base map's jumps block loads when present", "[Landscape]")
     }
     CHECK (! ls.jumpsFrom (ls.getJumps().front().a).empty());
 }
+
+// ----------------------------------------------------------------------------
+// densityLadder (S7-S8 orthogonal density) + per-op duty parsing
+// ----------------------------------------------------------------------------
+
+namespace
+{
+    // Two families with distinct density spreads; one pulse op with a duty.
+    const char* kDensityJson = R"JSON(
+    {
+      "version": "1.0",
+      "f_carrier_ref": 220.0,
+      "n_nodes": 6,
+      "n_families": 2,
+      "family_names": ["Bright", "Dark"],
+      "nodes": [
+        {"family": 0, "feedback": 0.0, "dense": 0.10, "ops": [{"path": "R",   "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.0, "dense": 0.90, "ops": [{"path": "RR",  "depth": 1.0, "enabled": true}]},
+        {"family": 0, "feedback": 0.0, "dense": 0.50, "ops": [{"path": "RRR", "depth": 1.0, "enabled": true, "wave": 4, "duty": 0.12}]},
+        {"family": 0, "feedback": 0.0, "dense": 0.30, "ops": [{"path": "RL",  "depth": 1.0, "enabled": true}]},
+        {"family": 1, "feedback": 0.0, "dense": 0.05, "ops": [{"path": "L",   "depth": 1.0, "enabled": true}]},
+        {"family": 1, "feedback": 0.0, "dense": 0.95, "ops": [{"path": "LL",  "depth": 1.0, "enabled": true}]}
+      ],
+      "next_hop": { "Bright": [1, -1, 1, 1, -1, -1] }
+    })JSON";
+}
+
+TEST_CASE ("densityLadder holds family fixed, orders by density", "[Landscape]")
+{
+    auto f = writeTemp (kDensityJson);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+
+    // Start at node 2 (Bright, dense 0.50): the ladder must span Bright's
+    // density range in order, never a Dark node, cursor at the middle.
+    int startIdx = -1;
+    const auto wp = ls.densityLadder (2, 17, startIdx);
+    REQUIRE (wp.size() == 4);                       // all four Bright nodes
+    REQUIRE (wp.front().ops.front().path == "R");   // sparsest first (0.10)
+    REQUIRE (wp.back().ops.front().path  == "RR");  // densest last (0.90)
+    REQUIRE (wp[1].ops.front().path == "RL");       // 0.30
+    REQUIRE (wp[2].ops.front().path == "RRR");      // 0.50 — the start
+    REQUIRE (startIdx == 2);
+
+    // Degenerate inputs refuse.
+    int dummy = 0;
+    REQUIRE (ls.densityLadder (-1, 17, dummy).empty());
+    REQUIRE (ls.densityLadder (2, 1, dummy).empty());
+    f.deleteFile();
+}
+
+TEST_CASE ("per-op duty parses and survives into waypoints", "[Landscape]")
+{
+    auto f = writeTemp (kDensityJson);
+    Landscape ls;
+    REQUIRE (ls.load (f));
+
+    int startIdx = 0;
+    const auto wp = ls.densityLadder (2, 17, startIdx);
+    const auto& pulseOp = wp[2].ops.front();
+    REQUIRE (pulseOp.waveform == 4);
+    REQUIRE (pulseOp.duty == Catch::Approx (0.12f));
+    // Absent duty defaults to the param default, not zero.
+    REQUIRE (wp[0].ops.front().duty == Catch::Approx (0.25f));
+    f.deleteFile();
+}

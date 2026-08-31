@@ -201,6 +201,19 @@ void SteerTab::buildRows()
     for (const auto& cat : kShapeCategories)
         addRow (cat, false, cat);
     addRow ({}, true, "Textured-Smooth");
+
+    // Orthogonal density row (the deferred S7-S8 follow-up): sparser ↔
+    // denser within the CURRENT family — the family axis is held fixed by
+    // construction (Landscape::densityLadder), so this moves partial count
+    // without changing what kind of sound it is. "Auto" default = the row
+    // does nothing until grabbed; grabbing anchors the cursor at the
+    // patch's own density.
+    addRow ({}, false, "density (in family)");
+    rows.back()->isDensityRow = true;
+    rows.back()->slider.setTooltip (
+        "Hold right to morph DENSER within the current family; left, sparser. "
+        "Family stays fixed - this axis moves partial count only. "
+        "Slider position is rate; releases to 0.");
 }
 
 void SteerTab::wireSlider (ScrubRow& row)
@@ -219,6 +232,34 @@ void SteerTab::wireSlider (ScrubRow& row)
         // the Reset-anchored home. The slider then drives `pos` along this
         // route as a velocity cursor.
         rowPtr->routeWaypoints.clear();
+
+        // Density row: no family destination — the route is the current
+        // family's density ladder, cursor anchored at the patch's own
+        // density. Not home-anchored: both directions are destinations.
+        if (rowPtr->isDensityRow)
+        {
+            const auto& ls = proc.getLandscape();
+            if (ls.isEmpty())
+                return;
+            const Landscape::Waypoint startWp { proc.getCurrentOps(),
+                                                proc.getOp0Feedback() };
+            int startIdx = 0;
+            auto wp = ls.densityLadder (ls.nearestNode (startWp.ops),
+                                        17, startIdx);
+            if (wp.empty())
+                return;
+            // Insert the live patch at the cursor position so the first
+            // tick of movement morphs FROM the actual sound, not from the
+            // nearest node's approximation of it.
+            wp.insert (wp.begin() + startIdx, startWp);
+            for (auto& w : wp)
+                if ((int) w.ops.size() > ls.getNOps())
+                    w.ops.resize ((size_t) ls.getNOps());
+            rowPtr->routeWaypoints = std::move (wp);
+            rowPtr->pos = (float) startIdx;
+            return;
+        }
+
         const auto cat = rowPtr->isTextureRow ? resolveTextureCategory()
                                               : rowPtr->category;
         if (cat.isEmpty())

@@ -100,6 +100,9 @@ private:
                                         // resolved dynamically from
                                         // `textureOpCount`.
         bool          isTextureRow { false };
+        bool          isDensityRow { false };   // S7-S8 orthogonal density:
+                                                // slides sparser↔denser WITHIN
+                                                // the current node's family
         juce::Label   label;
         juce::Slider  slider { juce::Slider::LinearHorizontal,
                                 juce::Slider::NoTextBox };

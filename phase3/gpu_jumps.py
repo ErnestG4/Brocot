@@ -94,10 +94,11 @@ def node_states(doc: dict) -> Tuple[List[List[Op]], np.ndarray, np.ndarray]:
     ops_all, fb, fam = [], [], []
     for nd in doc["nodes"]:
         ops = [Op(o.get("path", ""), float(o.get("depth", 0.0)),
-                  bool(o.get("enabled", False)), int(o.get("wave", 0)))
+                  bool(o.get("enabled", False)), int(o.get("wave", 0)),
+                  float(o.get("duty", 0.25)))
                for o in nd["ops"][:n_ops]]
         while len(ops) < n_ops:
-            ops.append(Op("", 0.0, False, 0))
+            ops.append(Op("", 0.0, False, 0, 0.25))
         ops_all.append(ops)
         fb.append(float(nd.get("feedback", 0.0)))
         fam.append(int(nd.get("family", -1)))
@@ -147,7 +148,7 @@ class PairLadder:
 
     def __init__(self, cur: List[Op], tgt: List[Op], fb_a: float, fb_b: float):
         k = max(len(cur), len(tgt))
-        pad = Op("", 0.0, False, 0)
+        pad = Op("", 0.0, False, 0, 0.25)
         cur = list(cur) + [pad] * (k - len(cur))
         tgt = list(tgt) + [pad] * (k - len(tgt))
         self.k = k
@@ -158,22 +159,25 @@ class PairLadder:
         self.d1 = np.array([o.depth if o.enabled else 0.0 for o in tgt], np.float64)
         self.w0 = np.array([o.wave for o in cur], np.int64)
         self.w1 = np.array([o.wave for o in tgt], np.int64)
+        self.dt0 = np.array([o.duty for o in cur], np.float64)
+        self.dt1 = np.array([o.duty for o in tgt], np.float64)
         for oc, ot in zip(cur, tgt):
             paths = _ladder_paths(oc.path, ot.path)
             self.ladders.append(np.array([_walk_ratio(p) for p in paths]))
             self.totals.append(len(paths) - 1)
 
     def sample(self, alphas: np.ndarray):
-        """(ratio, depth, wave, feedback) arrays for an alpha vector:
-        shapes (A, k), (A, k), (A, k), (A,)."""
+        """(ratio, depth, wave, duty, feedback) arrays for an alpha vector:
+        shapes (A, k), (A, k), (A, k), (A, k), (A,)."""
         a = np.clip(alphas, 0.0, 1.0)
         ratio = np.empty((len(a), self.k))
         for s, (lad, tot) in enumerate(zip(self.ladders, self.totals)):
             ratio[:, s] = lad[_steps_for(a, tot)]
         depth = (1.0 - a)[:, None] * self.d0[None, :] + a[:, None] * self.d1[None, :]
         wave = np.where(a[:, None] < 0.5, self.w0[None, :], self.w1[None, :])
+        duty = (1.0 - a)[:, None] * self.dt0[None, :] + a[:, None] * self.dt1[None, :]
         fb = (1.0 - a) * self.fb_a + a * self.fb_b
-        return ratio, depth, wave, fb
+        return ratio, depth, wave, duty, fb
 
 
 def _self_check(rng: np.random.Generator, n: int = 4000) -> None:
@@ -192,14 +196,16 @@ def _self_check(rng: np.random.Generator, n: int = 4000) -> None:
     # And a few full morphs (depth/wave/enable semantics).
     for _ in range(200):
         cur = [Op(str(rng.choice(alphabet)), float(rng.random() * 3),
-                  bool(rng.random() < 0.8), int(rng.integers(0, 4)))
+                  bool(rng.random() < 0.8), int(rng.integers(0, 5)),
+                  float(0.08 + rng.random() * 0.37))
                for _ in range(3)]
         tgt = [Op(str(rng.choice(alphabet)), float(rng.random() * 3),
-                  bool(rng.random() < 0.8), int(rng.integers(0, 4)))
+                  bool(rng.random() < 0.8), int(rng.integers(0, 5)),
+                  float(0.08 + rng.random() * 0.37))
                for _ in range(3)]
         alpha = float(rng.random())
         pl = PairLadder(cur, tgt, 0.2, 0.7)
-        ratio, depth, wave, _ = pl.sample(np.array([alpha]))
+        ratio, depth, wave, duty, _ = pl.sample(np.array([alpha]))
         for s, o in enumerate(morph(cur, tgt, alpha)):
             if abs(_walk_ratio(o.path) - ratio[0, s]) > 1e-12:
                 raise AssertionError("ratio divergence vs morph()")
@@ -210,6 +216,8 @@ def _self_check(rng: np.random.Generator, n: int = 4000) -> None:
                 raise AssertionError("depth divergence vs morph()")
             if o.wave != wave[0, s] and o.depth > 1e-6:
                 raise AssertionError("wave divergence vs morph()")
+            if abs(o.duty - duty[0, s]) > 1e-5:
+                raise AssertionError("duty divergence vs morph()")
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +225,8 @@ def _self_check(rng: np.random.Generator, n: int = 4000) -> None:
 # ---------------------------------------------------------------------------
 
 def _render_fps(ratio: np.ndarray, depth: np.ndarray, wave: np.ndarray,
-                fb: np.ndarray, t, win, W, sub: int = 24000) -> torch.Tensor:
+                fb: np.ndarray, t, win, W, sub: int = 24000,
+                duty: np.ndarray | None = None) -> torch.Tensor:
     """(B,K) config arrays → (B, Q_MAX) fp32 fingerprints, sub-batched."""
     out = []
     for c in range(0, len(ratio), sub):
@@ -227,8 +236,11 @@ def _render_fps(ratio: np.ndarray, depth: np.ndarray, wave: np.ndarray,
         wv = torch.as_tensor(wave[c:c + sub], dtype=torch.float32, device=DEVICE)
         beta = torch.as_tensor(fb[c:c + sub], dtype=torch.float32,
                                device=DEVICE) * float(np.pi)
+        dt = (None if duty is None else
+              torch.as_tensor(duty[c:c + sub], dtype=torch.float32, device=DEVICE))
         det = torch.zeros_like(lr)
-        x = render_batch(lr, d, det, t, F_CARRIER, feedback=beta, waves=wv)
+        x = render_batch(lr, d, det, t, F_CARRIER, feedback=beta, waves=wv,
+                         duties=dt)
         out.append(fingerprint_batch(x, W, win).float())
     return torch.cat(out) if out else torch.empty(0, Q_MAX, device=DEVICE)
 
@@ -403,20 +415,22 @@ def dataset(map_path: FsPath, n_pairs: int, seed: int, out: FsPath,
         k = ladders[0].k
         R = np.empty((offs[-1], k)); D = np.empty((offs[-1], k))
         Wv = np.empty((offs[-1], k)); F = np.empty(offs[-1])
+        Dt = np.empty((offs[-1], k))
         for j, ((alphas, _), pl) in enumerate(zip(alphas_per, ladders)):
             if ratio_mode == "walk":
-                r, d, w, f = pl.sample(alphas)
+                r, d, w, dt, f = pl.sample(alphas)
             else:
-                r0, _, w, f = pl.sample(np.zeros(1))
+                r0, _, w, dt, f = pl.sample(np.zeros(1))
                 r1 = pl.sample(np.ones(1))[0]
                 lr = ((1 - alphas)[:, None] * np.log2(np.maximum(r0, 1e-9))
                       + alphas[:, None] * np.log2(np.maximum(r1, 1e-9)))
                 r = np.power(2.0, lr)
-                _, d, w, f = pl.sample(alphas)
+                _, d, w, dt, f = pl.sample(alphas)
             R[offs[j]:offs[j + 1]] = r; D[offs[j]:offs[j + 1]] = d
             Wv[offs[j]:offs[j + 1]] = w; F[offs[j]:offs[j + 1]] = f
+            Dt[offs[j]:offs[j + 1]] = dt
 
-        fps = _render_fps(R, D, Wv, F, t, win, W)
+        fps = _render_fps(R, D, Wv, F, t, win, W, duty=Dt)
 
         # Per-pair metrics from the flat fingerprints.
         d_seq = (fps[1:] - fps[:-1]).abs().sum(1).cpu().numpy()
@@ -841,11 +855,13 @@ def _render_pairs_metrics(ops_all, fb, a: np.ndarray, b: np.ndarray,
         k = ladders[0].k
         R = np.empty((offs[-1], k)); D = np.empty((offs[-1], k))
         Wv = np.empty((offs[-1], k)); F = np.empty(offs[-1])
+        Dt = np.empty((offs[-1], k))
         for j, ((alphas, _), pl) in enumerate(zip(alphas_per, ladders)):
-            r, dep, w, f = pl.sample(alphas)
+            r, dep, w, dt, f = pl.sample(alphas)
             R[offs[j]:offs[j + 1]] = r; D[offs[j]:offs[j + 1]] = dep
             Wv[offs[j]:offs[j + 1]] = w; F[offs[j]:offs[j + 1]] = f
-        fps = _render_fps(R, D, Wv, F, t, win, W)
+            Dt[offs[j]:offs[j + 1]] = dt
+        fps = _render_fps(R, D, Wv, F, t, win, W, duty=Dt)
         d_seq = (fps[1:] - fps[:-1]).abs().sum(1).cpu().numpy()
         for j in range(c1 - c0):
             alphas, ev = alphas_per[j]
@@ -1042,7 +1058,7 @@ def render_audio(map_path: FsPath, n_each: int = 10, seconds: float = 2.5,
     def render_pair(ai, bi, name):
         pl = PairLadder(ops_all[ai], ops_all[bi], fb[ai], fb[bi])
         alphas = np.linspace(0.0, 1.0, steps)
-        ratio, depth, wave, fbv = pl.sample(alphas)
+        ratio, depth, wave, dutyv, fbv = pl.sample(alphas)
         audio = np.zeros(steps * seg + fade, np.float32)
         for s in range(steps):
             t0 = s * seg / sr
@@ -1054,8 +1070,10 @@ def render_audio(map_path: FsPath, n_each: int = 10, seconds: float = 2.5,
             wv = torch.as_tensor(wave[s:s + 1], dtype=torch.float32, device=DEVICE)
             bt = torch.as_tensor(fbv[s:s + 1], dtype=torch.float32,
                                  device=DEVICE) * float(np.pi)
+            dtv = torch.as_tensor(dutyv[s:s + 1], dtype=torch.float32,
+                                  device=DEVICE)
             x = render_batch(lr, dp, torch.zeros_like(lr), t, F_CARRIER,
-                             feedback=bt, waves=wv)[0].cpu().numpy()
+                             feedback=bt, waves=wv, duties=dtv)[0].cpu().numpy()
             x[:fade] *= ramp
             x[-fade:] *= ramp[::-1]
             audio[s * seg: s * seg + seg + fade] += x

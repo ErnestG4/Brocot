@@ -23,6 +23,8 @@ namespace
             o.depth    = (float) (double) obj->getProperty ("depth");
             o.enabled  = (bool) obj->getProperty ("enabled");
             o.waveform = (int) obj->getProperty ("wave");   // absent ⇒ 0 (sine)
+            if (obj->hasProperty ("duty"))                  // absent ⇒ 0.25
+                o.duty = (float) (double) obj->getProperty ("duty");
         }
         return o;
     }
@@ -411,6 +413,48 @@ Landscape::waypoints (int startNode, const juce::String& family) const
     for (int idx : route (startNode, family))
         if (auto* n = node (idx))
             out.push_back ({ n->ops, n->feedback });
+    return out;
+}
+
+std::vector<Landscape::Waypoint>
+Landscape::densityLadder (int startNode, int maxStops, int& startIndexOut) const
+{
+    startIndexOut = 0;
+    std::vector<Waypoint> out;
+    const auto* start = node (startNode);
+    if (start == nullptr || maxStops < 2)
+        return out;
+
+    // Family-mates, sorted by the measured density field.
+    std::vector<int> mates;
+    for (int i = 0; i < (int) nodes.size(); ++i)
+        if (nodes[(size_t) i].family == start->family)
+            mates.push_back (i);
+    if ((int) mates.size() < 2)
+        return out;
+    std::sort (mates.begin(), mates.end(), [this] (int a, int b)
+               { return nodes[(size_t) a].dense < nodes[(size_t) b].dense; });
+
+    // Quantile-spaced stops across the family's density range (endpoints
+    // always included) — a full slider sweep is a legible morph, not a
+    // thousand-hop crawl.
+    std::vector<int> stops;
+    const int n = (int) mates.size();
+    const int k = juce::jmin (maxStops, n);
+    for (int s = 0; s < k; ++s)
+        stops.push_back (mates[(size_t) ((long long) s * (n - 1) / (k - 1))]);
+
+    // Cursor entry: the stop nearest the start node's own density.
+    float bestGap = 1.0e9f;
+    for (int s = 0; s < (int) stops.size(); ++s)
+    {
+        const float gap = std::abs (nodes[(size_t) stops[(size_t) s]].dense
+                                    - start->dense);
+        if (gap < bestGap) { bestGap = gap; startIndexOut = s; }
+    }
+
+    for (int idx : stops)
+        out.push_back ({ nodes[(size_t) idx].ops, nodes[(size_t) idx].feedback });
     return out;
 }
 

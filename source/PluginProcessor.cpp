@@ -763,6 +763,8 @@ void BrocotAudioProcessor::applyOps (const std::vector<PullIndex::OpState>& stat
             p->setValueNotifyingHost (p->convertTo0to1 (states[(size_t) i].depth));
         if (auto* p = apvts.getParameter (params::opId (i, "waveform")))
             p->setValueNotifyingHost (p->convertTo0to1 ((float) states[(size_t) i].waveform));
+        if (auto* p = apvts.getParameter (params::opId (i, "duty")))
+            p->setValueNotifyingHost (p->convertTo0to1 (states[(size_t) i].duty));
     }
 
     rebuildOpPositionLUTs();

@@ -18,6 +18,7 @@
 */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <juce_core/juce_core.h>
@@ -488,4 +489,16 @@ TEST_CASE ("PullIndex: getCategoryNamesStartingWith finds Textured-Smooth keys")
     const auto bad = juce::String ("Textured-Smooth · 8 ops");
     INFO ("bad literal bytes: " << bad.toRawUTF8());
     REQUIRE (idx.getCategory (bad) == nullptr);
+}
+
+TEST_CASE ("morph lerps duty like depth", "[PullIndex]")
+{
+    using OpState = brocot::PullIndex::OpState;
+    const std::vector<OpState> cur { { "R", 1.0f, true, 4, 0.10f } };
+    const std::vector<OpState> tgt { { "R", 1.0f, true, 4, 0.40f } };
+
+    const auto mid = brocot::PullIndex::morph (cur, tgt, 0.5f);
+    REQUIRE (mid.front().duty == Catch::Approx (0.25f));
+    REQUIRE (brocot::PullIndex::morph (cur, tgt, 0.0f).front().duty == Catch::Approx (0.10f));
+    REQUIRE (brocot::PullIndex::morph (cur, tgt, 1.0f).front().duty == Catch::Approx (0.40f));
 }

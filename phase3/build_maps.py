@@ -45,6 +45,7 @@ VARIANTS: dict[str, tuple[str, str, str, str | None, int]] = {
     "6sine": ("gpu_bank_6sine.npz","landscape_labels_6sine.npz","landscape_graph_6sine.json.gz","6op sine", 30_000),
     "6sqr":  ("gpu_bank_6sqr.npz", "landscape_labels_6sqr.npz", "landscape_graph_6sqr.json.gz", "6op sqr",  30_000),
     "6tri":  ("gpu_bank_6tri.npz", "landscape_labels_6tri.npz", "landscape_graph_6tri.json.gz", "6op tri",  30_000),
+    "6pls":  ("gpu_bank_6pls.npz", "landscape_labels_6pls.npz", "landscape_graph_6pls.json.gz", "6op pls",  30_000),
 }
 
 K = 12              # k-NN graph degree (gpu_paths default)
