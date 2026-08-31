@@ -76,14 +76,17 @@ inline const Landmark* nearest (float depth, float tolerance = 0.12f) noexcept
     m, unlike upward recurrence which blows up for m > x), normalised by the
     sum rule J_0 + 2(J_2 + J_4 + …) = 1. Accurate to well past what a meter
     needs across the audible index range (x ≲ 8). Self-contained — no external
-    special-function dependency. */
-inline float J (int m, float xf) noexcept
+    special-function dependency.
+
+    Jd is the double-precision core; J is the float convenience wrapper. Use
+    Jd wherever a threshold comparison is made (Horizon.h's order bound flooring
+    |J_n| against ε = 1e-3 must agree with scipy's double-precision jv). */
+inline double Jd (int m, double x) noexcept
 {
     const int n = std::abs (m);
-    const double x = (double) xf;
 
     if (x == 0.0)
-        return n == 0 ? 1.0f : 0.0f;
+        return n == 0 ? 1.0 : 0.0;
 
     // Start order comfortably above both n and x, and even (the sum rule pairs
     // even indices).
@@ -114,7 +117,12 @@ inline float J (int m, float xf) noexcept
     const double norm = 2.0 * sum - bj;                // bj == f_0 here
     double result = ans / norm;
     if (m < 0 && (n & 1)) result = -result;            // J_{-n} = (-1)^n J_n
-    return (float) result;
+    return result;
+}
+
+inline float J (int m, float xf) noexcept
+{
+    return (float) Jd (m, (double) xf);
 }
 
 /** Coarse regime label per the spec's depth-range descriptions. */
