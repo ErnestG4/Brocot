@@ -563,8 +563,11 @@ separation of axes as this document has measured.
 >
 > **Audibility, and σ-conditional.** "No coincidence becomes audible at any β" is
 > a *measurement* under the masking model, and that model's auditory-filter width
-> is not yet settled — it is what Stage B is for. The null held at both widths
-> tested, so it will very likely survive; but it is downstream of σ like
+> is not yet settled. *(A first draft said "it is what Stage B is for" — stale:
+> Stage B ran and the arc re-posed the question rather than pinning σ; there is
+> no perceptual wall to pin, and audibility claims are criterion-parametric —
+> see MAP-FIELD.md's listening-arc note.)* The null held at both widths tested,
+> so it will very likely survive; but it is downstream of the criterion like
 > everything else that came out of Stage A, and it is not proved the way the
 > structural half is.
 >

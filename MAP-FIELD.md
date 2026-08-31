@@ -276,6 +276,15 @@ when **both** its witness partials do (`brocot_masked_horizon.json`):
 
 **At I = 0.9 only the unison coincidence clears threshold.** 1/1's witnesses sit
 at +10.7 dB signal-to-masker; 3/4's at −21 to −34 dB; 4/5's at −34 to −51 dB.
+
+> **Corrected 2026-08-26 (`bbaa045`, criticality_tool): the one clearing
+> exemplar was degenerate.** At α = 1 the two operators are identical and the
+> spectrum is a 7-partial harmonic series — the +10.7 dB "witness" was a
+> partial in a sparse series, not two sidebands meeting, and α = 1 was struck
+> from the Stage B bank pre-data on exactly this ground. The corrected
+> headline: **ZERO of the 12 non-degenerate below-horizon ratios clear
+> masking, at every index tested.** The counts in the table stand; the
+> unison row's status as a coincidence does not.
 The derived criterion is also far stabler than the chosen one — 0% change across
 12 dB of margin, where the dB floor moved 40% across 20 dB — but it is sensitive
 to the auditory filter's assumed width, which is why I ≥ 2 is given as a range.
@@ -297,11 +306,48 @@ At I = 0.9 the answer holds (1–2) across a fourfold width change.
 
 **The floor is not a free parameter, and it does not cancel out.** Moving from −40 to −60 dB
 changes the audible count by 40% — this was sealed as a robustness prediction and it **failed**,
-so any audible count must travel with the floor it was computed at. What the right floor is
-depends on masking in a dense spectrum and on the playback context, and is not settled here.
-`queue.py: audible-horizon-calibration` carries the proper measurement — an excitation-pattern
-masked-threshold census, then a 2AFC detune-twin discrimination against the instrument's own
-`setDetuneCents`, which is the listening test that would fix the floor empirically.
+so any audible count must travel with the floor it was computed at.
+
+> **The listening arc RAN, and it re-posed this question (2026-08-26..28,
+> criticality_tool `0c29f8e` "framing death"; full provenance below).** The
+> old ask here — a detune-twin discrimination "that would fix the floor
+> empirically" — presumed a perceptual wall exists to be fixed. It does not:
+> detection has no wall, so **"audible" is a property of a model with a
+> criterion in it, never of the spectrum**, and the honest deliverable is the
+> audible count **as a function of criterion** (answerable without listeners,
+> mostly already computed). The masked-horizon *measurement* above is
+> untouched; the reading "what a player hears" is dead as stated.
+>
+> What the run itself showed, kept with its own refutation: a sealed
+> 3-interval odd-one-out protocol (`brocot_stageb_protocol`, amended from
+> 2AFC pre-data), 12 non-degenerate merge ratios vs their 6-cent twins at
+> I = 0.9, an above-horizon beat arm as the inclusion gate. The listener
+> cleared the gate 22/22 and answered **39/39** on the merge arm
+> (`brocot_stageb_score.json`, `b4_count_above_bar: 9` — off the end of the
+> sealed σ scale). **This neither confirms nor refutes the masking model —
+> the contrast is void**: a 6-cent ratio detune moves every α-dependent
+> partial (26 of 31 at 5/4, up to 30.3 cents), so the twin is simply a
+> different spectrum, and the answered set was selected by a skip button.
+> What survives is physical and useful: the fusion-vs-beat cue is **present
+> in the delivered 16-bit signal for all 12 ratios** — 21.3 to 101.0 dB
+> above the envelope-spectrum floor, invariant across render floors 1e-4 to
+> 1e-9 and through int16 (`CUE_IS_PRESENT_THROUGHOUT`, which retracts its
+> predecessor's "not in the signal at all" mechanism). The listener's skips
+> correlate with structure of the exact-vs-twin difference (|ρ| ≈ 0.6) but
+> concentration and loudness could not be separated
+> (`SKIP_STRUCTURE_IS_REAL_MECHANISM_UNRESOLVED` — a selected-maximum and an
+> undiscriminating arm, the two defects that produced the ARS rival and
+> swing rules).
+>
+> Provenance: criticality_tool/cross_substrate —
+> `brocot_stageb_protocol.{py,json}` (PROTOCOL_SEALED_AWAITING_DATA, B1–B4),
+> `brocot_stageb_trials.py` → `listen.html`, `brocot_stageb_score.{py,json}`,
+> `brocot_modulation_cue.json` (STIMULUS_CONTRAST_IS_CLEAN, cue real but not
+> isolated), `brocot_cue_presence.json` (CUE_IS_PRESENT_THROUGHOUT),
+> `brocot_cue_salience.json` (sealed SKIPS_TRACK_SALIENCE, amended to
+> MECHANISM_UNRESOLVED); commits `8a76ec0`, `bbaa045`, `be30475` (cite only
+> with its retraction), `33661f1`, `4777535`, `0c29f8e`, `2d8713f`,
+> `27604a0`.
 
 ## The depth control subdivides it
 
@@ -345,9 +391,13 @@ separation**, not on the region:
 | 8 – 20 Hz | rough | one tone, buzzing |
 | > 20 Hz | separate | two audible components |
 
-**Gating:** *"heard as"* waits on the ERB check or on listening
-(`queue.py: heard-as-listening`). Cheap to add later; expensive to walk back
-from a shipped label.
+**Gating:** *"heard as"* is NOT earned, and its gate changed KIND in the
+listening arc (2026-08-28): it no longer waits on a listening test — that
+route is judged unrunnable with a ratio detune, since one α controls every
+partial and no such contrast can attribute a discrimination to the
+coincidence — it waits on **a manipulation that splits the witness pair
+while leaving the rest within a JND**, which may not exist. Expensive to
+walk back from a shipped label, and now also not cheap to add later.
 
 **May not say** that regions are perceptually equal-width — they are not, and
 four linearisation attempts failed on two coordinates (`brocot_linear_morph`;
