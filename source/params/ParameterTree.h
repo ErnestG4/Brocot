@@ -74,6 +74,8 @@ namespace params
         OpPosition,
         ModRate,
         ModDepth,
+        Feedback,   // op-0 self-feedback amount (additive on the 0..1 param;
+                    // appended so stored raw indices keep their meaning)
         Count
     };
 

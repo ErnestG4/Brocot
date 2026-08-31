@@ -35,11 +35,13 @@ namespace brocot
         the op's effective depth, in 0..8 op-depth units), so we scale
         spec.depth by kDepthSwing to approximate the offline swing at
         typical map op depths — not the exact multiplicative curve.
-      · The bank has NO feedback route at all (params::TargetKind has no
-        Feedback member), so kind-1 (op-0 feedback) specs are approximated
-        as OpDepth modulation of op 0: both produce a periodic
-        brightness/level wobble of the feedback-coloured component, but the
-        spectra are not identical.
+      · Kind-1 (op-0 feedback) specs route to the REAL Feedback target
+        (params::TargetKind::Feedback, added 2026-08-31 — before that they
+        were approximated as op-0 depth wobble). The runtime route is
+        additive on the 0..1 feedback amount while the offline model was
+        multiplicative (fb0·(1 + d·sin)), so the plan scales spec.depth by
+        kFeedbackSwing ≈ the swing at mid feedback; magnitude is approximate,
+        speed/shape/route are exact.
     The mapping therefore targets AUDIBLE EQUIVALENCE (a wobble of the same
     speed, shape and rough magnitude on the same operator), not bit-parity
     with the offline trajectory fingerprints.
@@ -59,6 +61,13 @@ namespace modapply
         return juce::String ("mod") + juce::String (slot)
              + juce::String (".") + juce::String (key);
     }
+
+    /** = (int) params::TargetKind::Feedback in the targetKind choice list. */
+    inline constexpr int kTargetKindFeedback = 7;
+
+    /** Additive swing on the 0..1 feedback amount per unit spec depth —
+        matches the offline multiplicative model at fb0 = 0.5. */
+    inline constexpr float kFeedbackSwing = 0.5f;
 
     /** = (int) params::TargetKind::OpDepth in the targetKind choice list
         (Filter cutoff, Carrier AM, Carrier FM, Op depth, ...). */
@@ -98,14 +107,17 @@ namespace modapply
             return plan;
 
         const float rate  = juce::jlimit (kRateMinHz, kRateMaxHz, spec.rate);
-        const float depth = juce::jlimit (0.0f, 1.0f, spec.depth) * kDepthSwing;
+        const bool  isFeedback = spec.kind == 1;
+        const float depth = juce::jlimit (0.0f, 1.0f, spec.depth)
+                          * (isFeedback ? kFeedbackSwing : kDepthSwing);
         const int   shape = spec.shape == 1 ? kShapeTriangle : kShapeSine;
-        // kind 0 → that op's depth; kind 1 (feedback) → op-0 depth, the
-        // closest audible route the bank offers (see honesty note above).
-        // targetIndex is an IntParam 0..15 (and the processor clamps to the
-        // same range), so that is the hard ceiling — fine for mod maps,
-        // which are ≤ 16-op (the shipped one is 6-op).
-        const int targetOp = spec.kind == 1 ? 0 : juce::jlimit (0, 15, spec.op);
+        // kind 0 → that op's depth; kind 1 → the real op-0 Feedback route
+        // (see honesty note above for the units). targetIndex is an IntParam
+        // 0..15 (and the processor clamps to the same range), so that is the
+        // hard ceiling — fine for mod maps, which are ≤ 16-op (the shipped
+        // one is 6-op).
+        const int targetKind = isFeedback ? kTargetKindFeedback : kTargetKindOpDepth;
+        const int targetOp   = isFeedback ? 0 : juce::jlimit (0, 15, spec.op);
 
         auto add = [&plan, slot] (const char* key, float v)
         { plan.emplace_back (slotParamId (slot, key), v); };
@@ -116,7 +128,7 @@ namespace modapply
         add ("depth",       depth);
         add ("lockKind",    0.0f);                 // Free — rate is the spec's
         add ("lockIndex",   0.0f);
-        add ("targetKind",  (float) kTargetKindOpDepth);
+        add ("targetKind",  (float) targetKind);
         add ("targetIndex", (float) targetOp);
         add ("psk",         0.0f);                 // no phase quantization
         add ("pskSmooth",   0.0f);
@@ -142,6 +154,8 @@ namespace modapply
                    "modapply mirror drifted from params::kNumModulators");
     static_assert (kTargetKindOpDepth == (int) params::TargetKind::OpDepth,
                    "modapply mirror drifted from params::TargetKind");
+    static_assert (kTargetKindFeedback == (int) params::TargetKind::Feedback,
+                   "modapply mirror drifted from params::TargetKind::Feedback");
 
     /** Execute reset + one plan per spec (spec i → bank slot i; specs past
         the bank size are ignored) via setValueNotifyingHost. Values are

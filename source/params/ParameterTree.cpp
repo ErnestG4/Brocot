@@ -201,7 +201,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     };
     const juce::StringArray targetKindChoices {
         "Filter cutoff", "Carrier AM", "Carrier FM",
-        "Op depth", "Op position", "Mod rate", "Mod depth"
+        "Op depth", "Op position", "Mod rate", "Mod depth",
+        "Feedback (op 1)"
     };
     const juce::StringArray pskChoices { "Off", "2", "4", "8", "16" };
 

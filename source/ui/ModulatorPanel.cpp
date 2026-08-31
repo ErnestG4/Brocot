@@ -97,6 +97,7 @@ ModulatorPanel::ModulatorPanel (BrocotAudioProcessor& processor, int modIndexIn)
     targetKindCombo.addItem ("op position",   5);
     targetKindCombo.addItem ("mod rate",      6);
     targetKindCombo.addItem ("mod depth",     7);
+    targetKindCombo.addItem ("feedback (op1)", 8);
     targetKindAttach = std::make_unique<ComboAttach> (
         apvts, params::modId (modIndex, "targetKind"), targetKindCombo);
 

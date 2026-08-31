@@ -157,6 +157,9 @@ private:
     };
     std::array<OpParamPtrs, params::kNumOperators> opParams {};
     std::atomic<float>* op0FeedbackParam { nullptr };
+    float lastFeedbackAdd { 0.0f };   // TargetKind::Feedback hysteresis: lets
+                                      // the base value be restored on the
+                                      // first sample after modulation stops
     void cacheParameterPointers();
 
     // Compile-time max voice pool. "poly" mode runs up to the maxVoices param

@@ -54,6 +54,8 @@ public:
         std::array<float, N_OPS> opDepthAdd {};  // zero-initialised
         float carrierAmGain  { 1.0f };  // multiplicative on carrier amplitude
         float carrierFmHz    { 0.0f };  // additive Hz offset on carrier freq
+        float feedbackAdd    { 0.0f };  // additive on op-0 feedback amount01
+                                        // (applied processor-side; clamped 0..1)
     };
 
     /** Render one sample. Returns the produced value for this voice, summed

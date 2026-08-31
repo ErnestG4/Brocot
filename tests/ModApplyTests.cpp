@@ -68,22 +68,24 @@ TEST_CASE ("modParamPlan realizes a depth-target sine spec", "[ModApply]")
     CHECK (requireValue (plan, "mod0.kappa")     == Catch::Approx (8.0f));
 }
 
-TEST_CASE ("modParamPlan maps a feedback-target spec onto op-0 depth", "[ModApply]")
+TEST_CASE ("modParamPlan maps a feedback-target spec onto the Feedback route",
+           "[ModApply]")
 {
-    // kind 1 = op-0 feedback. The bank has no feedback route (TargetKind
-    // has no Feedback member) — the documented approximation is OpDepth on
-    // op 0, whatever the spec's op field says.
+    // kind 1 = op-0 feedback. Since 2026-08-31 the bank HAS a feedback route
+    // (params::TargetKind::Feedback = 7); the old op-0-depth approximation is
+    // retired. Depth scales by kFeedbackSwing (additive-vs-multiplicative
+    // unit bridge), and the index pins op 0 whatever the spec's op says.
     Landscape::ModSpec spec { 1, 5, 0, 0.33f, 0.45f };
     const auto plan = modapply::modParamPlan (spec, 2);
 
     for (const auto& [id, v] : plan)
         CHECK (id.startsWith ("mod2."));
     CHECK (requireValue (plan, "mod2.targetKind")
-               == Catch::Approx ((float) modapply::kTargetKindOpDepth));
+               == Catch::Approx ((float) modapply::kTargetKindFeedback));  // 7
     CHECK (requireValue (plan, "mod2.targetIndex") == Catch::Approx (0.0f));
     CHECK (requireValue (plan, "mod2.rate")  == Catch::Approx (0.33f));
     CHECK (requireValue (plan, "mod2.depth")
-               == Catch::Approx (0.45f * modapply::kDepthSwing));
+               == Catch::Approx (0.45f * modapply::kFeedbackSwing));
 }
 
 TEST_CASE ("modParamPlan maps tri onto the bank's Triangle choice", "[ModApply]")

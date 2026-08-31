@@ -532,6 +532,13 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                     modDepthAdj[(size_t) safe] += v;
                     break;
                 }
+                case params::TargetKind::Feedback:
+                    // Additive on op-0's 0..1 feedback amount (full LFO swing
+                    // ±1); the application below clamps. The real route the
+                    // mod map's kind-1 specs were approximating via op-0
+                    // depth until this member existed.
+                    psm.feedbackAdd += v;
+                    break;
                 case params::TargetKind::Count:
                     break;
             }
@@ -539,6 +546,19 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
         // Clamp carrier AM so heavy modulation doesn't go negative.
         psm.carrierAmGain = juce::jlimit (0.0f, 4.0f, psm.carrierAmGain);
+
+        // Op-0 feedback modulation: base param + LFO offset, clamped to the
+        // param's own 0..1 range. Applied only while a mod is actually
+        // driving it (and once more to restore the base when it stops) so an
+        // unmodulated patch keeps the block-rate value untouched.
+        if (psm.feedbackAdd != 0.0f || lastFeedbackAdd != 0.0f)
+        {
+            const float base = op0FeedbackParam != nullptr ? op0FeedbackParam->load() : 0.0f;
+            const float fb = juce::jlimit (0.0f, 1.0f, base + psm.feedbackAdd);
+            for (auto& vox : voices)
+                vox.op (0).setFeedback (fb);
+            lastFeedbackAdd = psm.feedbackAdd;
+        }
 
         // 4. Render the voices into a mono sum. Idle voices (envelope fully
         //    decayed to silence) contribute exactly 0 — skip the 64-op inner
