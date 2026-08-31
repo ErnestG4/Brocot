@@ -171,3 +171,30 @@ op-count-shaped (16-64mix) — consistent with the aggregate finding that
 op-count is the dominant axis. More fine-tune epochs won't fix the
 high-op maps; a high-op-native pretraining set would. **Fleet total:
 19,706 verified wormholes across 16 maps.**
+
+## Pulse regen (2026-08-31) — 6pls joins, the six mixes re-mined
+
+Pulse joined the mix banks (per-op wave 0..4 + per-config duty; the duty
+travels bank → map `ops[].duty` → C++ morph, see the duty-schema commit)
+and a 6-op solo pulse map (`6pls`) joined the fleet. **Regenerating a map
+invalidates its jumps**, so all seven ran the full `finetune-map` chain
+(80k pairs, 6 epochs from the base checkpoint) against their own fresh τ.
+Shipped numbers are render-verified, as always:
+
+| map | τ | fine-tuned pass | shipped | median r | median g |
+|---|---|---|---|---|---|
+| 6pls  | 0.212 | 29.5% | 1,357 | 0.055 | 1.5 |
+| 4mix  | 0.282 | 20.0% | 1,344 | 0.116 | 1.5 |
+| 6mix  | 0.276 | 23.8% | 1,241 | 0.144 | 1.6 |
+| 8mix  | 0.264 | 30.2% | 1,326 | 0.131 | 1.9 |
+| 16mix | 0.237 | 17.0% | 1,085 | 0.162 | 1.7 |
+| 32mix | 0.217 | 16.3% | 1,082 | 0.152 | 1.7 |
+| 64mix | 0.206 | 12.1% | 1,020 | 0.152 | 1.5 |
+
+On the three highest-op maps the fine-tune slightly UNDERSHOT the
+base net's proposal pass rate (16mix 21.9% → 17.0%, 32mix 21.5% → 16.3%,
+64mix 14.6% → 12.1%) — the pulse-joined distribution moved and six epochs
+from the old checkpoint track it imperfectly; the shipped edges are
+unaffected (verified against τ regardless of which net proposed).
+**Fleet after the regen: 8,455 wormholes across these 7 maps; the other
+10 maps' blocks are untouched.**
