@@ -482,6 +482,8 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
         // 3. Dispatch each mod's output to its routing target.
         BrocotVoice::PerSampleMod psm;
         float cutoffMod01 = 0.0f;   // additive offset on 0..1 cutoff space
+        float retrigSum   = 0.0f;   // EnvRetrig gate accumulator
+        bool  anyRetrig   = false;
 
         for (int i = 0; i < params::kNumModulators; ++i)
         {
@@ -546,6 +548,14 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
                     // depth until this member existed.
                     psm.feedbackAdd += v;
                     break;
+                case params::TargetKind::EnvRetrig:
+                    // Gate source: contributions SUM, and the crossing
+                    // detector below fires on the composite — several
+                    // ratio-locked LFOs routed here turn their interference
+                    // pattern into rhythm.
+                    retrigSum += v;
+                    anyRetrig = true;
+                    break;
                 case params::TargetKind::Count:
                     break;
             }
@@ -565,6 +575,29 @@ void BrocotAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             for (auto& vox : voices)
                 vox.op (0).setFeedback (fb);
             lastFeedbackAdd = psm.feedbackAdd;
+        }
+
+        // EnvRetrig gate: fire on each UPWARD crossing of the summed gate
+        // signal through zero, with hysteresis (±0.05) against chatter and a
+        // 5 ms cooldown against audio-rate machine-gunning. Retriggers only
+        // ACTIVE voices' envelopes — a decayed voice stays silent, so the
+        // gate re-articulates held notes rather than resurrecting dead ones.
+        // juce::ADSR restarts the attack from the CURRENT level, so hits are
+        // click-free. Beats between ratio-locked LFOs land here as rhythm:
+        // the interference pattern's crossings are the hits.
+        if (anyRetrig)
+        {
+            if (retrigCooldown > 0) --retrigCooldown;
+            if (retrigSum < -0.05f)
+                retrigArmed = true;
+            else if (retrigArmed && retrigSum > 0.05f && retrigCooldown == 0)
+            {
+                for (int v = 0; v < activeVoiceCount; ++v)
+                    if (voices[(size_t) v].isActive())
+                        voices[(size_t) v].envelope().noteOn();
+                retrigArmed = false;
+                retrigCooldown = (int) (getSampleRate() * 0.005);
+            }
         }
 
         // 4. Render the voices into a mono sum. Idle voices (envelope fully

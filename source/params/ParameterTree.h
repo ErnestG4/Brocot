@@ -76,6 +76,11 @@ namespace params
         ModDepth,
         Feedback,   // op-0 self-feedback amount (additive on the 0..1 param;
                     // appended so stored raw indices keep their meaning)
+        EnvRetrig,  // rising-crossing gate: mods routed here SUM, and each
+                    // upward crossing of the sum through zero (with
+                    // hysteresis + a short cooldown) retriggers the amp
+                    // envelope of every active voice — beat/interference
+                    // patterns between ratio-locked LFOs become rhythm
         Count
     };
 

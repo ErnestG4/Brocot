@@ -162,6 +162,8 @@ private:
     float lastFeedbackAdd { 0.0f };   // TargetKind::Feedback hysteresis: lets
                                       // the base value be restored on the
                                       // first sample after modulation stops
+    bool  retrigArmed { true };       // TargetKind::EnvRetrig crossing state
+    int   retrigCooldown { 0 };       // samples until the gate may fire again
     void cacheParameterPointers();
 
     // Compile-time max voice pool. "poly" mode runs up to the maxVoices param
