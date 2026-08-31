@@ -73,7 +73,7 @@ void RatioReadout::refreshFromProcessor()
 
             // Coherence uses the base path ratio (the axis the readout shows)
             // and the operator depth as the FM modulation index.
-            coherenceOps.push_back ({ path.ratio(), (double) depth });
+            coherenceOps.push_back ({ path.ratio(), (double) depth, n, d });
         }
     }
 

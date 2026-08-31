@@ -65,6 +65,9 @@ struct OpSpec
 {
     double ratio { 0.0 };   // f_mod / f_carrier (exact p/q from Path::ratio)
     double index { 0.0 };   // FM modulation index = operator depth
+    int    p     { 0 };     // exact rational, as Path::walk yields it;
+    int    q     { 0 };     // 0/0 = unknown (legacy callers) — horizon
+                            // reachability checks are skipped without it
 };
 
 struct Result

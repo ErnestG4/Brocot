@@ -331,7 +331,7 @@ void SteerTab::updateSuggestions()
         const Path path (proc.getOpPath (i));
         int n, d;
         path.walk (n, d);
-        current.push_back ({ path.ratio(), (double) depth });
+        current.push_back ({ path.ratio(), (double) depth, n, d });
         depthSum += depth;
 
         // Base = the shortest enabled path (the family's common ancestor),
@@ -366,7 +366,13 @@ void SteerTab::updateSuggestions()
 
     if (sugg.empty())
     {
-        hideChips ("no distinct prefix-extension improves coherence");
+        // Two different facts deserve two different captions: with the
+        // horizon filter in, an empty set usually means no extension can
+        // reach a coincidence at these depths (raising depth extends the
+        // horizon), not that none improves the score.
+        hideChips (coherence::anyReachableExtension (current, base, suggestIndex, 3)
+                       ? "no distinct prefix-extension improves coherence"
+                       : "no extension can coincide at these depths - raise depth to extend the horizon");
         return;
     }
 
